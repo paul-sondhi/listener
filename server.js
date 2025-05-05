@@ -5,11 +5,12 @@ const app = express();
 app.use(express.static('public'));
 const _nf = require('node-fetch');
 const fetch = _nf.default || _nf;
+const { getSpotifyAccessToken } = require('./spotify');
 
 function getAuthHeaders() {
     // Read key/secret
-    const key = process.env.PI_KEY;
-    const secret = process.env.PI_SECRET;
+    const key = process.env.PODCASTINDEX_KEY;
+    const secret = process.env.PODCASTINDEX_SECRET;
     // Unix timestamp in seconds
     const date = Math.floor(Date.now() / 1000).toString();
     // HMAC-SHA1 of (key + date) using your secret
@@ -43,11 +44,10 @@ app.get('/api/download', async (req, res) => {
     // Get the podcast show slug
     let slug;
     try {
-    slug = await getTitleSlug(spotifyUrl);
+      slug = await getTitleSlug(spotifyUrl);
     } catch (err) {
-    return res
-        .status(500)
-        .json({ error: 'Failed to fetch title from Spotify oEmbed.' });
+      console.error('getTitleSlug error:', err);
+      return res.status(500).json({ error: err.message });
     }
     // Return a success message if the above validations pass
     return res.json({ slug });
@@ -55,22 +55,32 @@ app.get('/api/download', async (req, res) => {
 });
 
 async function getTitleSlug(spotifyUrl) {
-    // Fetch oEmbed JSON
-    const res = await fetch(
-        `https://open.spotify.com/oembed?url=${encodeURIComponent(spotifyUrl)}`
-    );
-    if (!res.ok) {
-      throw new Error('oEmbed lookup failed');
-    }
-    const { title } = await res.json();
-    // Normalize title
-    let slug = title
-      .toLowerCase() // lower-case
-      .replace(/\|.*$/, '') // remove “| Podcast” and anything after
-      .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '') // strip emojis
-      .trim();                                // trim whitespace
-  
-    return slug;
+  // Use Spotify Web API to fetch the show name and slugify it
+  const cleanUrl = spotifyUrl.split('?')[0];
+  const { pathname } = new URL(cleanUrl);
+  const [, type, id] = pathname.split('/');
+  if (type !== 'show') {
+    throw new Error('getTitleSlug: URL is not a Spotify show link');
+  }
+  // Get an access token
+  const token = await getSpotifyAccessToken();
+  // Fetch show metadata from Spotify API
+  const apiRes = await fetch(`https://api.spotify.com/v1/shows/${id}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!apiRes.ok) {
+    throw new Error('Failed to fetch show from Spotify API');
+  }
+  const { name } = await apiRes.json();
+  if (!name) {
+    throw new Error('No show name returned from Spotify API');
+  }
+  // Normalize and slugify the show name
+  return name
+    .toLowerCase()
+    .replace(/\|.*$/, '')
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '')
+    .trim();
 }
 
 const PORT = process.env.PORT || 3000;
