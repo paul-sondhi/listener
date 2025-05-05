@@ -14,10 +14,10 @@ function getAuthHeaders() {
     const secret = process.env.PODCASTINDEX_SECRET;
     // Unix timestamp in seconds
     const date = Math.floor(Date.now() / 1000).toString();
-    // HMAC-SHA1 of (key + date) using your secret
+    // HMAC-SHA1 of (key + secret + date)
     const signature = crypto
-      .createHmac('sha1', secret)
-      .update(key + date)
+      .createHash('sha1')
+      .update(key + secret + date)
       .digest('hex');
     // Return the three required headers
     return {
@@ -59,9 +59,18 @@ app.get('/api/download', async (req, res) => {
         'User-Agent': process.env.USER_AGENT
       }
     });
+    // if (!searchRes.ok) {
+    //   return res.status(502).json({ error: 'PodcastIndex search failed' });
+    // }
     if (!searchRes.ok) {
-      return res.status(502).json({ error: 'PodcastIndex search failed' });
-    }
+        const body = await searchRes.text();
+        console.error('PodcastIndex error', searchRes.status, body);
+        return res.status(502).json({
+          error: 'PodcastIndex search failed',
+          status: searchRes.status,
+          details: body
+        });
+      }
     const { feeds } = await searchRes.json();
     if (!feeds || feeds.length === 0) {
       return res.status(404).json({ error: 'No feeds found for this podcast.' });
@@ -80,6 +89,8 @@ app.get('/api/download', async (req, res) => {
     }
     // Save feedUrl for next steps
     req.feedUrl = feedUrl;
+    // Temporary response to end the request and verify feedUrl
+    return res.json({ feedUrl });
 });
 
 async function getTitleSlug(spotifyUrl) {
