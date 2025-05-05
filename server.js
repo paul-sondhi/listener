@@ -1,12 +1,18 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const app = express();
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 const {  getTitleSlug, getFeedUrl  } = require('./lib/utils');
 // Import XML parser for parsing RSS feeds (Step 4.1)
 const { XMLParser } = require('fast-xml-parser');
 // Import Node.js Readable for streaming
 const { Readable } = require('stream');
+
+// Serve the frontend
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 app.get('/api/download', async (req, res) => {
     // Read the `url` param
@@ -91,7 +97,6 @@ app.get('/api/download', async (req, res) => {
     // Step 5.3: Convert Web ReadableStream to Node.js Readable and pipe
     const nodeStream = Readable.from(audioRes.body);
     nodeStream.pipe(res);
-    return console.log('It\'s downloading!');
 });
 
 const PORT = process.env.PORT || 3000;

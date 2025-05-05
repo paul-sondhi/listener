@@ -1,0 +1,38 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Listener 0.1</title>
+</head>
+<body>
+  <form id="download-form">
+    <input type="url" id="spotify-url" placeholder="Enter Spotify show URL" required />
+    <button type="submit">Download Episode</button>
+  </form>
+  <script>
+    document.getElementById('download-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const rssUrl = document.getElementById('spotify-url').value;
+      try {
+        const response = await fetch(
+          '/api/download?url=' + encodeURIComponent(rssUrl)
+        );
+        if (!response.ok) {
+          const errorData = await response.json();
+          alert('Error: ' + (errorData.error || response.status));
+          return;
+        }
+        // Trigger browser download prompt
+        window.location = response.url;
+      } catch (err) {
+        console.error('Download error:', err);
+        alert('Download failed: ' + err.message);
+      }
+    });
+  </script>
+</body>
+</html>
