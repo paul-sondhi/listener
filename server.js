@@ -5,7 +5,8 @@ const app = express();
 app.use(express.static('public'));
 const _nf = require('node-fetch');
 const fetch = _nf.default || _nf;
-const { getSpotifyAccessToken } = require('./spotify');
+const { getSpotifyAccessToken } = require('./public/spotify');
+const { jaccardSimilarity } = require('./public/utils');
 
 function getAuthHeaders() {
     // Read key/secret
@@ -49,9 +50,36 @@ app.get('/api/download', async (req, res) => {
       console.error('getTitleSlug error:', err);
       return res.status(500).json({ error: err.message });
     }
-    // Return a success message if the above validations pass
-    return res.json({ slug });
-    // return res.json({ message: '✅ Spotify URL looks good!' });
+    //Search PodcastIndex for the podcast by slug
+    const authHeaders = getAuthHeaders();
+    const searchUrl = `https://api.podcastindex.org/api/1.0/search/byterm?q=${encodeURIComponent(slug)}`;
+    const searchRes = await fetch(searchUrl, {
+      headers: {
+        ...authHeaders,
+        'User-Agent': process.env.USER_AGENT
+      }
+    });
+    if (!searchRes.ok) {
+      return res.status(502).json({ error: 'PodcastIndex search failed' });
+    }
+    const { feeds } = await searchRes.json();
+    if (!feeds || feeds.length === 0) {
+      return res.status(404).json({ error: 'No feeds found for this podcast.' });
+    }
+    // Pick the first feed where title similarity >= 0.8
+    let feedUrl;
+    for (const feed of feeds) {
+      if (jaccardSimilarity(feed.title.toLowerCase(), slug) >= 0.8) {
+        feedUrl = feed.url;
+        break;
+      }
+    }
+    // If none meet threshold, use the first result
+    if (!feedUrl) {
+      feedUrl = feeds[0].url;
+    }
+    // Save feedUrl for next steps
+    req.feedUrl = feedUrl;
 });
 
 async function getTitleSlug(spotifyUrl) {
