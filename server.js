@@ -5,6 +5,8 @@ app.use(express.static('public'));
 const {  getTitleSlug, getFeedUrl  } = require('./lib/utils');
 // Import XML parser for parsing RSS feeds (Step 4.1)
 const { XMLParser } = require('fast-xml-parser');
+// Import Node.js Readable for streaming
+const { Readable } = require('stream');
 
 app.get('/api/download', async (req, res) => {
     // Read the `url` param
@@ -73,8 +75,23 @@ app.get('/api/download', async (req, res) => {
     if (!mp3Url) {
       return res.status(500).json({ error: 'No enclosure URL found in first item.' });
     }
-    // For now, return MP3 URL to test Step 4.4
-    return res.json({ mp3Url });
+    // Fetch MP3 file as a stream
+    let audioRes;
+    try {
+      audioRes = await fetch(mp3Url);
+      if (!audioRes.ok) {
+        throw new Error(`MP3 fetch failed: ${audioRes.status}`);
+      }
+    } catch (err) {
+      console.error('MP3 fetch error:', err);
+      return res.status(502).json({ error: err.message });
+    }
+    // Set download header for MP3 attachment
+    res.setHeader("Content-Disposition", "attachment; filename=episode.mp3");
+    // Step 5.3: Convert Web ReadableStream to Node.js Readable and pipe
+    const nodeStream = Readable.from(audioRes.body);
+    nodeStream.pipe(res);
+    return console.log('It\'s downloading!');
 });
 
 const PORT = process.env.PORT || 3000;
