@@ -19,7 +19,7 @@
       const rssUrl = document.getElementById('spotify-url').value;
       try {
         const response = await fetch(
-          '/api/download?url=' + encodeURIComponent(rssUrl)
+          '/api/transcribe?url=' + encodeURIComponent(rssUrl)
         );
         if (!response.ok) {
           const errorData = await response.json();

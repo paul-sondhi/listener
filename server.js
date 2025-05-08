@@ -11,13 +11,14 @@ const {  getTitleSlug, getFeedUrl  } = require('./lib/utils');
 const { XMLParser } = require('fast-xml-parser');
 // Import Node.js Readable for streaming
 const { Readable } = require('stream');
+const { transcribe } = require('./lib/transcribe');
 
 // Serve the frontend
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/api/download', async (req, res) => {
+app.get('/api/transcribe', async (req, res) => {
     // Read the `url` param
     const spotifyUrl = req.query.url;
     if (!spotifyUrl) {
@@ -101,9 +102,16 @@ app.get('/api/download', async (req, res) => {
     const nodeStream = Readable.from(audioRes.body);
     nodeStream.pipe(out);
     await finished(out);
-    // Stream the temp file to the client
-    res.setHeader("Content-Disposition", "attachment; filename=episode.mp3");
-    fs.createReadStream(tmpFile).pipe(res);
+    // Transcribe downloaded audio and send text
+    try {
+      const transcriptText = await transcribe(tmpFile);
+      res.type('text/plain').send(transcriptText);
+    } catch (err) {
+      console.error('Transcription error:', err);
+      return res.status(502).json({ error: err.message });
+    } finally {
+      fs.unlink(tmpFile, () => {});
+    }
 });
 
 const PORT = process.env.PORT || 3000;
