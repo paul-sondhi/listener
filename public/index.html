@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,8 +24,17 @@
           alert('Error: ' + (errorData.error || response.status));
           return;
         }
-        // Trigger browser download prompt
-        window.location = response.url;
+        // Parse transcript text and trigger download as .txt file
+        const transcript = await response.text();
+        const blob = new Blob([transcript], { type: 'text/plain' });
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = 'transcript.txt';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(downloadUrl);
       } catch (err) {
         console.error('Download error:', err);
         alert('Download failed: ' + err.message);
