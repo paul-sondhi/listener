@@ -1,6 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const { finished } = require('stream/promises');
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 const {  getTitleSlug, getFeedUrl  } = require('./lib/utils');
@@ -92,11 +95,15 @@ app.get('/api/download', async (req, res) => {
       console.error('MP3 fetch error:', err);
       return res.status(502).json({ error: err.message });
     }
-    // Set download header for MP3 attachment
-    res.setHeader("Content-Disposition", "attachment; filename=episode.mp3");
-    // Convert Web ReadableStream to Node.js Readable and pipe
+    // Write audio to a temp file
+    const tmpFile = path.join(os.tmpdir(), `${slug}.mp3`);
+    const out = fs.createWriteStream(tmpFile);
     const nodeStream = Readable.from(audioRes.body);
-    nodeStream.pipe(res);
+    nodeStream.pipe(out);
+    await finished(out);
+    // Stream the temp file to the client
+    res.setHeader("Content-Disposition", "attachment; filename=episode.mp3");
+    fs.createReadStream(tmpFile).pipe(res);
 });
 
 const PORT = process.env.PORT || 3000;
