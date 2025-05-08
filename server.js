@@ -4,7 +4,7 @@ const path = require('path');
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 const {  getTitleSlug, getFeedUrl  } = require('./lib/utils');
-// Import XML parser for parsing RSS feeds (Step 4.1)
+// Import XML parser for parsing RSS feeds
 const { XMLParser } = require('fast-xml-parser');
 // Import Node.js Readable for streaming
 const { Readable } = require('stream');
@@ -63,7 +63,7 @@ app.get('/api/download', async (req, res) => {
       console.error('RSS fetch error:', err);
       return res.status(502).json({ error: err.message });
     }
-    //Parse rssText with fast-xml-parser
+    // Parse rssText with fast-xml-parser
     let rssObj;
     try {
       const parser = new XMLParser({ ignoreAttributes: false });
@@ -94,7 +94,7 @@ app.get('/api/download', async (req, res) => {
     }
     // Set download header for MP3 attachment
     res.setHeader("Content-Disposition", "attachment; filename=episode.mp3");
-    // Step 5.3: Convert Web ReadableStream to Node.js Readable and pipe
+    // Convert Web ReadableStream to Node.js Readable and pipe
     const nodeStream = Readable.from(audioRes.body);
     nodeStream.pipe(res);
 });
