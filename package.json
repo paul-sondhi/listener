@@ -1,21 +1,30 @@
 {
-  "name": "listener",
+  "name": "temp-listener",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev:server": "npm run dev -w server",
+    "dev:web":    "npm run dev -w web",
+    "build:web": "npm run build -w web",
+    "start":     "npm run start -w server",
+    "dev": "npm run dev:server & npm run dev:web"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paul-sondhi/listener.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/paul-sondhi/listener/issues"
+  },
+  "homepage": "https://github.com/paul-sondhi/listener#readme",
   "description": "",
-  "dependencies": {
-    "@deepgram/sdk": "^4.0.1",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0",
-    "fast-xml-parser": "^5.2.2",
-    "node-fetch": "^3.3.2"
-  }
+  "workspaces": [
+    "server",
+    "web"
+  ]
 }
