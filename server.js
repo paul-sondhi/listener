@@ -4,14 +4,12 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { finished } = require('stream/promises');
-const app = express();
-app.use(express.static(path.join(__dirname, 'public')));
-const {  getTitleSlug, getFeedUrl  } = require('./lib/utils');
-// Import XML parser for parsing RSS feeds
-const { XMLParser } = require('fast-xml-parser');
-// Import Node.js Readable for streaming
 const { Readable } = require('stream');
 const { transcribe } = require('./lib/transcribe');
+const podcastService = require('./services/podcastService');
+
+const app = express();
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve the frontend
 app.get('/', (req, res) => {
@@ -26,93 +24,48 @@ app.get('/api/transcribe', async (req, res) => {
         .status(400)
         .json({ error: 'Missing `url` query parameter.' });
     }
-    // Simple Spotify URL validation
-    const spotifyRegex = /^https:\/\/open\.spotify\.com\/show\/[A-Za-z0-9]+(?:\?[^\s]*)?$/;
-    if (!spotifyRegex.test(spotifyUrl)) {
+
+    // Validate Spotify URL
+    if (!podcastService.validateSpotifyUrl(spotifyUrl)) {
       return res
         .status(400)
         .json({ error: 'Invalid URL; must be a Spotify podcast show title.' });
     }
-    // Get the podcast show slug
-    let slug;
+
     try {
-      slug = await getTitleSlug(spotifyUrl);
-    } catch (err) {
-      console.error('getTitleSlug error:', err);
-      return res.status(500).json({ error: err.message });
-    }
-    // Get feedUrl via PodcastIndex search with iTunes fallback
-    let feedUrl;
-    try {
-      feedUrl = await getFeedUrl(slug);
-    } catch (err) {
-      console.error('getFeedUrl error:', err);
-      return res.status(502).json({ error: err.message });
-    }
-    if (!feedUrl) {
-      return res
-        .status(404)
-        .json({ error: 'Podcast has no public RSS; probably Spotify-exclusive.' });
-    }
-    req.feedUrl = feedUrl;
-    // Fetch RSS feed as text
-    let rssText;
-    try {
-      const response = await fetch(feedUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch RSS: ${response.status}`);
-      }
-      rssText = await response.text();
-    } catch (err) {
-      console.error('RSS fetch error:', err);
-      return res.status(502).json({ error: err.message });
-    }
-    // Parse rssText with fast-xml-parser
-    let rssObj;
-    try {
-      const parser = new XMLParser({ ignoreAttributes: false });
-      rssObj = parser.parse(rssText);
-    } catch (err) {
-      console.error('RSS parse error:', err);
-      return res.status(500).json({ error: err.message });
-    }
-    // Grab the first <item> (latest episode)
-    let items = rssObj.rss.channel.item;
-    let firstItem = Array.isArray(items) ? items[0] : items;
-    // Read <enclosure> URL and store direct MP3 link
-    const enclosure = firstItem.enclosure;
-    const mp3Url = enclosure && (enclosure['@_url'] || enclosure.url);
-    if (!mp3Url) {
-      return res.status(500).json({ error: 'No enclosure URL found in first item.' });
-    }
-    // Fetch MP3 file as a stream
-    let audioRes;
-    try {
-      audioRes = await fetch(mp3Url);
+      // Get podcast information
+      const slug = await podcastService.getPodcastSlug(spotifyUrl);
+      const feedUrl = await podcastService.getPodcastFeed(slug);
+      const rssText = await podcastService.fetchRssFeed(feedUrl);
+      const rssData = podcastService.parseRssFeed(rssText);
+      const mp3Url = podcastService.extractMp3Url(rssData);
+
+      // Fetch MP3 file as a stream
+      const audioRes = await fetch(mp3Url);
       if (!audioRes.ok) {
         throw new Error(`MP3 fetch failed: ${audioRes.status}`);
       }
-    } catch (err) {
-      console.error('MP3 fetch error:', err);
-      return res.status(502).json({ error: err.message });
-    }
-    // Write audio to a temp file
-    const tmpFile = path.join(os.tmpdir(), `${slug}.mp3`);
-    const out = fs.createWriteStream(tmpFile);
-    const nodeStream = Readable.from(audioRes.body);
-    nodeStream.pipe(out);
-    await finished(out);
-    // Transcribe downloaded audio and send text
-    try {
+
+      // Write audio to a temp file
+      const tmpFile = path.join(os.tmpdir(), `${slug}.mp3`);
+      const out = fs.createWriteStream(tmpFile);
+      const nodeStream = Readable.from(audioRes.body);
+      nodeStream.pipe(out);
+      await finished(out);
+
+      // Transcribe downloaded audio and send text
       const transcriptText = await transcribe(tmpFile);
       res.type('text/plain').send(transcriptText);
+
     } catch (err) {
-      console.error('Transcription error:', err);
-      return res.status(502).json({ error: err.message });
+      console.error('Error:', err);
+      return res.status(err.statusCode || 500).json({ error: err.message });
     } finally {
-      fs.unlink(tmpFile, () => {});
+      // Clean up temp file if it exists
+      if (tmpFile) {
+        fs.unlink(tmpFile, () => {});
+      }
     }
-    // testing git
 });
 
 const PORT = process.env.PORT || 3000;
