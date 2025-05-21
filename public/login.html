@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Listener</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <button id="loginButton">Log in with Spotify</button>
+        <div id="errorMessage" style="color: red; margin-top: 10px;"></div>
+    </div>
+
+    <!-- Load Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script>
+        // Initialize Supabase client
+        const supabaseClient = window.supabase.createClient(
+            'https://pgsdmvubrqgingyyteef.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnc2RtdnVicnFnaW5neXl0ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3Nzc5NzAsImV4cCI6MjA2MzM1Mzk3MH0.8c8VUayu_9pETAniUaWNlzU8x1PKWokmiqGuNtcvxig'
+        );
+
+        // Function to show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+        }
+
+        // Function to clear error message
+        function clearError() {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = '';
+        }
+
+        // Function to handle navigation
+        function navigateToApp() {
+            // Use replace to prevent back button from returning to login
+            window.location.replace('/app.html');
+        }
+
+        // Check for existing session on page load
+        async function checkSession() {
+            try {
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                
+                if (error) {
+                    console.error('Session error:', error);
+                    showError('Error checking session. Please try again.');
+                    // Clear any invalid session
+                    await supabaseClient.auth.signOut();
+                    return;
+                }
+
+                if (session) {
+                    // Only navigate if we have a valid session
+                    navigateToApp();
+                } else {
+                    // Clear any existing error messages when we have no session
+                    clearError();
+                }
+            } catch (error) {
+                console.error('Error checking session:', error);
+                showError('An unexpected error occurred. Please try again.');
+            }
+        }
+
+        // Run session check once on page load
+        checkSession();
+
+        // Handle login button click
+        document.getElementById('loginButton').addEventListener('click', async () => {
+            try {
+                clearError();
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'spotify',
+                    options: {
+                        scopes: 'user-read-email',
+                        redirectTo: window.location.origin + '/app.html'
+                    }
+                });
+
+                if (error) {
+                    console.error('Login error:', error);
+                    showError('Error during login. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error during login:', error);
+                showError('An unexpected error occurred during login. Please try again.');
+            }
+        });
+    </script>
+</body>
+</html> 
