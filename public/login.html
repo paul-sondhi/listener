@@ -73,11 +73,15 @@
         document.getElementById('loginButton').addEventListener('click', async () => {
             try {
                 clearError();
+                // Force Spotify to show the consent screen on every login attempt
                 const { error } = await supabaseClient.auth.signInWithOAuth({
                     provider: 'spotify',
                     options: {
                         scopes: 'user-read-email',
-                        redirectTo: window.location.origin + '/app.html'
+                        redirectTo: window.location.origin + '/app.html',
+                        queryParams: {
+                            show_dialog: 'true' // Spotify parameter that forces the consent screen
+                        }
                     }
                 });
 
