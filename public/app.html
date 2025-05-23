@@ -15,7 +15,84 @@
       <button type="submit">Download Episode</button>
     </form>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    // Initialize Supabase client
+    const supabaseClient = supabase.createClient(
+      'https://pgsdmvubrqgingyyteef.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnc2RtdnVicnFnaW5neXl0ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3Nzc5NzAsImV4cCI6MjA2MzM1Mzk3MH0.8c8VUayu_9pETAniUaWNlzU8x1PKWokmiqGuNtcvxig'
+    );
+    // Expose the client globally for DevTools access
+    window.supabase = supabaseClient;
+
+    // On page load, check for a valid session and extract Spotify tokens
+    (async function syncSpotifyTokens() {
+      try {
+        // Get the current session
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        if (error) {
+          console.error('Error getting session:', error);
+          return;
+        }
+        if (!session) {
+          // No session, nothing to sync
+          return;
+        }
+        // Extract Spotify tokens from the session object
+        // These may be under session.provider_token and session.provider_refresh_token
+        const accessToken = session.provider_token;
+        const refreshToken = session.provider_refresh_token;
+        // The expiry time (in seconds since epoch) may be in session.expires_at
+        const expiresAt = session.expires_at;
+        const supabaseAccessToken = session?.access_token;
+
+        // Only proceed if we have both tokens
+        if (accessToken && refreshToken && expiresAt) {
+          // Send tokens to backend to store in users table
+          await fetch('/api/store-spotify-tokens', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseAccessToken}`
+            },
+            body: JSON.stringify({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+              expires_at: expiresAt
+            })
+          });
+
+          // After storing tokens, trigger the sync endpoint to fetch and upsert podcast subscriptions
+          try {
+            // Call the sync endpoint with the same access token
+            const syncResponse = await fetch('/api/sync-spotify-shows', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseAccessToken}`
+              }
+            });
+            if (!syncResponse.ok) {
+              // Log error if sync fails
+              const errorData = await syncResponse.json();
+              console.error('Error syncing Spotify shows:', errorData.error || syncResponse.status);
+            } else {
+              // Log success and summary of sync
+              const result = await syncResponse.json();
+              console.log('Successfully synced Spotify shows:', result);
+            }
+          } catch (err) {
+            // Log unexpected errors
+            console.error('Unexpected error during sync:', err);
+          }
+        } else {
+          // Log if any token is missing (for debugging)
+          console.warn('Missing one or more Spotify tokens:', { accessToken, refreshToken, expiresAt });
+        }
+      } catch (err) {
+        console.error('Error syncing Spotify tokens:', err);
+      }
+    })();
+
     document.getElementById('download-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const rssUrl = document.getElementById('spotify-url').value;

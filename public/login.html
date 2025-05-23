@@ -17,10 +17,12 @@
     
     <script>
         // Initialize Supabase client
-        const supabaseClient = window.supabase.createClient(
+        const supabaseClient = supabase.createClient(
             'https://pgsdmvubrqgingyyteef.supabase.co',
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnc2RtdnVicnFnaW5neXl0ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3Nzc5NzAsImV4cCI6MjA2MzM1Mzk3MH0.8c8VUayu_9pETAniUaWNlzU8x1PKWokmiqGuNtcvxig'
         );
+        // Expose the client globally for DevTools access
+        window.supabase = supabaseClient;
 
         // Function to show error message
         function showError(message) {
@@ -73,11 +75,14 @@
         document.getElementById('loginButton').addEventListener('click', async () => {
             try {
                 clearError();
-                // Force Spotify to show the consent screen on every login attempt
+                // Request the following scopes from Spotify:
+                // - user-read-email: to get the user's email address
+                // - user-library-read: to read the user's podcast subscriptions (shows)
+                // - offline_access: to receive a refresh token for future API access
                 const { error } = await supabaseClient.auth.signInWithOAuth({
                     provider: 'spotify',
                     options: {
-                        scopes: 'user-read-email',
+                        scopes: 'user-read-email user-library-read',
                         redirectTo: window.location.origin + '/app.html',
                         queryParams: {
                             show_dialog: 'true' // Spotify parameter that forces the consent screen
@@ -96,4 +101,4 @@
         });
     </script>
 </body>
-</html> 
+</html>
