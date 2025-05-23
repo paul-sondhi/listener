@@ -302,15 +302,30 @@ app.post('/api/sync-spotify-shows', async (req, res) => {
             }
         }
 
-        // 5. Mark missing shows as inactive for that user
-        const { error: updateInactiveError, count: inactiveCount } = await supabaseAdmin
+        // 5. Fetch all subscriptions and filter inactive in JS
+        const { data: allSubs, error: allSubsError } = await supabaseAdmin
           .from('podcast_subscriptions')
-          .update({ status: 'inactive', updated_at: now })
-          .eq('user_id', userId)
-          .not('podcast_url', 'in', podcastUrls)
-          .select('id', { count: 'exact' });
-        if (updateInactiveError) {
-            console.error('Error marking missing shows as inactive:', updateInactiveError);
+          .select('id,podcast_url')
+          .eq('user_id', userId);
+        if (allSubsError) {
+          console.error('Error fetching subscriptions:', allSubsError);
+        }
+        // Filter out active URLs
+        const subsToInactivate = (allSubs || []).filter(s => !podcastUrls.includes(s.podcast_url));
+        const inactiveIds = subsToInactivate.map(s => s.id);
+        console.log('Subscriptions to inactivate IDs:', inactiveIds);
+
+        let inactiveCount = 0;
+        if (inactiveIds.length > 0) {
+            // Update status and use JS count
+            const { error: updateInactiveError } = await supabaseAdmin
+              .from('podcast_subscriptions')
+              .update({ status: 'inactive', updated_at: now })
+              .in('id', inactiveIds);
+            if (updateInactiveError) {
+              console.error('Error marking missing shows as inactive:', updateInactiveError);
+            }
+            inactiveCount = inactiveIds.length;
         }
 
         // 6. Return a summary
