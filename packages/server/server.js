@@ -35,6 +35,12 @@ if (process.env.NODE_ENV === 'development') {
     }));
 }
 
+// Health check endpoint for Render
+app.get('/healthz', (req, res) => {
+  res.sendStatus(200);
+});
+
+
 // Initialize server
 const PORT = process.env.PORT || 3000;
 
