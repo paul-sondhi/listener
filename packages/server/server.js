@@ -26,7 +26,7 @@ app.use(express.json());
 // Enable CORS for Vercel front-end and local dev
 app.use(
   cors({
-    origin: ['https://listener.vercel.app', 'http://localhost:5173'],
+    origin: ['https://listener-seven.vercel.app', 'http://localhost:5173'],
     credentials: true,
   })
 );
