@@ -1,6 +1,6 @@
 // Import required dependencies
-const { XMLParser } = require('fast-xml-parser');
-const { getTitleSlug, getFeedUrl } = require('../lib/utils');
+import { XMLParser } from 'fast-xml-parser';
+import { getTitleSlug, getFeedUrl } from '../lib/utils.js';
 
 /**
  * Custom error class for podcast-related errors
@@ -116,4 +116,4 @@ class PodcastService {
   }
 }
 
-module.exports = new PodcastService(); 
+export default new PodcastService(); 

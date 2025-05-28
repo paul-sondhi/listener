@@ -1,20 +1,21 @@
 {
-  "name": "listener-3",
+  "name": "listener",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev:server": "NODE_ENV=development nodemon server.js",
-    "dev:client": "cd client && npm run dev",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "build": "cd client && npm run build",
-    "start": "NODE_ENV=production node server.js",
+    "dev": "concurrently \"npm run dev -w @listener/server\" \"npm run dev -w @listener/client\"",
+    "build": "npm run build -w @listener/client",
+    "start": "npm run start -w @listener/server",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "description": "",
+  "description": "Listener application with Express backend and Vite frontend",
   "dependencies": {
     "@deepgram/sdk": "^4.0.1",
     "@supabase/supabase-js": "^2.49.7",

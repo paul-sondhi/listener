@@ -1,5 +1,5 @@
-const path = require('path');
-const { createClient } = require('@supabase/supabase-js');
+import path from 'path';
+import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase Admin client
 const supabaseAdmin = createClient(
@@ -57,4 +57,4 @@ const authMiddleware = async (req, res, next) => {
     }
 };
 
-module.exports = authMiddleware; 
+export default authMiddleware; 

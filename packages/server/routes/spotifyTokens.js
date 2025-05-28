@@ -1,12 +1,20 @@
-const express = require('express');
-const router = express.Router();
-const { createClient } = require('@supabase/supabase-js');
+import express from 'express';
+import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase Admin client
-const supabaseAdmin = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const router = express.Router();
+
+// Initialize Supabase Admin client lazily
+let supabaseAdmin = null;
+
+function getSupabaseAdmin() {
+    if (!supabaseAdmin) {
+        supabaseAdmin = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+    }
+    return supabaseAdmin;
+}
 
 /**
  * Store Spotify tokens endpoint
@@ -26,7 +34,7 @@ router.post('/', async (req, res) => {
 
     try {
         // Get the authenticated user
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+        const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(token);
         if (error || !user) {
             console.error('User authentication failed:', error);
             return res.status(401).json({ error: 'User authentication failed' });
@@ -42,7 +50,7 @@ router.post('/', async (req, res) => {
         // Update the users table for the authenticated user (by UUID)
         // Convert expires_at (seconds since epoch) to ISO timestamp
         const expiresAtIso = new Date(expires_at * 1000).toISOString();
-        const { error: updateError } = await supabaseAdmin
+        const { error: updateError } = await getSupabaseAdmin()
             .from('users')
             .update({
                 spotify_access_token: access_token,
@@ -64,4 +72,4 @@ router.post('/', async (req, res) => {
     }
 });
 
-module.exports = router; 
+export default router; 

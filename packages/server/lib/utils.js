@@ -1,7 +1,6 @@
-require('dotenv').config()
-const { getSpotifyAccessToken } = require('./spotify.js');
-const crypto = require('crypto');
-const _nf = require('node-fetch');
+import { getSpotifyAccessToken } from './spotify.js';
+import crypto from 'crypto';
+import _nf from 'node-fetch';
 const fetch = _nf.default || _nf;
 
 function getAuthHeaders() {
@@ -102,4 +101,4 @@ function jaccardSimilarity(a, b) {
     return union === 0 ? 0 : intersection / union;
   }
 
-module.exports = { getAuthHeaders, getTitleSlug, getFeedUrl, jaccardSimilarity };
+export { getAuthHeaders, getTitleSlug, getFeedUrl, jaccardSimilarity };

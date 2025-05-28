@@ -1,7 +1,6 @@
-require('dotenv').config();
-const _nf = require('node-fetch');
+import _nf from 'node-fetch';
 const fetch = _nf.default || _nf;
-const querystring = require('querystring');
+import querystring from 'querystring';
 
 // --- Spotify Web API token caching ---
 let spotifyToken = null;
@@ -32,4 +31,4 @@ async function getSpotifyAccessToken() {
   return spotifyToken;
 }
 
-module.exports = { getSpotifyAccessToken };
+export { getSpotifyAccessToken };

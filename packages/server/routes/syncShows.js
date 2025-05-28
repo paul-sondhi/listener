@@ -1,12 +1,20 @@
-const express = require('express');
-const router = express.Router();
-const { createClient } = require('@supabase/supabase-js');
+import express from 'express';
+import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase Admin client
-const supabaseAdmin = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const router = express.Router();
+
+// Initialize Supabase Admin client lazily
+let supabaseAdmin = null;
+
+function getSupabaseAdmin() {
+    if (!supabaseAdmin) {
+        supabaseAdmin = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+    }
+    return supabaseAdmin;
+}
 
 /**
  * Sync Spotify shows endpoint
@@ -25,7 +33,7 @@ router.post('/', async (req, res) => {
     }
 
     try {
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+        const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(token);
         if (error || !user) {
             console.error('User authentication failed:', error);
             return res.status(401).json({ error: 'User authentication failed' });
@@ -33,7 +41,7 @@ router.post('/', async (req, res) => {
         const userId = user.id;
 
         // Retrieve the user's Spotify tokens from the users table
-        const { data: userRow, error: userRowError } = await supabaseAdmin
+        const { data: userRow, error: userRowError } = await getSupabaseAdmin()
             .from('users')
             .select('spotify_access_token, spotify_refresh_token, spotify_token_expires_at')
             .eq('id', userId)
@@ -87,7 +95,7 @@ router.post('/', async (req, res) => {
             const podcastUrl = `https://open.spotify.com/show/${show.id}`;
             podcastUrls.push(podcastUrl);
             // Upsert: INSERT ... ON CONFLICT (user_id, podcast_url) DO UPDATE
-            const { error: upsertError } = await supabaseAdmin
+            const { error: upsertError } = await getSupabaseAdmin()
                 .from('podcast_subscriptions')
                 .upsert([
                     {
@@ -103,7 +111,7 @@ router.post('/', async (req, res) => {
         }
 
         // Fetch all subscriptions and filter inactive in JS
-        const { data: allSubs, error: allSubsError } = await supabaseAdmin
+        const { data: allSubs, error: allSubsError } = await getSupabaseAdmin()
             .from('podcast_subscriptions')
             .select('id,podcast_url')
             .eq('user_id', userId);
@@ -118,7 +126,7 @@ router.post('/', async (req, res) => {
         let inactiveCount = 0;
         if (inactiveIds.length > 0) {
             // Update status and use JS count
-            const { error: updateInactiveError } = await supabaseAdmin
+            const { error: updateInactiveError } = await getSupabaseAdmin()
                 .from('podcast_subscriptions')
                 .update({ status: 'inactive', updated_at: now })
                 .in('id', inactiveIds);
@@ -140,4 +148,4 @@ router.post('/', async (req, res) => {
     }
 });
 
-module.exports = router; 
+export default router; 

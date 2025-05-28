@@ -1,5 +1,5 @@
 {
-  "name": "client",
+  "name": "@listener/client",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@listener/shared": "1.0.0",
     "@supabase/supabase-js": "^2.49.8",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

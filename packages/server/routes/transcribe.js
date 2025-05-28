@@ -1,12 +1,13 @@
-const express = require('express');
+import express from 'express';
+import path from 'path';
+import os from 'os';
+import fs from 'fs';
+import { finished } from 'stream/promises';
+import { Readable } from 'stream';
+import { transcribe } from '../lib/transcribe.js';
+import podcastService from '../services/podcastService.js';
+
 const router = express.Router();
-const path = require('path');
-const os = require('os');
-const fs = require('fs');
-const { finished } = require('stream/promises');
-const { Readable } = require('stream');
-const { transcribe } = require('../lib/transcribe');
-const podcastService = require('../services/podcastService');
 
 /**
  * Transcribe endpoint - handles podcast transcription requests
@@ -65,4 +66,4 @@ router.get('/', async (req, res) => {
     }
 });
 
-module.exports = router; 
+export default router; 
