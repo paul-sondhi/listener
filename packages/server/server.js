@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { config } from 'dotenv';
 
@@ -21,6 +22,14 @@ const app = express();
 // Apply base middleware
 app.use(cookieParser());
 app.use(express.json());
+
+// Enable CORS for Vercel front-end and local dev
+app.use(
+  cors({
+    origin: ['https://listener.vercel.app', 'http://localhost:5173'],
+    credentials: true,
+  })
+);
 
 // Mount API routes
 app.use('/api', apiRoutes);
