@@ -7,6 +7,10 @@ export default function Login() {
   const { signIn, user } = useAuth()
   const navigate = useNavigate()
 
+// Read the base URL from Vite env (override in Vercel, fallback locally)
+const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:3000'
+const REDIRECT_URI = `${BASE_URL}/app`
+
   // Redirect to app if user is already logged in
   useEffect(() => {
     if (user) {
@@ -21,7 +25,7 @@ export default function Login() {
         provider: 'spotify',
         options: {
           scopes: 'user-read-email user-library-read',
-          redirectTo: `${window.location.origin}/app`,
+          redirectTo: REDIRECT_URI,
           queryParams: {
             show_dialog: 'true' // Force the consent screen
           }
