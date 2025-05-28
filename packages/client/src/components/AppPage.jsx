@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 
+// Get the API base URL from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 /**
  * AppPage Component
  * Main application page that handles podcast transcript downloads
@@ -37,7 +40,7 @@ const AppPage = () => {
         // Only proceed if we have all required tokens
         if (accessToken && refreshToken && expiresAt) {
           // Store tokens in backend
-          const storeResponse = await fetch('/api/store-spotify-tokens', {
+          const storeResponse = await fetch(`${API_BASE_URL}/api/store-spotify-tokens`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -55,7 +58,7 @@ const AppPage = () => {
           }
 
           // Sync Spotify shows
-          const syncResponse = await fetch('/api/sync-spotify-shows', {
+          const syncResponse = await fetch(`${API_BASE_URL}/api/sync-spotify-shows`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${supabaseAccessToken}`
@@ -88,7 +91,7 @@ const AppPage = () => {
 
     try {
       const response = await fetch(
-        '/api/transcribe?url=' + encodeURIComponent(spotifyUrl)
+        `${API_BASE_URL}/api/transcribe?url=${encodeURIComponent(spotifyUrl)}`
       );
 
       if (!response.ok) {
