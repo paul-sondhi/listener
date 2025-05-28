@@ -1,4 +1,6 @@
 name: Deploy on Main Push
+permissions:
+  deployments: write
 
 on:
   push:
