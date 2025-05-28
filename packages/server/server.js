@@ -33,14 +33,6 @@ if (process.env.NODE_ENV === 'development') {
         changeOrigin: true,
         ws: true // Enable WebSocket proxying for HMR
     }));
-} else {
-    // Serve static files from Vite build
-    app.use(express.static(path.join(__dirname, 'client/dist')));
-    
-    // Catch-all: serve index.html for React Router
-    app.get('*', (req, res) => {
-        res.sendFile(path.join(__dirname, 'client/dist/index.html'));
-    });
 }
 
 // Initialize server
