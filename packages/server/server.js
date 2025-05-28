@@ -23,13 +23,13 @@ const app = express();
 app.use(cookieParser());
 app.use(express.json());
 
-// Enable CORS for Vercel front-end and local dev
-app.use(
-  cors({
-    origin: ['https://listener-seven.vercel.app', 'http://localhost:5173'],
-    credentials: true,
-  })
-);
+// Enable CORS for Vercel front-end and local dev (including preflight)
+const corsOptions = {
+  origin: ['https://listener-seven.vercel.app', 'http://localhost:5173'],
+  credentials: true,
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Mount API routes
 app.use('/api', apiRoutes);
