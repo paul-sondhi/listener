@@ -261,6 +261,199 @@ describe('AppPage Component', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  // Test case: useEffect - handles null session from supabase.auth.getSession() (no user, no error object)
+  it('does not make API calls or show errors if getSession returns a null session (no user, no error object)', async () => {
+    // Arrange
+    // Mock getSession to return a null session and no error
+    mockGetSession.mockReset(); 
+    mockGetSession.mockResolvedValue({ 
+      data: { session: null }, 
+      error: null 
+    });
+
+    // Reset fetch mock to ensure it's not called
+    global.fetch.mockReset();
+    
+    // Spy on console.warn
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // Act
+    render(
+      <MemoryRouter>
+        <AppPage />
+      </MemoryRouter>
+    );
+
+    // Assertions
+    // Wait for any potential async operations to settle, though none are expected here.
+    // Using a short waitFor with a check that shouldn't pass if APIs were called.
+    await waitFor(() => {
+      // 1. Assert that fetch was not called for token storage or show syncing
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    // 2. Assert that no error message is displayed in the UI
+    // AppPage currently console.warns in this scenario, so we check for absence of a visible error.
+    // We look for a common error container role or text pattern if one exists,
+    // or ensure a specific error message isn't present.
+    const errorMessages = screen.queryAllByRole('alert'); // Or a more specific query
+    expect(errorMessages.length).toBe(0);
+    // Or, if errors are just divs with text:
+    // expect(screen.queryByText(/error/i)).not.toBeInTheDocument(); // General check
+    // More specifically, if AppPage has a known error display mechanism:
+    // const errorContainer = screen.queryByTestId('error-message-container');
+    // expect(errorContainer).not.toBeInTheDocument();
+
+    // 3. Assert that console.warn was called (as per current AppPage behavior)
+    // This part depends on whether AppPage actually calls console.warn.
+    // If it does, we can check:
+    // await waitFor(() => { // console.warn might be in an async callback
+    //  expect(consoleWarnSpy).toHaveBeenCalledWith('Session is null and no error, but no action needed based on current logic for token sync.');
+    // });
+    // If AppPage is updated to not warn, this can be removed or changed to .not.toHaveBeenCalled()
+
+    // For now, let's assume we primarily care about no API calls and no UI error.
+    // The console.warn is an implementation detail that might change.
+
+    // Cleanup spy
+    consoleWarnSpy.mockRestore();
+  });
+
+  // Test case: useEffect - store-spotify-tokens API call fails
+  it('displays an error and does not call sync-shows if store-spotify-tokens API fails', async () => {
+    // Arrange
+    const storeTokensErrorMessage = 'Failed to store Spotify tokens';
+    // Mock getSession to return a valid session with tokens
+    mockGetSession.mockReset();
+    mockGetSession.mockResolvedValueOnce({
+      data: {
+        session: {
+          provider_token: 'spotify-access-token',
+          provider_refresh_token: 'spotify-refresh-token',
+          expires_at: Date.now() / 1000 + 3600,
+          access_token: 'supabase-access-token',
+        },
+      },
+      error: null,
+    });
+
+    // Mock fetch: first call (store-spotify-tokens) fails, second call (sync-spotify-shows) should not happen
+    global.fetch.mockReset();
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: storeTokensErrorMessage }), // Simulate API error response
+    });
+    // No mock for a second fetch call, as it shouldn't be made.
+
+    // Act
+    render(
+      <MemoryRouter>
+        <AppPage />
+      </MemoryRouter>
+    );
+
+    // Assertions
+    // 1. Check that the error message from the failed API call is displayed
+    const errorDiv = await screen.findByText(storeTokensErrorMessage);
+    expect(errorDiv).toBeInTheDocument();
+
+    // 2. Check that the first fetch (store-spotify-tokens) was called
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${import.meta.env.VITE_API_BASE_URL}/api/store-spotify-tokens`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer supabase-access-token`
+        },
+        body: expect.stringMatching(
+          /^\{"access_token":"spotify-access-token","refresh_token":"spotify-refresh-token","expires_at":\d+(\.\d+)?\}$/
+        ),
+      })
+    );
+
+    // 3. Assert that the second fetch call (sync-spotify-shows) was NOT made
+    // Since we only mocked one response for fetch and checked for calledTimes(1),
+    // this implicitly confirms sync-spotify-shows wasn't called.
+    // For explicitness, if there was a general succeeding mock for fetch, 
+    // we would check it wasn't called with sync-spotify-shows path.
+  });
+
+  // Test case: useEffect - sync-spotify-shows API call fails
+  it('displays an error if sync-spotify-shows API fails after a successful store-tokens call', async () => {
+    // Arrange
+    const syncShowsErrorMessage = 'Failed to sync Spotify shows';
+    // Mock getSession to return a valid session with tokens
+    mockGetSession.mockReset();
+    mockGetSession.mockResolvedValueOnce({
+      data: {
+        session: {
+          provider_token: 'spotify-access-token',
+          provider_refresh_token: 'spotify-refresh-token',
+          expires_at: Date.now() / 1000 + 3600,
+          access_token: 'supabase-access-token',
+        },
+      },
+      error: null,
+    });
+
+    // Mock fetch: 
+    // First call (store-spotify-tokens) succeeds.
+    // Second call (sync-spotify-shows) fails.
+    global.fetch.mockReset();
+    global.fetch.mockResolvedValueOnce({ 
+      ok: true, 
+      json: async () => ({ message: 'Tokens stored successfully' }) 
+    });
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: syncShowsErrorMessage }), // Simulate API error response
+    });
+
+    // Act
+    render(
+      <MemoryRouter>
+        <AppPage />
+      </MemoryRouter>
+    );
+
+    // Assertions
+    // 1. Check that the error message from the failed sync-shows API call is displayed
+    const errorDiv = await screen.findByText(syncShowsErrorMessage);
+    expect(errorDiv).toBeInTheDocument();
+
+    // 2. Check that both fetch calls were made
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    
+    // 3. Check the first call (store-spotify-tokens)
+    expect(global.fetch).toHaveBeenNthCalledWith(1,
+      `${import.meta.env.VITE_API_BASE_URL}/api/store-spotify-tokens`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer supabase-access-token`
+        },
+        body: expect.stringMatching(
+          /^\{"access_token":"spotify-access-token","refresh_token":"spotify-refresh-token","expires_at":\d+(\.\d+)?\}$/
+        ),
+      })
+    );
+
+    // 4. Check the second call (sync-spotify-shows)
+    expect(global.fetch).toHaveBeenNthCalledWith(2,
+      `${import.meta.env.VITE_API_BASE_URL}/api/sync-spotify-shows`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer supabase-access-token`
+        },
+        // No body is sent for this request, so no body assertion here.
+      })
+    );
+  });
+
   // More tests will be added here for:
   // - Form submission (transcribe API call)
   // - Loading states
