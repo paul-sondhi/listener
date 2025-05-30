@@ -3,21 +3,25 @@ import crypto from 'crypto';
 import _nf from 'node-fetch';
 const fetch = _nf.default || _nf;
 
-function getAuthHeaders() {
-    // Read key/secret
-    const key = process.env.PODCASTINDEX_KEY;
-    const secret = process.env.PODCASTINDEX_SECRET;
-    // Unix timestamp in seconds
-    const date = Math.floor(Date.now() / 1000).toString();
+export function getAuthHeaders() {
+    const apiKey = process.env.PODCASTINDEX_KEY;
+    const apiSecret = process.env.PODCASTINDEX_SECRET;
+
+    if (!apiKey || !apiSecret) {
+        throw new Error('PodcastIndex API Key/Secret is missing. Please check environment variables.');
+    }
+
+    const apiHeaderTime = Math.floor(Date.now() / 1000);
+    const sha1Algorithm = "sha1";
     // HMAC-SHA1 of (key + secret + date)
     const signature = crypto
-      .createHash('sha1')
-      .update(key + secret + date)
+      .createHash(sha1Algorithm)
+      .update(apiKey + apiSecret + apiHeaderTime.toString())
       .digest('hex');
     // Return the three required headers
     return {
-      'X-Auth-Key': key,
-      'X-Auth-Date': date,
+      'X-Auth-Key': apiKey,
+      'X-Auth-Date': apiHeaderTime.toString(),
       'Authorization': signature
     };
 };
