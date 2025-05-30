@@ -8,6 +8,10 @@ import AppPage from '../AppPage';
 
 // --- Mocks ---
 
+// Hoist the mockGetSession function definition using vi.hoisted
+// This ensures it's defined before any vi.mock factory that needs it.
+const mockGetSession = vi.hoisted(() => vi.fn());
+
 // Mock the useAuth hook
 const mockUseAuth = vi.fn();
 vi.mock('../../contexts/AuthContext', () => ({
@@ -16,11 +20,10 @@ vi.mock('../../contexts/AuthContext', () => ({
 
 // Mock Supabase
 // We need to mock getSession specifically for the useEffect in AppPage
-const mockGetSession = vi.fn();
 vi.mock('../../lib/supabaseClient', () => ({
   supabase: {
     auth: {
-      getSession: mockGetSession,
+      getSession: mockGetSession, // mockGetSession is now reliably hoisted and defined
     },
   },
 }));
