@@ -20,10 +20,10 @@ const AppPage = () => {
   useEffect(() => {
     const syncSpotifyTokens = async () => {
       try {
-        // Get the current session
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('Error getting session:', error);
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          console.error('Error getting session:', sessionError);
+          setError(sessionError.message);
           return;
         }
         if (!session) {
@@ -31,15 +31,12 @@ const AppPage = () => {
           return;
         }
 
-        // Extract Spotify tokens from the session
         const accessToken = session.provider_token;
         const refreshToken = session.provider_refresh_token;
         const expiresAt = session.expires_at;
         const supabaseAccessToken = session?.access_token;
 
-        // Only proceed if we have all required tokens
         if (accessToken && refreshToken && expiresAt) {
-          // Store tokens in backend
           const storeResponse = await fetch(`${API_BASE_URL}/api/store-spotify-tokens`, {
             method: 'POST',
             headers: {
@@ -57,7 +54,6 @@ const AppPage = () => {
             throw new Error('Failed to store Spotify tokens');
           }
 
-          // Sync Spotify shows
           const syncResponse = await fetch(`${API_BASE_URL}/api/sync-spotify-shows`, {
             method: 'POST',
             headers: {
@@ -76,13 +72,13 @@ const AppPage = () => {
           console.warn('Missing one or more Spotify tokens:', { accessToken, refreshToken, expiresAt });
         }
       } catch (err) {
-        console.error('Error syncing Spotify tokens:', err);
+        console.error('Error syncing Spotify tokens or subsequent operations:', err);
         setError(err.message);
       }
     };
 
     syncSpotifyTokens();
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
