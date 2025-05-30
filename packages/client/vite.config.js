@@ -27,6 +27,12 @@ export default defineConfig(({ mode }) => {
       // Expose environment variables to the client-side code
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
+    },
+    test: {
+      globals: true,
+      environment: 'jsdom',
+      // Add the setup file for tests
+      setupFiles: './setupTests.js',
     }
   }
 })
