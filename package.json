@@ -9,7 +9,7 @@
     "dev": "concurrently \"npm run dev -w @listener/server\" \"npm run dev -w @listener/client\"",
     "build": "npm run build -w @listener/client",
     "start": "npm run start -w @listener/server",
-    "test": "vitest --root packages/client"
+    "test": "npm run test -w @listener/client && npm run test -w @listener/server"
   },
   "keywords": [],
   "author": "",
