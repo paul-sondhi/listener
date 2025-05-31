@@ -1,11 +1,11 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './components/Login'
 import AppPage from './components/AppPage'
 import './App.css'
 
 // Protected route component
-const ProtectedRoute = ({ children }) => {
+export const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth()
 
   if (loading) {
@@ -19,13 +19,11 @@ const ProtectedRoute = ({ children }) => {
   return children
 }
 
-// Main App component
+// Main App content component (contains Routes)
 function AppContent() {
   return (
-    <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
-        {/* Redirect root path to login page */}
         <Route path="/" element={<Navigate to="/login" />} />
         <Route
           path="/app"
@@ -36,11 +34,10 @@ function AppContent() {
           }
         />
       </Routes>
-    </Router>
   )
 }
 
-// Root component with AuthProvider
+// Root App component (without Router)
 export default function App() {
   return (
     <AuthProvider>
