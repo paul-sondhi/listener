@@ -56,7 +56,8 @@ router.get('/', async (req, res) => {
         res.type('text/plain').send(transcriptText);
 
     } catch (err) {
-        console.error('Error:', err);
+        // 1.1 Detailed error logging for easier debugging
+        console.error(`Error processing GET /transcribe for url ${spotifyUrl}:`, err.message, err.stack);
         return res.status(err.statusCode || 500).json({ error: err.message });
     } finally {
         // Clean up temp file if it exists
