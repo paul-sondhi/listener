@@ -195,7 +195,7 @@ describe('GET /transcribe', () => {
     mockValidateSpotifyUrl.mockReturnValueOnce(false);
     const response = await request(app).get(`/transcribe?url=invalid-url`);
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('Invalid URL; must be a Spotify podcast show title.');
+    expect(response.body.error).toBe('Invalid URL; must be a valid Spotify show URL.');
   });
 
   it('should return 500 if getPodcastSlug fails', async () => {
