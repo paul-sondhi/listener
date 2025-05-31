@@ -14,7 +14,7 @@ export const exampleUser = {
 };
 
 // Export any other shared utilities or constants here
-export const API_ENDPOINTS = {
+export const API_ENDPOINTS = Object.freeze({
   AUTH: '/auth',
   USERS: '/users',
-}; 
+}); 

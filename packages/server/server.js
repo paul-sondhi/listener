@@ -79,3 +79,6 @@ const initializeServer = async () => {
 
 // Start the server
 initializeServer();
+
+// Export app and initializeServer for testing or other programmatic use
+export { app, initializeServer };
