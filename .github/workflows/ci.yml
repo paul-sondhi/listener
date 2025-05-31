@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**' # Run on pushes to all branches
+  pull_request:
+    branches:
+      - main # Or your primary branch name (e.g., master)
+
+jobs:
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x' # Using LTS version, update if your v22.13.0 is critical
+
+      - name: Install dependencies (root)
+        run: npm install
+
+      # You mentioned CDing into each package for installs.
+      # If root `npm install` doesn't handle all workspace dependencies correctly
+      # (it should with npm workspaces, but let's be safe), we can add individual installs.
+      # For now, assuming root `npm install` is sufficient due to workspaces.
+      # If issues arise, we'll use: npm install --workspace=@listener/server --workspace=@listener/client --workspace=@listener/shared
+
+      - name: Run Unit Tests
+        run: npm run test:unit # This will use the root script we defined
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    # Only run integration tests on pushes/PRs to the main branch, or schedule it
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'pull_request' && github.base_ref == 'main'
+    needs: test-unit # Optionally, make integration tests depend on unit tests passing
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies (root)
+        run: npm install
+        # Same consideration for installs as in the unit test job
+
+      # If your server needs to be built before running integration tests, add that step here.
+      # e.g., - name: Build server
+      #         run: npm run build -w @listener/server
+
+      # If your integration tests require the server to be running, you'd add a step here to start it.
+      # This can be tricky in CI. For Supertest, it often starts the app programmatically,
+      # so an explicit server start might not be needed if your tests handle it.
+      # If `server.js` or its tests start the server, this is fine.
+
+      - name: Run Integration Tests
+        run: npm run test:integration # This will use the root script 

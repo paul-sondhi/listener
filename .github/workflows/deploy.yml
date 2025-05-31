@@ -1,18 +1,47 @@
-name: Deploy on Main Push
+name: Test and Deploy
+
 permissions:
   deployments: write
 
 on:
   push:
     branches:
-      - main
+      - main # Triggers tests and, if successful, deployment
+      - '**' # Triggers tests on pushes to any other branch
+  pull_request:
+    branches:
+      - main # Triggers tests on Pull Requests targeting main
 
 jobs:
-  deploy-vercel:
-    environment: production
+  run-tests:
+    name: Run All Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x' # Using LTS version, can be '22.x' if v22.13.0 is critical
+
+      - name: Install dependencies (root)
+        # Using npm ci is generally recommended for CI for faster, more reliable builds from the lockfile.
+        # If you have issues with npm install, consider switching to npm ci.
+        run: npm install
+
+      - name: Run All Tests
+        run: npm test # Runs all tests defined in your root package.json
+
+  deploy-vercel:
+    name: Deploy to Vercel
+    environment: production
+    runs-on: ubuntu-latest
+    needs: run-tests # Depends on the 'run-tests' job
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Only on push to main
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
       - name: Pull Vercel config
@@ -21,12 +50,16 @@ jobs:
         run: |
           vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
           vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
   deploy-render:
+    name: Deploy to Render
     environment: production
     runs-on: ubuntu-latest
-    needs: deploy-vercel
+    needs: [run-tests, deploy-vercel] # Depends on 'run-tests' and 'deploy-vercel'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Only on push to main
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Deploy to Render
         uses: JorgeLNJunior/render-deploy@v1.4.5
         with:
