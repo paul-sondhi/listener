@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import _nf from 'node-fetch';
 const fetch = _nf.default || _nf;
 
-export function getAuthHeaders() {
+function getAuthHeaders() {
     const apiKey = process.env.PODCASTINDEX_KEY;
     const apiSecret = process.env.PODCASTINDEX_SECRET;
 

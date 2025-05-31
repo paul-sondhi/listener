@@ -5,7 +5,7 @@ import { getTitleSlug, getFeedUrl } from '../lib/utils.js';
 /**
  * Custom error class for podcast-related errors
  */
-class PodcastError extends Error {
+export class PodcastError extends Error {
   constructor(message, statusCode = 500) {
     super(message);
     this.name = 'PodcastError';

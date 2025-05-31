@@ -3,7 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 
 // Get the API base URL from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Default to an empty string for relative paths if not set (for local development)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 /**
  * AppPage Component
@@ -85,9 +86,21 @@ const AppPage = () => {
     setIsLoading(true);
     setError(null);
 
+    // Trim whitespace and remove leading/trailing quotes or apostrophes from the URL
+    let cleanSpotifyUrl = spotifyUrl.trim();
+    // Specifically remove the leading modifier letter turned comma if present
+    if (cleanSpotifyUrl.startsWith('ʻ')) {
+      cleanSpotifyUrl = cleanSpotifyUrl.substring(1);
+    }
+    // Remove leading/trailing standard single or double quotes
+    if ((cleanSpotifyUrl.startsWith("'") && cleanSpotifyUrl.endsWith("'")) || 
+        (cleanSpotifyUrl.startsWith('"') && cleanSpotifyUrl.endsWith('"'))) {
+      cleanSpotifyUrl = cleanSpotifyUrl.substring(1, cleanSpotifyUrl.length - 1);
+    }
+
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/transcribe?url=${encodeURIComponent(spotifyUrl)}`
+        `${API_BASE_URL}/api/transcribe?url=${encodeURIComponent(cleanSpotifyUrl)}`
       );
 
       if (!response.ok) {
