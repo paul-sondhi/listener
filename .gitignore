@@ -1,4 +1,5 @@
-
+# Ignore file_strcuture
+file_structure.md
 
 # Ignore environment variables
 .env
