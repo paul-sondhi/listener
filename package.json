@@ -10,6 +10,7 @@
     "build": "npm run build -w @listener/client",
     "start": "npm run start -w @listener/server",
     "test": "npm run test -ws --if-present",
+    "test:coverage": "npm run test:coverage -ws --if-present",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset",
