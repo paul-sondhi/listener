@@ -1,3 +1,4 @@
+import React from 'react'
 import { describe, it, expect, vi, beforeEach, type MockInstance } from 'vitest'
 import { render, act, waitFor, screen } from '@testing-library/react'
 import { AuthProvider, useAuth } from '../AuthContext'
@@ -5,10 +6,10 @@ import type { User, Session, AuthChangeEvent, SignInWithOAuthCredentials } from 
 
 // Type definitions for test utilities
 interface MockSupabaseAuth {
-  getSession: MockInstance<[], Promise<{ data: { session: Session | null }, error: Error | null }>>
-  onAuthStateChange: MockInstance<[(event: AuthChangeEvent, session: Session | null) => void], { data: { subscription: { unsubscribe: MockInstance } } }>
-  signInWithOAuth: MockInstance<[SignInWithOAuthCredentials], Promise<{ error: Error | null }>>
-  signOut: MockInstance<[], Promise<{ error: Error | null }>>
+  getSession: MockInstance
+  onAuthStateChange: MockInstance
+  signInWithOAuth: MockInstance
+  signOut: MockInstance
 }
 
 interface MockSupabaseClient {

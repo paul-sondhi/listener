@@ -47,7 +47,7 @@ interface MockFetchResponse {
 }
 
 // Mock for the spotify module
-const mockGetSpotifyAccessToken = vi.fn() as MockInstance<[], Promise<string>>
+const mockGetSpotifyAccessToken = vi.fn() as MockInstance
 
 vi.mock('../spotify.js', () => ({
   getSpotifyAccessToken: mockGetSpotifyAccessToken,
@@ -60,15 +60,15 @@ let getFeedUrl: (slug: string) => Promise<string | null>
 let jaccardSimilarity: (a: string, b: string) => number
 
 describe('Utility Functions', () => {
-  let mockFetch: MockInstance<[string, any?], Promise<MockFetchResponse>>
+  let mockFetch: MockInstance
 
   beforeEach(async () => {
     // Reset modules to ensure clean state
     vi.resetModules()
 
-    // Create a mock for global fetch
-    mockFetch = vi.fn() as MockInstance<[string, any?], Promise<MockFetchResponse>>
-    global.fetch = mockFetch
+    // Create a mock for global fetch with proper type casting
+    mockFetch = vi.fn() as MockInstance
+    global.fetch = mockFetch as unknown as typeof fetch
 
     // Also override the global mockFetch to avoid conflicts
     if (global.mockFetch) {
@@ -303,7 +303,7 @@ describe('Utility Functions', () => {
       // Arrange
       const mockPodcastIndexResponse: MockFetchResponse = {
         ok: true,
-        json: async () => ({ feeds: [] } as MockPodcastIndexResponse),
+        json: async () => ({ feeds: [], status: 'ok', count: 0 } as unknown as MockPodcastIndexResponse),
       }
       const mockiTunesResponse: MockFetchResponse = {
         ok: true,
@@ -344,7 +344,7 @@ describe('Utility Functions', () => {
       // Arrange
       const mockPodcastIndexResponse: MockFetchResponse = {
         ok: true,
-        json: async () => ({ feeds: [] } as MockPodcastIndexResponse),
+        json: async () => ({ feeds: [], status: 'ok', count: 0 } as unknown as MockPodcastIndexResponse),
       }
       const mockiTunesResponse: MockFetchResponse = {
         ok: true,
@@ -365,7 +365,7 @@ describe('Utility Functions', () => {
       // Arrange
       const mockPodcastIndexResponse: MockFetchResponse = {
         ok: true,
-        json: async () => ({ feeds: [] } as MockPodcastIndexResponse),
+        json: async () => ({ feeds: [], status: 'ok', count: 0 } as unknown as MockPodcastIndexResponse),
       }
       const mockiTunesFailedResponse: MockFetchResponse = {
         ok: false,

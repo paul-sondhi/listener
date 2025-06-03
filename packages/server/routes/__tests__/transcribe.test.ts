@@ -158,7 +158,9 @@ beforeEach(() => {
   
   vi.spyOn(fs, 'createWriteStream').mockReturnValue(defaultWriteStream)
   vi.spyOn(Readable, 'from').mockReturnValue(defaultReadableStream)
-  vi.spyOn(fs, 'unlink').mockImplementation((path, callback) => callback && callback())
+  vi.spyOn(fs, 'unlink').mockImplementation((path: any, callback?: any) => {
+    if (callback) callback()
+  })
 
   // Mock fetch to return a proper response with body stream
   global.fetch = vi.fn().mockResolvedValue({
@@ -210,7 +212,7 @@ describe('GET /transcribe', () => {
 
   it('should successfully transcribe a podcast given a valid Spotify URL', async () => {
     // Act - No additional setup needed, using default mocks from beforeEach
-    const response = await request(app).get(`/transcribe?url=${mockSpotifyUrl}`)
+    const response = await (request(app) as any).get(`/transcribe?url=${mockSpotifyUrl}`)
 
     // Assert
     expect(response.status).toBe(200)
@@ -230,7 +232,7 @@ describe('GET /transcribe', () => {
 
   it('should return 400 if URL parameter is missing', async () => {
     // Act
-    const response = await request(app).get('/transcribe')
+    const response = await (request(app) as any).get('/transcribe')
 
     // Assert
     expect(response.status).toBe(400)
@@ -242,7 +244,7 @@ describe('GET /transcribe', () => {
     vi.spyOn(podcastService, 'validateSpotifyUrl').mockReturnValueOnce(false)
 
     // Act
-    const response = await request(app).get(`/transcribe?url=invalid-url`)
+    const response = await (request(app) as any).get(`/transcribe?url=invalid-url`)
 
     // Assert
     expect(response.status).toBe(400)
@@ -254,7 +256,7 @@ describe('GET /transcribe', () => {
     vi.spyOn(podcastService, 'getPodcastSlug').mockRejectedValueOnce(new Error('Slug error'))
 
     // Act
-    const response = await request(app).get(`/transcribe?url=${mockSpotifyUrl}`)
+    const response = await (request(app) as any).get(`/transcribe?url=${mockSpotifyUrl}`)
 
     // Assert
     expect(response.status).toBe(500)
@@ -274,7 +276,7 @@ describe('GET /transcribe', () => {
     global.fetch = mockFetch
 
     // Act
-    const response = await request(app).get(`/transcribe?url=${mockSpotifyUrl}`)
+    const response = await (request(app) as any).get(`/transcribe?url=${mockSpotifyUrl}`)
 
     // Assert
     expect(response.status).toBe(500)
@@ -287,7 +289,7 @@ describe('GET /transcribe', () => {
     global.fetch = mockFetch
 
     // Act
-    const response = await request(app).get(`/transcribe?url=${mockSpotifyUrl}`)
+    const response = await (request(app) as any).get(`/transcribe?url=${mockSpotifyUrl}`)
 
     // Assert
     expect(response.status).toBe(500)
@@ -299,7 +301,7 @@ describe('GET /transcribe', () => {
     vi.spyOn(transcribeLib, 'transcribe').mockRejectedValueOnce(new Error('Transcription error'))
 
     // Act
-    const response = await request(app).get(`/transcribe?url=${mockSpotifyUrl}`)
+    const response = await (request(app) as any).get(`/transcribe?url=${mockSpotifyUrl}`)
 
     // Assert
     expect(response.status).toBe(500)
@@ -311,7 +313,7 @@ describe('GET /transcribe', () => {
     vi.spyOn(podcastService, 'getPodcastFeed').mockRejectedValueOnce(new Error('Feed error'))
 
     // Act
-    await request(app).get(`/transcribe?url=${mockSpotifyUrl}`)
+    await (request(app) as any).get(`/transcribe?url=${mockSpotifyUrl}`)
 
     // Since getPodcastFeed fails early, tmpFile is never created, so unlink should not be called
     // This test passes if no error is thrown
@@ -321,7 +323,7 @@ describe('GET /transcribe', () => {
 describe('POST /transcribe', () => {
   it('should transcribe a podcast from a valid Spotify URL', async () => {
     // Act - Using default mocks from beforeEach
-    const response = await request(app)
+    const response = await (request(app) as any)
       .post('/transcribe')
       .send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
 
@@ -351,7 +353,7 @@ describe('POST /transcribe', () => {
     vi.spyOn(podcastService, 'validateSpotifyUrl').mockReturnValue(false)
 
     // Act
-    const response = await request(app).post('/transcribe').send({ spotifyUrl: 'invalid-url' })
+    const response = await (request(app) as any).post('/transcribe').send({ spotifyUrl: 'invalid-url' })
 
     // Assert
     expect(response.status).toBe(400)
@@ -360,7 +362,7 @@ describe('POST /transcribe', () => {
 
   it('should return 400 if spotifyUrl is missing', async () => {
     // Act
-    const response = await request(app).post('/transcribe').send({})
+    const response = await (request(app) as any).post('/transcribe').send({})
 
     // Assert
     expect(response.status).toBe(400)
@@ -372,7 +374,7 @@ describe('POST /transcribe', () => {
     vi.spyOn(podcastService, 'getPodcastSlug').mockRejectedValue(new Error('Slug error'))
 
     // Act
-    const response = await request(app).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
+    const response = await (request(app) as any).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
 
     // Assert
     expect(response.status).toBe(500)
@@ -391,7 +393,7 @@ describe('POST /transcribe', () => {
     global.fetch = mockFetch
 
     // Act
-    const response = await request(app).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
+    const response = await (request(app) as any).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
 
     // Assert
     expect(response.status).toBe(500)
@@ -404,7 +406,7 @@ describe('POST /transcribe', () => {
     global.fetch = mockFetch
 
     // Act
-    const response = await request(app).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
+    const response = await (request(app) as any).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
 
     // Assert
     expect(response.status).toBe(500)
@@ -419,7 +421,7 @@ describe('POST /transcribe', () => {
     })
 
     // Act
-    const response = await request(app).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
+    const response = await (request(app) as any).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
 
     // Assert
     expect(response.status).toBe(500)
@@ -440,8 +442,8 @@ describe('POST /transcribe', () => {
     vi.spyOn(Readable, 'from').mockReturnValue(errorReadableStream)
     
     // Mock the finished function to reject with error for this test
-    const { finished } = await import('stream/promises')
-    vi.mocked(finished).mockImplementationOnce(async (stream: MockWriteStream) => {
+    const streamPromises = await import('stream/promises')
+    vi.spyOn(streamPromises, 'finished').mockImplementationOnce(async () => {
       // Immediately reject with an error
       throw new Error('Stream pipe error')
     })
@@ -456,7 +458,7 @@ describe('POST /transcribe', () => {
     })
 
     // Act
-    const response = await request(app).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
+    const response = await (request(app) as any).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
 
     // Assert
     expect(response.status).toBe(500)
@@ -468,7 +470,7 @@ describe('POST /transcribe', () => {
     vi.spyOn(transcribeLib, 'transcribe').mockRejectedValue(new Error('Transcription error'))
 
     // Act
-    const response = await request(app).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
+    const response = await (request(app) as any).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
 
     // Assert
     expect(response.status).toBe(500)
@@ -478,11 +480,13 @@ describe('POST /transcribe', () => {
   it('should attempt to delete temp file even if transcription fails', async () => {
     // Arrange - Set up transcription failure and spy on file deletion
     const fs = require('fs')
-    const unlinkSpy = vi.spyOn(fs, 'unlink').mockImplementation((path, callback) => callback && callback())
+    const unlinkSpy = vi.spyOn(fs, 'unlink').mockImplementation((path: any, callback?: any) => {
+      if (callback) callback()
+    })
     vi.spyOn(transcribeLib, 'transcribe').mockRejectedValue(new Error('Transcription error'))
 
     // Act
-    await request(app).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
+    await (request(app) as any).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
 
     // Assert - Verify cleanup was attempted despite transcription failure
     expect(unlinkSpy).toHaveBeenCalled()
@@ -494,7 +498,7 @@ describe('POST /transcribe', () => {
     
     // Make transcription succeed but file deletion fail
     vi.spyOn(transcribeLib, 'transcribe').mockResolvedValue('Success')
-    vi.spyOn(fs, 'unlink').mockImplementationOnce((filePath: string, callback: (err?: Error) => void) => {
+    vi.spyOn(fs, 'unlink').mockImplementation((filePath: any, callback?: any) => {
       const err = new Error('Delete error')
       if (callback) callback(err)
     })
@@ -503,7 +507,7 @@ describe('POST /transcribe', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     // Act
-    const response = await request(app).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
+    const response = await (request(app) as any).post('/transcribe').send({ spotifyUrl: 'https://open.spotify.com/show/validshow' })
 
     // Assert - Updated expected response format to match actual implementation
     expect(response.status).toBe(200)

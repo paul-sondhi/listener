@@ -65,6 +65,10 @@ describe('Shared Utilities (shared/src/index.js)', () => {
       expect(API_ENDPOINTS).toEqual({
         AUTH: '/auth',
         USERS: '/users',
+        SPOTIFY_TOKENS: '/api/spotify-tokens',
+        TRANSCRIBE: '/api/transcribe',
+        SYNC_SHOWS: '/api/sync-shows',
+        HEALTH: '/health'
       });
     });
 

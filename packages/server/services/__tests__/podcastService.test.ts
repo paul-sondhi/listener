@@ -33,18 +33,18 @@ vi.mock('../../lib/utils.js', () => ({
 import podcastService, { PodcastError } from '../podcastService'
 
 // Mock global fetch used by fetchRssFeed
-const mockFetch = vi.fn() as MockInstance<[string], Promise<MockResponse>>
+const mockFetch = vi.fn() as MockInstance
 vi.stubGlobal('fetch', mockFetch)
 
 // Import modules after mocking to get the mocked versions
-let mockGetTitleSlug: MockInstance<[string], Promise<string>>
-let mockGetFeedUrl: MockInstance<[string], Promise<string | null>>
+let mockGetTitleSlug: MockInstance
+let mockGetFeedUrl: MockInstance
 
 // Dynamically import the mocked functions after hoisting
 beforeEach(async () => {
   const utilsModule = await import('../../lib/utils.js')
-  mockGetTitleSlug = utilsModule.getTitleSlug as MockInstance<[string], Promise<string>>
-  mockGetFeedUrl = utilsModule.getFeedUrl as MockInstance<[string], Promise<string | null>>
+  mockGetTitleSlug = utilsModule.getTitleSlug as unknown as MockInstance
+  mockGetFeedUrl = utilsModule.getFeedUrl as unknown as MockInstance
 })
 
 describe('PodcastService', () => {
@@ -192,6 +192,8 @@ describe('PodcastService', () => {
       const rssData = { 
         rss: { 
           channel: { 
+            title: 'Test Podcast',
+            description: 'Test Description',
             item: { 
               enclosure: { 
                 '@_url': 'http://example.com/track.mp3' 
@@ -202,7 +204,7 @@ describe('PodcastService', () => {
       }
 
       // Act & Assert
-      expect(podcastService.extractMp3Url(rssData)).toBe('http://example.com/track.mp3')
+      expect(podcastService.extractMp3Url(rssData as any)).toBe('http://example.com/track.mp3')
     })
 
     it('should extract MP3 URL from enclosure.url if @_url is missing', () => {
@@ -210,6 +212,8 @@ describe('PodcastService', () => {
       const rssData = { 
         rss: { 
           channel: { 
+            title: 'Test Podcast',
+            description: 'Test Description',
             item: { 
               enclosure: { 
                 url: 'http://example.com/track.mp3' 
@@ -220,7 +224,7 @@ describe('PodcastService', () => {
       }
 
       // Act & Assert
-      expect(podcastService.extractMp3Url(rssData)).toBe('http://example.com/track.mp3')
+      expect(podcastService.extractMp3Url(rssData as any)).toBe('http://example.com/track.mp3')
     })
     
     it('should extract MP3 URL from the first item if item is an array', () => {
@@ -228,6 +232,8 @@ describe('PodcastService', () => {
       const rssData = { 
         rss: { 
           channel: { 
+            title: 'Test Podcast',
+            description: 'Test Description',
             item: [
               { enclosure: { '@_url': 'http://example.com/track1.mp3' } }, 
               { enclosure: { '@_url': 'http://example.com/track2.mp3' } }
@@ -237,7 +243,7 @@ describe('PodcastService', () => {
       }
 
       // Act & Assert
-      expect(podcastService.extractMp3Url(rssData)).toBe('http://example.com/track1.mp3')
+      expect(podcastService.extractMp3Url(rssData as any)).toBe('http://example.com/track1.mp3')
     })
 
     it('should throw PodcastError if no enclosure URL is found', () => {
@@ -245,6 +251,8 @@ describe('PodcastService', () => {
       const rssData = { 
         rss: { 
           channel: { 
+            title: 'Test Podcast',
+            description: 'Test Description',
             item: { 
               enclosure: {} 
             } 
@@ -253,7 +261,7 @@ describe('PodcastService', () => {
       }
 
       // Act & Assert
-      expect(() => podcastService.extractMp3Url(rssData))
+      expect(() => podcastService.extractMp3Url(rssData as any))
         .toThrow(new PodcastError('Failed to extract MP3 URL: No enclosure URL found in first item', 500))
     })
 
@@ -262,13 +270,15 @@ describe('PodcastService', () => {
       const rssData = { 
         rss: { 
           channel: { 
+            title: 'Test Podcast',
+            description: 'Test Description',
             item: {} 
           } 
         } 
       }
 
       // Act & Assert
-      expect(() => podcastService.extractMp3Url(rssData))
+      expect(() => podcastService.extractMp3Url(rssData as any))
         .toThrow(new PodcastError('Failed to extract MP3 URL: No enclosure URL found in first item', 500))
     })
 
@@ -276,12 +286,15 @@ describe('PodcastService', () => {
       // Arrange
       const rssData = { 
         rss: { 
-          channel: {} 
+          channel: {
+            title: 'Test Podcast',
+            description: 'Test Description'
+          } 
         } 
       }
 
       // Act & Assert
-      expect(() => podcastService.extractMp3Url(rssData))
+      expect(() => podcastService.extractMp3Url(rssData as any))
         .toThrow(new PodcastError('Failed to extract MP3 URL: No items found in RSS feed', 500))
     })
   })

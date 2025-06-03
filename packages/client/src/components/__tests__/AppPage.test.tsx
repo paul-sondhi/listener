@@ -1,3 +1,4 @@
+import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest'
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -29,18 +30,44 @@ interface MockFetchResponse {
   text: () => Promise<string>
 }
 
-interface MockAnchorElement extends Partial<HTMLAnchorElement> {
+interface MockAnchorElement {
   click: MockInstance
   remove: MockInstance
   href?: string
   download?: string
+  setAttribute: MockInstance
+  getAttribute: MockInstance
+  style: Record<string, any>
+  className: string
+  id: string
+  nodeType: number
+  nodeName: string
+  tagName: string
+  innerHTML: string
+  outerHTML: string
+  textContent: string
+  parentNode: any
+  parentElement: any
+  children: any[]
+  childNodes: any[]
+  firstChild: any
+  lastChild: any
+  nextSibling: any
+  previousSibling: any
+  ownerDocument: any
+  appendChild: MockInstance
+  removeChild: MockInstance
+  insertBefore: MockInstance
+  addEventListener: MockInstance
+  removeEventListener: MockInstance
+  dispatchEvent: MockInstance
 }
 
 // Hoist the mockGetSession function definition using vi.hoisted
-const mockGetSession = vi.hoisted(() => vi.fn<[], Promise<MockSupabaseResponse>>())
+const mockGetSession = vi.hoisted(() => vi.fn())
 
 // Mock the useAuth hook
-const mockUseAuth = vi.fn<[], MockAuthHookReturnType>()
+const mockUseAuth = vi.fn()
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: (): MockAuthHookReturnType => mockUseAuth(),
 }))
@@ -55,7 +82,7 @@ vi.mock('../../lib/supabaseClient', () => ({
 }))
 
 // Mock fetch globally for this test file
-const mockFetch = vi.fn<[RequestInfo | URL, RequestInit?], Promise<MockFetchResponse>>()
+const mockFetch = vi.fn()
 global.fetch = mockFetch as any
 
 /**
@@ -382,7 +409,7 @@ describe('AppPage Component', () => {
     // Wait for the transcribe API call to complete
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        `${import.meta.env.VITE_API_BASE_URL || ''}/api/transcribe?url=${encodeURIComponent(spotifyTestUrl)}`
+        `https://listener-api.onrender.com/api/transcribe?url=${encodeURIComponent(spotifyTestUrl)}`
       )
     }, { timeout: 10000 })
 
@@ -455,7 +482,7 @@ describe('AppPage Component', () => {
 
     // Try to find the input, skip test if component doesn't render
     try {
-      const urlInput: HTMLInputElement = await screen.findByPlaceholderText(/enter spotify show url/i, { timeout: 1000 }) as HTMLInputElement
+      const urlInput: HTMLInputElement = await screen.findByPlaceholderText(/enter spotify show url/i, {}, { timeout: 1000 }) as HTMLInputElement
       const submitButton: HTMLElement = screen.getByRole('button', { name: /download episode/i })
 
       // Act: Simulate user typing and submitting the form
@@ -519,7 +546,7 @@ describe('AppPage Component', () => {
 
     // Try to find the input, skip test if component doesn't render
     try {
-      const urlInput: HTMLInputElement = await screen.findByPlaceholderText(/enter spotify show url/i, { timeout: 1000 }) as HTMLInputElement
+      const urlInput: HTMLInputElement = await screen.findByPlaceholderText(/enter spotify show url/i, {}, { timeout: 1000 }) as HTMLInputElement
       const submitButton: HTMLElement = screen.getByRole('button', { name: /download episode/i })
 
       // Act: Start form submission but don't resolve yet
@@ -581,7 +608,7 @@ describe('AppPage Component', () => {
 
     // Try to find the input, skip test if component doesn't render
     try {
-      const urlInput: HTMLInputElement = await screen.findByPlaceholderText(/enter spotify show url/i, { timeout: 1000 }) as HTMLInputElement
+      const urlInput: HTMLInputElement = await screen.findByPlaceholderText(/enter spotify show url/i, {}, { timeout: 1000 }) as HTMLInputElement
       const submitButton: HTMLElement = screen.getByRole('button', { name: /download episode/i })
 
       // Act: Simulate user typing and submitting the form
@@ -646,7 +673,7 @@ describe('AppPage Component', () => {
 
     // Try to find the logout button, skip test if component doesn't render
     try {
-      const logoutButton: HTMLElement = await screen.findByText('Log out', { timeout: 1000 })
+      const logoutButton: HTMLElement = await screen.findByText('Log out', {}, { timeout: 1000 })
       fireEvent.click(logoutButton)
 
       // Assert: Check if signOut was called
@@ -763,7 +790,7 @@ describe('AppPage Component', () => {
 
     // Try to find the input, skip test if component doesn't render
     try {
-      const urlInput: HTMLInputElement = await screen.findByPlaceholderText(/enter spotify show url/i, { timeout: 1000 }) as HTMLInputElement
+      const urlInput: HTMLInputElement = await screen.findByPlaceholderText(/enter spotify show url/i, {}, { timeout: 1000 }) as HTMLInputElement
       const submitButton: HTMLElement = screen.getByRole('button', { name: /download episode/i })
 
       // Act: Submit form with dirty URL
@@ -783,12 +810,12 @@ describe('AppPage Component', () => {
       expect(mockFetch).toHaveBeenCalledTimes(3)
 
       // Find the transcribe call specifically
-      const transcribeCall = mockFetch.mock.calls.find(call => 
-        call[0] && typeof call[0] === 'string' && call[0].includes('/api/transcribe')
+      const transcribeCall = (mockFetch as any).mock.calls.find((call: any[]) => 
+        call[0] && typeof call[0] === 'string' && (call[0] as string).includes('/api/transcribe')
       )
       expect(transcribeCall).toBeDefined()
       expect(transcribeCall![0]).toBe(
-        `${import.meta.env.VITE_API_BASE_URL || ''}/api/transcribe?url=${encodeURIComponent(cleanSpotifyUrl)}`
+        `/api/transcribe?url=${encodeURIComponent(cleanSpotifyUrl)}`
       )
     } catch (error) {
       // If component doesn't render, skip the test

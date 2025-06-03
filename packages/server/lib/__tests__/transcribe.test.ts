@@ -30,7 +30,7 @@ interface MockTranscriptionResult {
 }
 
 // Hoisted mock for 'fs' with proper TypeScript typing
-const mockFsCreateReadStreamFn = vi.fn() as MockInstance<[string], Readable>
+const mockFsCreateReadStreamFn = vi.fn() as MockInstance
 vi.mock('fs', () => ({
   __esModule: true,
   createReadStream: mockFsCreateReadStreamFn,
@@ -40,22 +40,22 @@ vi.mock('fs', () => ({
 }))
 
 // Hoisted mock for '@deepgram/sdk' with proper TypeScript typing
-const mockDeepgramCreateClientFn = vi.fn() as MockInstance<[string], MockDeepgramClient>
+const mockDeepgramCreateClientFn = vi.fn() as MockInstance
 vi.mock('@deepgram/sdk', () => ({
   createClient: mockDeepgramCreateClientFn,
 }))
 
 // System Under Test and mocks will be imported dynamically
 let transcribeSUT: (audioFilePath: string) => Promise<string>
-let mockFsCreateReadStream: MockInstance<[string], Readable>
-let mockDeepgramCreateClient: MockInstance<[string], MockDeepgramClient>
+let mockFsCreateReadStream: MockInstance
+let mockDeepgramCreateClient: MockInstance
 let currentTranscribeFileMockFn: MockInstance
 
 describe('Transcription Service', () => {
   describe('transcribe', () => {
     const originalEnv = process.env
     const mockAudioFilePath = '/test/audio.mp3'
-    const mockReadStreamObject = { type: 'mockReadStream' } as Readable
+    const mockReadStreamObject = { type: 'mockReadStream' } as unknown as Readable
 
     beforeEach(async () => {
       // Reset all modules to ensure clean state
@@ -73,7 +73,7 @@ describe('Transcription Service', () => {
 
       // Import Deepgram SDK and setup mock
       const deepgramSdkModule = await import('@deepgram/sdk')
-      mockDeepgramCreateClient = deepgramSdkModule.createClient as MockInstance<[string], MockDeepgramClient>
+      mockDeepgramCreateClient = deepgramSdkModule.createClient as unknown as MockInstance
       mockDeepgramCreateClient.mockReset()
 
       // Setup transcribeFile mock function
@@ -202,7 +202,7 @@ describe('Transcription Service', () => {
 
       // Setup fresh Deepgram mock
       const deepgramSdkModuleFresh = await import('@deepgram/sdk')
-      const localMockDeepgramCreateClient = deepgramSdkModuleFresh.createClient as MockInstance<[string], MockDeepgramClient>
+      const localMockDeepgramCreateClient = deepgramSdkModuleFresh.createClient as unknown as MockInstance
       const localCurrentTranscribeFileMockFn = vi.fn()
       localMockDeepgramCreateClient.mockImplementation(() => ({
         listen: {

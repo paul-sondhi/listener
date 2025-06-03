@@ -1,14 +1,15 @@
+import React from 'react'
 import { describe, it, expect, vi, beforeEach, type MockInstance } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Login from '../Login'
-import type { User, OAuthResponse, SignInWithOAuthCredentials } from '@supabase/supabase-js'
+import type { User, OAuthResponse, SignInWithOAuthCredentials, AuthError } from '@supabase/supabase-js'
 
 // Type definitions for test utilities
 interface MockAuthHookReturnType {
   user: User | null
   loading?: boolean
-  signIn: MockInstance<[SignInWithOAuthCredentials], Promise<OAuthResponse>>
+  signIn: MockInstance
   signOut?: MockInstance
 }
 
@@ -17,18 +18,18 @@ interface MockNavigateFunction {
 }
 
 // Mock react-router-dom
-const mockNavigate = vi.fn<Parameters<MockNavigateFunction>, void>()
+const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => {
   const original = await importOriginal() as typeof import('react-router-dom')
   return {
     ...original,
-    useNavigate: (): MockNavigateFunction => mockNavigate,
+    useNavigate: (): MockNavigateFunction => mockNavigate as any,
   }
 })
 
 // Mock the useAuth hook
-const mockSignIn = vi.fn<[SignInWithOAuthCredentials], Promise<OAuthResponse>>()
-const mockUseAuth = vi.fn<[], MockAuthHookReturnType>()
+const mockSignIn = vi.fn()
+const mockUseAuth = vi.fn()
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: (): MockAuthHookReturnType => mockUseAuth()
@@ -114,8 +115,14 @@ describe('Login Component', () => {
     // Arrange
     const errorMessageContent: string = 'Test login error from signIn'
     const mockErrorResponse: OAuthResponse = {
-      data: { provider: 'spotify', url: '' },
-      error: { message: errorMessageContent }
+      data: { provider: 'spotify', url: null },
+      error: { 
+        message: errorMessageContent,
+        code: 'auth_error',
+        status: 400,
+        __isAuthError: true,
+        name: 'AuthError'
+      } as unknown as AuthError,
     }
     mockSignIn.mockResolvedValue(mockErrorResponse)
     

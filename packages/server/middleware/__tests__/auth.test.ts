@@ -15,7 +15,7 @@ interface MockRequest extends Partial<Request> {
   headers: Record<string, string>
 }
 
-interface MockResponse extends Partial<Response> {
+interface MockResponse {
   status: MockInstance
   json: MockInstance
   sendFile: MockInstance
@@ -35,7 +35,7 @@ interface MockSupabaseAuthResult {
 }
 
 // Mock for Supabase admin auth.getUser
-const mockSupabaseAdminAuthGetUser = vi.fn() as MockInstance<[string], Promise<MockSupabaseAuthResult>>
+const mockSupabaseAdminAuthGetUser = vi.fn() as MockInstance
 
 // Mock @supabase/supabase-js with proper TypeScript typing
 vi.mock('@supabase/supabase-js', () => {
@@ -76,7 +76,7 @@ vi.mock('path', async () => {
 describe('Auth Middleware', () => {
   let mockReq: MockRequest
   let mockRes: MockResponse
-  let mockNext: MockInstance<[], void>
+  let mockNext: MockInstance
   let pathJoinSpy: MockInstance
   let pathDirnameSpy: MockInstance
   let authMiddleware: (req: Request, res: Response, next: NextFunction) => Promise<void>
@@ -151,7 +151,7 @@ describe('Auth Middleware', () => {
       mockReq.path = publicPath
 
       // Act
-      await authMiddleware(mockReq as Request, mockRes as Response, mockNext)
+      await authMiddleware(mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
       // Assert
       expect(mockNext).toHaveBeenCalled()
@@ -170,7 +170,7 @@ describe('Auth Middleware', () => {
     mockSupabaseAdminAuthGetUser.mockResolvedValue(mockUserResult)
 
     // Act
-    await authMiddleware(mockReq as Request, mockRes as Response, mockNext)
+    await authMiddleware(mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockSupabaseAdminAuthGetUser).toHaveBeenCalledWith('valid_token')
@@ -188,7 +188,7 @@ describe('Auth Middleware', () => {
     mockSupabaseAdminAuthGetUser.mockResolvedValue(mockUserResult)
 
     // Act
-    await authMiddleware(mockReq as Request, mockRes as Response, mockNext)
+    await authMiddleware(mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockSupabaseAdminAuthGetUser).toHaveBeenCalledWith('valid_token_header')
@@ -197,7 +197,7 @@ describe('Auth Middleware', () => {
 
   it('should return 401 if no token is provided for a protected route', async () => {
     // Act
-    await authMiddleware(mockReq as Request, mockRes as Response, mockNext)
+    await authMiddleware(mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockRes.status).toHaveBeenCalledWith(401)
@@ -215,7 +215,7 @@ describe('Auth Middleware', () => {
     mockSupabaseAdminAuthGetUser.mockResolvedValue(mockErrorResult)
 
     // Act
-    await authMiddleware(mockReq as Request, mockRes as Response, mockNext)
+    await authMiddleware(mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockSupabaseAdminAuthGetUser).toHaveBeenCalledWith('token_with_error')
@@ -235,7 +235,7 @@ describe('Auth Middleware', () => {
     mockSupabaseAdminAuthGetUser.mockResolvedValue(mockNoUserResult)
 
     // Act
-    await authMiddleware(mockReq as Request, mockRes as Response, mockNext)
+    await authMiddleware(mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockRes.clearCookie).toHaveBeenCalledWith('sb-access-token')
@@ -250,7 +250,7 @@ describe('Auth Middleware', () => {
     mockSupabaseAdminAuthGetUser.mockRejectedValue(new Error('Unexpected Supabase crash'))
 
     // Act
-    await authMiddleware(mockReq as Request, mockRes as Response, mockNext)
+    await authMiddleware(mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockRes.clearCookie).toHaveBeenCalledWith('sb-access-token')

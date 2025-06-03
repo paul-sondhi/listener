@@ -16,7 +16,7 @@ app.use('/healthz', healthRouter) // Mount the router like it's mounted in your 
 describe('Health Check Route (/healthz)', () => {
   it('should return 200 OK with a comprehensive health status', async () => {
     // Act
-    const response = await request(app).get('/healthz')
+    const response = await (request(app) as any).get('/healthz')
 
     // Assert
     expect(response.status).toBe(200)
@@ -52,9 +52,9 @@ describe('Health Check Route (/healthz)', () => {
   it('should have consistent response times under normal load', async () => {
     // Act - Make multiple requests to test consistency
     const responses = await Promise.all([
-      request(app).get('/healthz'),
-      request(app).get('/healthz'),
-      request(app).get('/healthz'),
+      (request(app) as any).get('/healthz'),
+      (request(app) as any).get('/healthz'),
+      (request(app) as any).get('/healthz'),
     ])
 
     // Assert - All should return 200 and have response time headers
@@ -72,7 +72,7 @@ describe('Health Check Route (/healthz)', () => {
     // Mock the dependency check to simulate failure
     // e.g., vi.spyOn(db, 'isConnected').mockResolvedValue(false);
 
-    const response = await request(app).get('/healthz');
+    const response = await (request(app) as any).get('/healthz');
 
     expect(response.status).toBe(503);
     expect(response.body).toMatchObject({

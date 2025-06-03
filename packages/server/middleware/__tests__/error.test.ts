@@ -10,7 +10,7 @@ import type { Request, Response, NextFunction } from 'express'
 // Type definitions for test utilities
 interface MockRequest extends Partial<Request> {}
 
-interface MockResponse extends Partial<Response> {
+interface MockResponse {
   status: MockInstance
   json: MockInstance
 }
@@ -22,7 +22,7 @@ interface CustomError extends Error {
 describe('Error Handling Middleware', () => {
   let mockReq: MockRequest
   let mockRes: MockResponse
-  let mockNext: MockInstance<[], void>
+  let mockNext: MockInstance
   let mockError: CustomError
   let errorHandler: (err: any, req: Request, res: Response, next: NextFunction) => void
   let consoleErrorSpy: MockInstance
@@ -52,7 +52,7 @@ describe('Error Handling Middleware', () => {
 
   it('should log the error to console.error', () => {
     // Act
-    errorHandler(mockError, mockReq as Request, mockRes as Response, mockNext)
+    errorHandler(mockError, mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error occurred:', 'Test error', expect.any(String))
@@ -60,7 +60,7 @@ describe('Error Handling Middleware', () => {
 
   it('should send a 500 status code by default if error has no statusCode', () => {
     // Act
-    errorHandler(mockError, mockReq as Request, mockRes as Response, mockNext)
+    errorHandler(mockError, mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockRes.status).toHaveBeenCalledWith(500)
@@ -72,7 +72,7 @@ describe('Error Handling Middleware', () => {
     mockError.statusCode = 400
 
     // Act
-    errorHandler(mockError, mockReq as Request, mockRes as Response, mockNext)
+    errorHandler(mockError, mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockRes.status).toHaveBeenCalledWith(400)
@@ -84,7 +84,7 @@ describe('Error Handling Middleware', () => {
     mockError.message = 'Custom error message'
 
     // Act
-    errorHandler(mockError, mockReq as Request, mockRes as Response, mockNext)
+    errorHandler(mockError, mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockRes.json).toHaveBeenCalledWith({ success: false, error: 'Custom error message' })
@@ -95,7 +95,7 @@ describe('Error Handling Middleware', () => {
     const errorWithoutMessage = {} // An error object without a message property
 
     // Act
-    errorHandler(errorWithoutMessage, mockReq as Request, mockRes as Response, mockNext)
+    errorHandler(errorWithoutMessage, mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockRes.status).toHaveBeenCalledWith(500) // Default status code
@@ -108,7 +108,7 @@ describe('Error Handling Middleware', () => {
     mockError.message = 'Forbidden access'
 
     // Act
-    errorHandler(mockError, mockReq as Request, mockRes as Response, mockNext)
+    errorHandler(mockError, mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockRes.status).toHaveBeenCalledWith(403)
@@ -118,7 +118,7 @@ describe('Error Handling Middleware', () => {
   // This middleware is a terminal one, so it typically does not call next()
   it('should not call next()', () => {
     // Act
-    errorHandler(mockError, mockReq as Request, mockRes as Response, mockNext)
+    errorHandler(mockError, mockReq as Request, mockRes as unknown as Response, mockNext as unknown as NextFunction)
 
     // Assert
     expect(mockNext).not.toHaveBeenCalled()

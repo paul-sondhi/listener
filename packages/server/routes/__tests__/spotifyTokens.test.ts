@@ -32,10 +32,10 @@ interface MockSupabaseUpdateResponse {
 }
 
 // Mock Supabase client methods used by the route
-const mockSupabaseAuthGetUser = vi.fn() as MockInstance<[string], Promise<MockSupabaseResponse>>
+const mockSupabaseAuthGetUser = vi.fn() as MockInstance
 const mockSupabaseFrom = vi.fn()
 const mockSupabaseUpsert = vi.fn()
-const mockSupabaseSelect = vi.fn() as MockInstance<[], Promise<MockSupabaseUpdateResponse>>
+const mockSupabaseSelect = vi.fn() as MockInstance
 
 const mockSupabaseClient = {
   auth: {
@@ -93,7 +93,7 @@ describe('POST /spotify-tokens', () => {
 
   it('should store tokens successfully with valid token in cookie and valid body', async () => {
     // Act
-    const response = await request(app)
+    const response = await (request(app) as any)
       .post('/spotify-tokens')
       .set('Cookie', 'sb-access-token=user_supabase_token')
       .send(mockTokens)
@@ -118,7 +118,7 @@ describe('POST /spotify-tokens', () => {
 
   it('should store tokens successfully with valid token in Authorization header', async () => {
     // Act
-    const response = await request(app)
+    const response = await (request(app) as any)
       .post('/spotify-tokens')
       .set('Authorization', 'Bearer user_supabase_token')
       .send(mockTokens)
@@ -131,7 +131,7 @@ describe('POST /spotify-tokens', () => {
 
   it('should return 401 if no auth token is provided', async () => {
     // Act
-    const response = await request(app)
+    const response = await (request(app) as any)
       .post('/spotify-tokens')
       .send(mockTokens)
 
@@ -145,7 +145,7 @@ describe('POST /spotify-tokens', () => {
     mockSupabaseAuthGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'Auth error' } })
 
     // Act
-    const response = await request(app)
+    const response = await (request(app) as any)
       .post('/spotify-tokens')
       .set('Cookie', 'sb-access-token=invalid_user_token')
       .send(mockTokens)
@@ -157,7 +157,7 @@ describe('POST /spotify-tokens', () => {
 
   it('should return 400 if token fields are missing in the request body', async () => {
     // Act
-    const response = await request(app)
+    const response = await (request(app) as any)
       .post('/spotify-tokens')
       .set('Cookie', 'sb-access-token=user_supabase_token')
       .send({ access_token: 'test' }) // Missing refresh_token and expires_at
@@ -172,7 +172,7 @@ describe('POST /spotify-tokens', () => {
     mockSupabaseSelect.mockResolvedValueOnce({ error: { message: 'DB update error' } })
 
     // Act
-    const response = await request(app)
+    const response = await (request(app) as any)
       .post('/spotify-tokens')
       .set('Cookie', 'sb-access-token=user_supabase_token')
       .send(mockTokens)
@@ -187,7 +187,7 @@ describe('POST /spotify-tokens', () => {
     mockSupabaseAuthGetUser.mockRejectedValueOnce(new Error('Unexpected Supabase error'))
 
     // Act
-    const response = await request(app)
+    const response = await (request(app) as any)
       .post('/spotify-tokens')
       .set('Cookie', 'sb-access-token=user_supabase_token')
       .send(mockTokens)
@@ -202,7 +202,7 @@ describe('POST /spotify-tokens', () => {
     mockSupabaseSelect.mockRejectedValueOnce(new Error('Unexpected DB error'))
 
     // Act
-    const response = await request(app)
+    const response = await (request(app) as any)
       .post('/spotify-tokens')
       .set('Cookie', 'sb-access-token=user_supabase_token')
       .send(mockTokens)

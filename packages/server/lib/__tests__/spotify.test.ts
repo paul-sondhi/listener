@@ -20,8 +20,8 @@ interface MockFetchResponse {
   text?: () => Promise<string>
 }
 
-// Mock for querystring
-const mockQsStringify = vi.fn() as MockInstance<[Record<string, string>], string>
+// Mock for querystring - using proper MockInstance typing
+const mockQsStringify = vi.fn() as MockInstance
 
 vi.mock('querystring', () => ({
   __esModule: true,
@@ -35,15 +35,15 @@ let getSpotifyAccessToken: () => Promise<string>
 describe('Spotify Utilities', () => {
   describe('getSpotifyAccessToken', () => {
     const originalEnv = process.env
-    let mockFetch: MockInstance<[string, any?], Promise<MockFetchResponse>>
+    let mockFetch: MockInstance
 
     beforeEach(async () => {
       // Reset modules to ensure clean state
       vi.resetModules()
 
-      // Create a mock for global fetch
-      mockFetch = vi.fn() as MockInstance<[string, any?], Promise<MockFetchResponse>>
-      global.fetch = mockFetch
+      // Create a mock for global fetch with proper fetch API typing
+      mockFetch = vi.fn() as MockInstance
+      global.fetch = mockFetch as unknown as typeof fetch
 
       // Also override the global mockFetch to avoid conflicts
       if (global.mockFetch) {
