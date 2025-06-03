@@ -1,0 +1,52 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // Server package specific configuration
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "noEmit": false,
+    
+    // Node.js specific settings
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    
+    // Enhanced type checking for server code
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    
+    // Path mapping for imports
+    "baseUrl": "./",
+    "paths": {
+      "~/*": ["./*"],
+      "@listener/shared": ["../shared/src/index.ts"],
+      "@listener/shared/*": ["../shared/src/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/__tests__/**",
+    "coverage"
+  ],
+  "references": [
+    { "path": "../shared" }
+  ]
+} 

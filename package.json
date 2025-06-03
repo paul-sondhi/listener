@@ -16,7 +16,9 @@
     "supabase:reset": "supabase db reset",
     "supabase:status": "supabase status",
     "db:reset": "supabase db reset && echo 'Local database reset complete'",
-    "dev:full": "npm run supabase:start && npm run dev"
+    "dev:full": "npm run supabase:start && npm run dev",
+    "type-check": "tsc --noEmit",
+    "type-check:watch": "tsc --noEmit --watch"
   },
   "keywords": [],
   "author": "",
@@ -36,10 +38,12 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
+    "@types/node": "^22.10.7",
     "concurrently": "^9.1.2",
     "dotenv-flow": "^4.1.0",
     "jsdom": "^26.1.0",
     "nodemon": "^3.1.10",
+    "typescript": "^5.7.2",
     "vitest": "^3.1.4"
   }
 }

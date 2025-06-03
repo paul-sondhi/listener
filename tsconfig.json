@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    // Base TypeScript configuration for the entire monorepo
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    
+    // Enhanced type checking
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    
+    // Path mapping for workspace packages
+    "paths": {
+      "@listener/shared": ["./packages/shared/src/index.ts"],
+      "@listener/shared/*": ["./packages/shared/src/*"]
+    }
+  },
+  
+  // Workspace references for the monorepo packages
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/server" },
+    { "path": "./packages/client" }
+  ],
+  
+  // Files to include/exclude at the root level
+  "include": [],
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/coverage"
+  ]
+} 
