@@ -1,0 +1,2 @@
+// Spotify API types
+export {};

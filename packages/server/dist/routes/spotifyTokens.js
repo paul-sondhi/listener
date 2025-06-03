@@ -1,0 +1,93 @@
+import express from 'express';
+import { createClient } from '@supabase/supabase-js';
+// Create router with proper typing
+const router = express.Router();
+// Initialize Supabase Admin client lazily with proper typing
+let supabaseAdmin = null;
+function getSupabaseAdmin() {
+    if (!supabaseAdmin) {
+        supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    }
+    return supabaseAdmin;
+}
+/**
+ * Store Spotify tokens endpoint
+ * POST /api/store-spotify-tokens
+ * Body: { access_token, refresh_token, expires_at }
+ */
+router.post('/', async (req, res) => {
+    try {
+        // Try to get the token from the cookie, or from the Authorization header
+        let token = req.cookies['sb-access-token'];
+        if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+            token = req.headers.authorization.split(' ')[1];
+        }
+        if (!token) {
+            console.error('No access token found in cookie or Authorization header');
+            res.status(401).json({
+                success: false,
+                error: 'Not authenticated'
+            });
+            return;
+        }
+        // Get the authenticated user
+        const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(token);
+        if (error || !user) {
+            console.error('User authentication failed:', error?.message);
+            res.status(401).json({
+                success: false,
+                error: 'User authentication failed'
+            });
+            return;
+        }
+        // Parse tokens from request body with proper typing
+        const { access_token, refresh_token, expires_at } = req.body;
+        if (!access_token || !refresh_token || !expires_at) {
+            console.error('Missing one or more required token fields');
+            res.status(400).json({
+                success: false,
+                error: 'Missing token fields'
+            });
+            return;
+        }
+        // Convert expires_at (seconds since epoch) to ISO timestamp
+        const expiresAtIso = new Date(expires_at * 1000).toISOString();
+        // Upsert the users table for the authenticated user (by UUID)
+        const { error: upsertError } = await getSupabaseAdmin()
+            .from('users')
+            .upsert({
+            id: user.id,
+            email: user.email || '',
+            spotify_access_token: access_token,
+            spotify_refresh_token: refresh_token,
+            spotify_token_expires_at: expiresAtIso,
+            updated_at: new Date().toISOString()
+        }, {
+            onConflict: 'id'
+        })
+            .select();
+        if (upsertError) {
+            console.error('Error upserting user tokens:', upsertError.message);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to store user tokens'
+            });
+            return;
+        }
+        console.log('Successfully stored/updated tokens for user:', user.email);
+        // Success response
+        res.status(200).json({
+            success: true,
+            message: 'Tokens stored successfully'
+        });
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('Unexpected error in /api/store-spotify-tokens:', errorMessage);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
+export default router;

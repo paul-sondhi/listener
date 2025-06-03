@@ -1,0 +1,119 @@
+import express, { Router, Request, Response } from 'express';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Database, ApiResponse } from '@listener/shared';
+
+// Create router with proper typing
+const router: Router = express.Router();
+
+// Initialize Supabase Admin client lazily with proper typing
+let supabaseAdmin: SupabaseClient<Database> | null = null;
+
+function getSupabaseAdmin(): SupabaseClient<Database> {
+    if (!supabaseAdmin) {
+        supabaseAdmin = createClient<Database>(
+            process.env.SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+    }
+    return supabaseAdmin;
+}
+
+// Interface for the request body
+interface StoreTokensRequest {
+    access_token: string;
+    refresh_token: string;
+    expires_at: number; // Unix timestamp in seconds
+}
+
+/**
+ * Store Spotify tokens endpoint
+ * POST /api/store-spotify-tokens
+ * Body: { access_token, refresh_token, expires_at }
+ */
+router.post('/', async (req: Request, res: Response): Promise<void> => {
+    try {
+        // Try to get the token from the cookie, or from the Authorization header
+        let token: string | undefined = req.cookies['sb-access-token'] as string;
+        
+        if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+            token = req.headers.authorization.split(' ')[1];
+        }
+        
+        if (!token) {
+            console.error('No access token found in cookie or Authorization header');
+            res.status(401).json({ 
+                success: false, 
+                error: 'Not authenticated' 
+            } as ApiResponse);
+            return;
+        }
+
+        // Get the authenticated user
+        const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(token);
+        if (error || !user) {
+            console.error('User authentication failed:', error?.message);
+            res.status(401).json({ 
+                success: false, 
+                error: 'User authentication failed' 
+            } as ApiResponse);
+            return;
+        }
+
+        // Parse tokens from request body with proper typing
+        const { access_token, refresh_token, expires_at }: StoreTokensRequest = req.body;
+        
+        if (!access_token || !refresh_token || !expires_at) {
+            console.error('Missing one or more required token fields');
+            res.status(400).json({ 
+                success: false, 
+                error: 'Missing token fields' 
+            } as ApiResponse);
+            return;
+        }
+
+        // Convert expires_at (seconds since epoch) to ISO timestamp
+        const expiresAtIso: string = new Date(expires_at * 1000).toISOString();
+        
+        // Upsert the users table for the authenticated user (by UUID)
+        const { error: upsertError } = await getSupabaseAdmin()
+            .from('users')
+            .upsert({
+                id: user.id,
+                email: user.email || '',
+                spotify_access_token: access_token,
+                spotify_refresh_token: refresh_token,
+                spotify_token_expires_at: expiresAtIso,
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'id'
+            })
+            .select();
+
+        if (upsertError) {
+            console.error('Error upserting user tokens:', upsertError.message);
+            res.status(500).json({ 
+                success: false, 
+                error: 'Failed to store user tokens' 
+            } as ApiResponse);
+            return;
+        }
+
+        console.log('Successfully stored/updated tokens for user:', user.email);
+        
+        // Success response
+        res.status(200).json({ 
+            success: true, 
+            message: 'Tokens stored successfully' 
+        } as ApiResponse);
+        
+    } catch (error: unknown) {
+        const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('Unexpected error in /api/store-spotify-tokens:', errorMessage);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Internal server error' 
+        } as ApiResponse);
+    }
+});
+
+export default router; 
