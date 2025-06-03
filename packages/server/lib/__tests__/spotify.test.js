@@ -122,7 +122,11 @@ describe('Spotify Utilities', () => {
 
         test('should throw an error if fetching token fails', async () => {
             vi.setSystemTime(new Date()); 
-            actualMockNodeFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+            actualMockNodeFetch.mockResolvedValueOnce({ 
+                ok: false, 
+                status: 500,
+                text: async () => 'Spotify API Error Response'
+            });
             await expect(getSpotifyAccessToken()).rejects.toThrow('Failed to get Spotify access token');
         });
 

@@ -240,7 +240,12 @@ describe('Utility Functions', () => {
 
         test('should throw error from PodcastIndex if it fails and not call iTunes', async () => {
             actualMockNodeFetch
-                .mockResolvedValueOnce({ ok: false, status: 500, statusText: 'PI Error' });
+                .mockResolvedValueOnce({ 
+                    ok: false, 
+                    status: 500, 
+                    statusText: 'PI Error',
+                    text: async () => 'PodcastIndex API Error Response'
+                });
             await expect(getFeedUrl(testSlug)).rejects.toThrow('PodcastIndex search failed with status 500');
             expect(actualMockNodeFetch).toHaveBeenCalledTimes(1);
         });

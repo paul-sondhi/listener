@@ -61,6 +61,11 @@ describe('AppPage Component', () => {
           provider_refresh_token: 'spotify-refresh-token',
           expires_at: Date.now() / 1000 + 3600,
           access_token: 'supabase-access-token',
+          user: {
+            app_metadata: {
+              provider: 'spotify'
+            }
+          }
         },
       },
       error: null,
@@ -122,6 +127,7 @@ describe('AppPage Component', () => {
     global.fetch.mockResolvedValueOnce({
       ok: true,
       text: async () => mockTranscriptText, // Simulate successful transcript response
+      json: async () => ({ transcription: mockTranscriptText }), // Add json method for completeness
     });
 
     render(
@@ -160,7 +166,9 @@ describe('AppPage Component', () => {
     });
     
     // 3. Check if input was cleared
-    expect(urlInput.value).toBe('');
+    await waitFor(() => {
+      expect(urlInput.value).toBe('');
+    });
 
     // 4. Check if download functions were called
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
@@ -186,6 +194,7 @@ describe('AppPage Component', () => {
       ok: false, // Simulate an HTTP error
       status: 400, // Example error status
       json: async () => ({ error: apiErrorMessage }), // API returns error in JSON body
+      text: async () => apiErrorMessage, // Add text method for compatibility
     });
 
     render(
@@ -332,6 +341,11 @@ describe('AppPage Component', () => {
           provider_refresh_token: 'spotify-refresh-token',
           expires_at: Date.now() / 1000 + 3600,
           access_token: 'supabase-access-token',
+          user: {
+            app_metadata: {
+              provider: 'spotify'
+            }
+          }
         },
       },
       error: null,
@@ -342,6 +356,7 @@ describe('AppPage Component', () => {
     global.fetch.mockResolvedValueOnce({
       ok: false,
       json: async () => ({ error: storeTokensErrorMessage }), // Simulate API error response
+      text: async () => storeTokensErrorMessage, // Add text method for compatibility
     });
     // No mock for a second fetch call, as it shouldn't be made.
 
@@ -354,7 +369,7 @@ describe('AppPage Component', () => {
 
     // Assertions
     // 1. Check that the error message from the failed API call is displayed
-    const errorDiv = await screen.findByText(storeTokensErrorMessage);
+    const errorDiv = await screen.findByText(`Authentication error: ${storeTokensErrorMessage}`);
     expect(errorDiv).toBeInTheDocument();
 
     // 2. Check that the first fetch (store-spotify-tokens) was called
@@ -393,6 +408,11 @@ describe('AppPage Component', () => {
           provider_refresh_token: 'spotify-refresh-token',
           expires_at: Date.now() / 1000 + 3600,
           access_token: 'supabase-access-token',
+          user: {
+            app_metadata: {
+              provider: 'spotify'
+            }
+          }
         },
       },
       error: null,
@@ -409,6 +429,7 @@ describe('AppPage Component', () => {
     global.fetch.mockResolvedValueOnce({
       ok: false,
       json: async () => ({ error: syncShowsErrorMessage }), // Simulate API error response
+      text: async () => syncShowsErrorMessage, // Add text method for compatibility
     });
 
     // Act
@@ -420,7 +441,7 @@ describe('AppPage Component', () => {
 
     // Assertions
     // 1. Check that the error message from the failed sync-shows API call is displayed
-    const errorDiv = await screen.findByText(syncShowsErrorMessage);
+    const errorDiv = await screen.findByText(`Authentication error: ${syncShowsErrorMessage}`);
     expect(errorDiv).toBeInTheDocument();
 
     // 2. Check that both fetch calls were made

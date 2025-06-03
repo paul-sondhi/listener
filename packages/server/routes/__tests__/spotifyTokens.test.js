@@ -7,8 +7,8 @@ import spotifyTokensRouter from '../spotifyTokens'; // Adjust path
 // More complete mock for Supabase client methods used by the route
 const mockSupabaseAuthGetUser = vi.fn();
 const mockSupabaseFrom = vi.fn();
-const mockSupabaseUpdate = vi.fn();
-const mockSupabaseEq = vi.fn(); // This will resolve the promise for the update operation
+const mockSupabaseUpsert = vi.fn();
+const mockSupabaseSelect = vi.fn();
 
 const mockSupabaseClient = {
   auth: {
@@ -17,14 +17,14 @@ const mockSupabaseClient = {
   from: mockSupabaseFrom,
 };
 
-// Setup chaining for the mock client
-mockSupabaseFrom.mockImplementation(() => ({ // from() returns an object with update
-  update: mockSupabaseUpdate,
+// Setup chaining for the mock client - the actual route uses upsert, not update
+mockSupabaseFrom.mockImplementation(() => ({ // from() returns an object with upsert
+  upsert: mockSupabaseUpsert,
 }));
-mockSupabaseUpdate.mockImplementation(() => ({ // update() returns an object with eq
-  eq: mockSupabaseEq,
+mockSupabaseUpsert.mockImplementation(() => ({ // upsert() returns an object with select
+  select: mockSupabaseSelect,
 }));
-// eq will be set to mockResolvedValue in individual tests or beforeEach
+// select will be set to mockResolvedValue in individual tests or beforeEach
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockSupabaseClient),
@@ -68,7 +68,7 @@ describe('POST /spotify-tokens', () => {
     // Default successful getUser mock
     mockSupabaseAuthGetUser.mockResolvedValue({ data: { user: mockUser }, error: null });
     // Default successful update mock
-    mockSupabaseEq.mockResolvedValue({ error: null }); // .eq is the last in the chain
+    mockSupabaseSelect.mockResolvedValue({ error: null }); // .select is the last in the chain
   });
 
   it('should store tokens successfully with valid token in cookie and valid body', async () => {
@@ -81,12 +81,17 @@ describe('POST /spotify-tokens', () => {
     expect(response.body).toEqual({ success: true });
     expect(mockSupabaseAuthGetUser).toHaveBeenCalledWith('user_supabase_token');
     expect(mockSupabaseFrom).toHaveBeenCalledWith('users');
-    expect(mockSupabaseUpdate).toHaveBeenCalledWith({
+    expect(mockSupabaseUpsert).toHaveBeenCalledWith({
+      id: mockUser.id,
+      email: mockUser.email,
       spotify_access_token: mockTokens.access_token,
       spotify_refresh_token: mockTokens.refresh_token,
       spotify_token_expires_at: new Date(mockTokens.expires_at * 1000).toISOString(),
+      updated_at: expect.any(String), // This is dynamically generated
+    }, {
+      onConflict: 'id'
     });
-    expect(mockSupabaseEq).toHaveBeenCalledWith('id', mockUser.id);
+    expect(mockSupabaseSelect).toHaveBeenCalledWith();
   });
 
   it('should store tokens successfully with valid token in Authorization header', async () => {
@@ -132,7 +137,7 @@ describe('POST /spotify-tokens', () => {
   });
 
   it('should return 500 if Supabase update fails', async () => {
-    mockSupabaseEq.mockResolvedValueOnce({ error: { message: 'DB update error' } });
+    mockSupabaseSelect.mockResolvedValueOnce({ error: { message: 'DB update error' } });
 
     const response = await request(app)
       .post('/spotify-tokens')
@@ -140,7 +145,7 @@ describe('POST /spotify-tokens', () => {
       .send(mockTokens);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: 'Failed to update user tokens' });
+    expect(response.body).toEqual({ error: 'Failed to store user tokens' });
   });
 
   it('should return 500 for unexpected errors during Supabase getUser', async () => {
@@ -156,8 +161,8 @@ describe('POST /spotify-tokens', () => {
   });
 
   it('should return 500 for unexpected errors during Supabase update', async () => {
-    // This mock specifically makes the .eq call fail unexpectedly, not just return an error object
-    mockSupabaseEq.mockRejectedValueOnce(new Error('Unexpected DB error'));
+    // This mock specifically makes the .select call fail unexpectedly, not just return an error object
+    mockSupabaseSelect.mockRejectedValueOnce(new Error('Unexpected DB error'));
 
     const response = await request(app)
       .post('/spotify-tokens')
