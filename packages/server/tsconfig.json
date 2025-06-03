@@ -43,7 +43,9 @@
     "dist",
     "**/*.test.ts",
     "**/__tests__/**",
-    "coverage"
+    "coverage",
+    "setupTests.ts",
+    "vitest.config.ts"
   ],
   "references": [
     { "path": "../shared" }
