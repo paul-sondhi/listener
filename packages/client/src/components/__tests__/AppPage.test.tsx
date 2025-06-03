@@ -408,7 +408,8 @@ describe('AppPage Component', () => {
 
     // Wait for the transcribe API call to complete
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        3,
         `https://listener-api.onrender.com/api/transcribe?url=${encodeURIComponent(spotifyTestUrl)}`
       )
     }, { timeout: 10000 })
