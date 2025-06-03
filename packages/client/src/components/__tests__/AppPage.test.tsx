@@ -816,7 +816,7 @@ describe('AppPage Component', () => {
       )
       expect(transcribeCall).toBeDefined()
       expect(transcribeCall![0]).toBe(
-        `/api/transcribe?url=${encodeURIComponent(cleanSpotifyUrl)}`
+        `https://listener-api.onrender.com/api/transcribe?url=${encodeURIComponent(cleanSpotifyUrl)}`
       )
     } catch (error) {
       // If component doesn't render, skip the test
