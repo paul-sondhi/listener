@@ -22,7 +22,7 @@
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "dotenv-cli": "^7.4.5",
+    "dotenv-cli": "^8.0.0",
     "dotenv-flow": "^4.1.0",
     "nodemon": "^3.1.10",
     "supertest": "^7.0.0",
