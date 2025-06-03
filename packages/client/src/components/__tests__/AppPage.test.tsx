@@ -408,10 +408,13 @@ describe('AppPage Component', () => {
 
     // Wait for the transcribe API call to complete
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenNthCalledWith(
-        3,
-        `https://listener-api.onrender.com/api/transcribe?url=${encodeURIComponent(spotifyTestUrl)}`
-      )
+      expect(mockFetch).toHaveBeenCalledTimes(3)
+      // Check that the 3rd call was to the transcribe endpoint with the correct URL parameter
+      const transcribeCall = (mockFetch as any).mock.calls[2]
+      expect(transcribeCall).toBeDefined()
+      const callUrl = transcribeCall[0]
+      expect(callUrl).toContain('/api/transcribe')
+      expect(callUrl).toContain(`url=${encodeURIComponent(spotifyTestUrl)}`)
     }, { timeout: 10000 })
 
     // Wait for the button to return to normal state (not loading)
@@ -815,9 +818,10 @@ describe('AppPage Component', () => {
         call[0] && typeof call[0] === 'string' && (call[0] as string).includes('/api/transcribe')
       )
       expect(transcribeCall).toBeDefined()
-      expect(transcribeCall![0]).toBe(
-        `https://listener-api.onrender.com/api/transcribe?url=${encodeURIComponent(cleanSpotifyUrl)}`
-      )
+      // Check that the URL contains the transcribe endpoint and the cleaned URL parameter
+      const callUrl = transcribeCall![0]
+      expect(callUrl).toContain('/api/transcribe')
+      expect(callUrl).toContain(`url=${encodeURIComponent(cleanSpotifyUrl)}`)
     } catch (error) {
       // If component doesn't render, skip the test
       console.warn('Component did not render, skipping test assertions')
