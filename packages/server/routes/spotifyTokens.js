@@ -47,23 +47,29 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'Missing token fields' });
         }
 
-        // Update the users table for the authenticated user (by UUID)
+        // Upsert the users table for the authenticated user (by UUID)
         // Convert expires_at (seconds since epoch) to ISO timestamp
         const expiresAtIso = new Date(expires_at * 1000).toISOString();
-        const { error: updateError } = await getSupabaseAdmin()
+        const { data, error: upsertError } = await getSupabaseAdmin()
             .from('users')
-            .update({
+            .upsert({
+                id: user.id,
+                email: user.email,
                 spotify_access_token: access_token,
                 spotify_refresh_token: refresh_token,
-                spotify_token_expires_at: expiresAtIso
+                spotify_token_expires_at: expiresAtIso,
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'id'
             })
-            .eq('id', user.id);
+            .select();
 
-        if (updateError) {
-            console.error('Error updating user tokens:', updateError);
-            return res.status(500).json({ error: 'Failed to update user tokens' });
+        if (upsertError) {
+            console.error('Error upserting user tokens:', upsertError);
+            return res.status(500).json({ error: 'Failed to store user tokens' });
         }
 
+        console.log('Successfully stored/updated tokens for user:', user.email);
         // Success
         return res.status(200).json({ success: true });
     } catch (err) {

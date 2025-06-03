@@ -6,18 +6,27 @@ const fetch = _nf.default || _nf;
 function getAuthHeaders() {
     const apiKey = process.env.PODCASTINDEX_KEY;
     const apiSecret = process.env.PODCASTINDEX_SECRET;
-
+    
+    console.log('DEBUG: PodcastIndex credentials check:');
+    console.log('DEBUG: PODCASTINDEX_KEY loaded:', apiKey ? `${apiKey.substring(0, 8)}...` : 'MISSING');
+    console.log('DEBUG: PODCASTINDEX_SECRET loaded:', apiSecret ? `${apiSecret.substring(0, 8)}...` : 'MISSING');
+    console.log('DEBUG: USER_AGENT:', process.env.USER_AGENT || 'MISSING');
+    
     if (!apiKey || !apiSecret) {
         throw new Error('PodcastIndex API Key/Secret is missing. Please check environment variables.');
     }
 
     const apiHeaderTime = Math.floor(Date.now() / 1000);
-    const sha1Algorithm = "sha1";
-    // HMAC-SHA1 of (key + secret + date)
+    // SHA-1 hash of (key + secret + date) as required by PodcastIndex API
+    // This creates the proper SHA-1 signature as required by PodcastIndex API
     const signature = crypto
-      .createHash(sha1Algorithm)
+      .createHash('sha1')
       .update(apiKey + apiSecret + apiHeaderTime.toString())
       .digest('hex');
+    
+    console.log('DEBUG: Generated signature for timestamp:', apiHeaderTime);
+    console.log('DEBUG: Signature preview:', signature.substring(0, 10) + '...');
+    
     // Return the three required headers
     return {
       'X-Auth-Key': apiKey,
@@ -66,6 +75,8 @@ async function getFeedUrl(slug) {
       }
     });
     if (!searchRes.ok) {
+      const errorText = await searchRes.text().catch(() => 'Could not read response');
+      console.error('PodcastIndex API Error Response:', errorText);
       throw new Error(`PodcastIndex search failed with status ${searchRes.status}`);
     }
     const { feeds } = await searchRes.json();

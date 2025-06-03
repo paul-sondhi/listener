@@ -1,8 +1,9 @@
 # Ignore file_strcuture
-file_structure.md
+.file_structure
 
 # Ignore environment variables
 .env
+.env.local
 
 # Ignore node modules
 node_modules/

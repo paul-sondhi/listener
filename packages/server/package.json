@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "NODE_ENV=production node server.js",
-    "dev": "NODE_ENV=development nodemon server.js",
+    "dev": "nodemon server.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -22,7 +22,10 @@
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "vitest": "^3.1.4",
-    "supertest": "^7.0.0"
+    "dotenv-cli": "^7.4.5",
+    "dotenv-flow": "^4.1.0",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.0.0",
+    "vitest": "^3.1.4"
   }
 }

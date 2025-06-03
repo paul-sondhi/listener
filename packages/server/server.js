@@ -4,14 +4,17 @@ import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import { config } from 'dotenv';
+import dotenvFlow from 'dotenv-flow';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from the root .env file
-config({ path: path.join(__dirname, '../../.env') });
+// Load environment variables from the root directory
+dotenvFlow.config({
+    path: path.join(__dirname, '../../'), // Point to root directory where .env files are located
+    silent: false // Show debug info
+});
 
 // Import routes
 import apiRoutes from './routes/index.js';
@@ -25,7 +28,7 @@ app.use(express.json());
 
 // Enable CORS for Vercel front-end and local dev (including preflight)
 const corsOptions = {
-  origin: ['https://listener-seven.vercel.app', 'http://localhost:5173', 'http://localhost:3000'],
+  origin: ['https://listener-seven.vercel.app', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
   credentials: true,
 };
 app.use(cors(corsOptions));
@@ -34,21 +37,10 @@ app.options('*', cors(corsOptions));
 // Mount API routes
 app.use('/api', apiRoutes);
 
-// Development vs Production configuration
-if (process.env.NODE_ENV === 'development') {
-    // Use proxy in development for Vite HMR
-    app.use('/', createProxyMiddleware({
-        target: 'http://localhost:5173',
-        changeOrigin: true,
-        ws: true // Enable WebSocket proxying for HMR
-    }));
-}
-
 // Health check endpoint for Render
 app.get('/healthz', (req, res) => {
   res.sendStatus(200);
 });
-
 
 // Initialize server
 const PORT = process.env.PORT || 3000;
@@ -56,6 +48,16 @@ const PORT = process.env.PORT || 3000;
 // Initialize additional middleware and start server
 const initializeServer = async () => {
     try {
+        // Development vs Production configuration
+        if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+            // Use proxy in development for Vite HMR
+            app.use('/', createProxyMiddleware({
+                target: 'http://localhost:5173',
+                changeOrigin: true,
+                ws: true // Enable WebSocket proxying for HMR
+            }));
+        }
+
         // Import middleware dynamically
         const { default: authMiddleware } = await import('./middleware/auth.js');
         const { default: errorHandler } = await import('./middleware/error.js');

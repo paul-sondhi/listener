@@ -7,3 +7,5 @@ migrations/
 .env.keys
 .env.local
 .env.*.local
+
+.README

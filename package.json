@@ -6,10 +6,16 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev -w @listener/server\" \"npm run dev -w @listener/client\"",
+    "dev": "concurrently \"supabase start\" \"npm run dev -w @listener/server\" \"npm run dev -w @listener/client\"",
     "build": "npm run build -w @listener/client",
     "start": "npm run start -w @listener/server",
-    "test": "npm run test -ws --if-present"
+    "test": "npm run test -ws --if-present",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:reset": "supabase db reset",
+    "supabase:status": "supabase status",
+    "db:reset": "supabase db reset && echo 'Local database reset complete'",
+    "dev:full": "npm run supabase:start && npm run dev"
   },
   "keywords": [],
   "author": "",
@@ -30,6 +36,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "concurrently": "^9.1.2",
+    "dotenv-flow": "^4.1.0",
     "jsdom": "^26.1.0",
     "nodemon": "^3.1.10",
     "vitest": "^3.1.4"

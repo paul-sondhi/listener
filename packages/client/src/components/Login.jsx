@@ -8,7 +8,8 @@ export default function Login() {
   const navigate = useNavigate()
 
 // Read the base URL from Vite env (override in Vercel, fallback locally)
-const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:3000'
+// For local development, use the frontend URL (port 5173), not backend (port 3000)
+const BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5173'
 const REDIRECT_URI = `${BASE_URL}/app`
 
   // Redirect to app if user is already logged in
