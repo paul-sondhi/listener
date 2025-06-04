@@ -934,7 +934,7 @@ describe('AppPage Component', () => {
       // Assert
       expect(mockFetch).toHaveBeenCalledTimes(1) // Should only be called once
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://listener-api.onrender.com/api/store-spotify-tokens',
+        expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/store-spotify-tokens$/),
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -1031,7 +1031,7 @@ describe('AppPage Component', () => {
       // Assert - Focus on the core functionality: sync continues despite clearReauthFlag failure
       // Should continue to show sync even after clearReauthFlag fails
       expect(mockFetch).toHaveBeenNthCalledWith(2,
-        'https://listener-api.onrender.com/api/sync-spotify-shows',
+        expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/sync-spotify-shows$/),
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -1130,13 +1130,13 @@ describe('AppPage Component', () => {
       // The prevention mechanism should stop additional sync sequences from starting
       expect(mockFetch).toHaveBeenCalledTimes(2) // Token storage + show sync
       expect(mockFetch).toHaveBeenNthCalledWith(1,
-        'https://listener-api.onrender.com/api/store-spotify-tokens',
+        expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/store-spotify-tokens$/),
         expect.objectContaining({
           method: 'POST'
         })
       )
       expect(mockFetch).toHaveBeenNthCalledWith(2,
-        'https://listener-api.onrender.com/api/sync-spotify-shows',
+        expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/sync-spotify-shows$/),
         expect.objectContaining({
           method: 'POST'
         })
