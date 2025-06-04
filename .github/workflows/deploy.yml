@@ -66,6 +66,48 @@ jobs:
           cd scripts
           npm install
 
+      - name: Debug Environment Variables
+        run: |
+          echo "🔍 Debug: Checking environment variables..."
+          echo "NODE_ENV: $NODE_ENV"
+          echo "SUPABASE_URL is set: ${{ secrets.SUPABASE_TEST_URL != '' || secrets.SUPABASE_URL != '' }}"
+          echo "SUPABASE_SERVICE_ROLE_KEY is set: ${{ secrets.SUPABASE_TEST_SERVICE_KEY != '' || secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}"
+          echo "Available secrets (names only):"
+          echo "- SUPABASE_TEST_URL exists: ${{ secrets.SUPABASE_TEST_URL != '' }}"
+          echo "- SUPABASE_URL exists: ${{ secrets.SUPABASE_URL != '' }}"
+          echo "- SUPABASE_TEST_SERVICE_KEY exists: ${{ secrets.SUPABASE_TEST_SERVICE_KEY != '' }}"
+          echo "- SUPABASE_SERVICE_ROLE_KEY exists: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}"
+
+      - name: Validate Required Secrets
+        run: |
+          echo "🔐 Validating required secrets..."
+          MISSING_SECRETS=""
+          
+          if [ -z "${{ secrets.SUPABASE_TEST_URL || secrets.SUPABASE_URL }}" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS SUPABASE_URL"
+          fi
+          
+          if [ -z "${{ secrets.SUPABASE_TEST_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS SUPABASE_SERVICE_ROLE_KEY"
+          fi
+          
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "❌ Missing required GitHub secrets:$MISSING_SECRETS"
+            echo ""
+            echo "🔧 To fix this issue:"
+            echo "1. Go to your GitHub repository"
+            echo "2. Navigate to Settings → Secrets and variables → Actions"
+            echo "3. Add the following secrets:"
+            echo "   - SUPABASE_URL (your Supabase project URL)"
+            echo "   - SUPABASE_SERVICE_ROLE_KEY (your Supabase service role key)"
+            echo "   - Optional: SUPABASE_TEST_URL and SUPABASE_TEST_SERVICE_KEY for test environment"
+            echo ""
+            echo "📖 Find these values in your Supabase dashboard → Settings → API"
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are configured"
+
       - name: Run Migration Validation
         run: |
           echo "🔍 Running migration validation tests..."
