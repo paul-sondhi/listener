@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@listener/shared';
-import cron from 'node-cron';
+import * as cron from 'node-cron';
 
 // Job execution tracking
 interface JobExecution {

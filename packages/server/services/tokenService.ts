@@ -1,14 +1,36 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '@listener/shared';
-import {
-  SpotifyTokens,
-  TokenRefreshResult,
-  TokenValidationResult,
-  SpotifyRateLimit,
-  TokenServiceConfig
-} from '@listener/shared';
+import { Database, SpotifyTokens } from '@listener/shared';
 import { getUserSecret, updateUserSecret } from '../lib/vaultHelpers';
 import { getTokenCache, SpotifyTokenData } from '../lib/tokenCache';
+
+// Local type definitions for token management
+interface TokenRefreshResult {
+  success: boolean;
+  tokens?: SpotifyTokens;
+  requires_reauth: boolean;
+  error?: string;
+  elapsed_ms: number;
+}
+
+interface TokenValidationResult {
+  valid: boolean;
+  expires_in_minutes: number;
+  needs_refresh: boolean;
+  error?: string;
+}
+
+interface SpotifyRateLimit {
+  is_limited: boolean;
+  reset_at?: number;
+  retry_after_seconds?: number;
+}
+
+interface TokenServiceConfig {
+  refresh_threshold_minutes: number;
+  max_refresh_retries: number;
+  cache_ttl_seconds: number;
+  rate_limit_pause_seconds: number;
+}
 
 // Rate limiting state - global across all users
 let spotifyRateLimit: SpotifyRateLimit = {
@@ -96,7 +118,7 @@ function isRateLimited(): boolean {
   if (spotifyRateLimit.reset_at && now >= spotifyRateLimit.reset_at) {
     // Rate limit has expired
     spotifyRateLimit.is_limited = false;
-    spotifyRateLimit.reset_at = undefined;
+    delete spotifyRateLimit.reset_at;
     console.log('RATE_LIMIT: Spotify rate limit has expired, resuming operations');
     return false;
   }
@@ -155,11 +177,17 @@ async function refreshSpotifyTokens(refreshToken: string): Promise<SpotifyTokens
   }
   
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string; error_description?: string };
     throw new Error(`Spotify refresh failed: ${response.status} - ${errorData.error_description || errorData.error}`);
   }
   
-  const tokenData = await response.json();
+  const tokenData = await response.json() as {
+    access_token: string;
+    refresh_token?: string;
+    expires_in: number;
+    token_type?: string;
+    scope?: string;
+  };
   
   return {
     access_token: tokenData.access_token,

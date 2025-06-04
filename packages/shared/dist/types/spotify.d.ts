@@ -104,4 +104,40 @@ export interface SpotifyUserShows extends SpotifyPagination<{
     show: SpotifyShow;
 }> {
 }
+export interface VaultOperationResult {
+    success: boolean;
+    data?: SpotifyTokens;
+    error?: string;
+    elapsed_ms: number;
+}
+export interface VaultDeleteResult {
+    success: boolean;
+    status_code: number;
+    elapsed_ms: number;
+    error?: string;
+}
+export interface TokenRefreshResult {
+    success: boolean;
+    tokens?: SpotifyTokens;
+    requires_reauth: boolean;
+    error?: string;
+    elapsed_ms: number;
+}
+export interface TokenValidationResult {
+    valid: boolean;
+    expires_in_minutes: number;
+    needs_refresh: boolean;
+    error?: string;
+}
+export interface SpotifyRateLimit {
+    is_limited: boolean;
+    reset_at?: number;
+    retry_after_seconds?: number;
+}
+export interface TokenServiceConfig {
+    refresh_threshold_minutes: number;
+    max_refresh_retries: number;
+    cache_ttl_seconds: number;
+    rate_limit_pause_seconds: number;
+}
 //# sourceMappingURL=spotify.d.ts.map

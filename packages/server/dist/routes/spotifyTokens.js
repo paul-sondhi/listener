@@ -1,5 +1,6 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { createUserSecret } from '../lib/vaultHelpers.js';
 // Create router with proper typing
 const router = express.Router();
 // Initialize Supabase Admin client lazily with proper typing
@@ -14,6 +15,7 @@ function getSupabaseAdmin() {
  * Store Spotify tokens endpoint
  * POST /api/store-spotify-tokens
  * Body: { access_token, refresh_token, expires_at }
+ * Now uses Vault for secure token storage
  */
 router.post('/', async (req, res) => {
     try {
@@ -50,35 +52,47 @@ router.post('/', async (req, res) => {
             });
             return;
         }
-        // Convert expires_at (seconds since epoch) to ISO timestamp
-        const expiresAtIso = new Date(expires_at * 1000).toISOString();
-        // Upsert the users table for the authenticated user (by UUID)
+        // Prepare token data for vault storage
+        const tokenData = {
+            access_token,
+            refresh_token,
+            expires_at, // Already in Unix timestamp format
+            token_type: 'Bearer',
+            scope: 'user-read-email user-library-read' // Default scopes
+        };
+        // Store tokens in vault
+        const vaultResult = await createUserSecret(user.id, tokenData);
+        if (!vaultResult.success) {
+            console.error('Failed to store tokens in vault:', vaultResult.error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to store tokens securely'
+            });
+            return;
+        }
+        // Update user record to ensure it exists and clear reauth flag
         const { error: upsertError } = await getSupabaseAdmin()
             .from('users')
             .upsert({
             id: user.id,
             email: user.email || '',
-            spotify_access_token: access_token,
-            spotify_refresh_token: refresh_token,
-            spotify_token_expires_at: expiresAtIso,
+            spotify_reauth_required: false,
             updated_at: new Date().toISOString()
         }, {
             onConflict: 'id'
         })
             .select();
         if (upsertError) {
-            console.error('Error upserting user tokens:', upsertError.message);
-            res.status(500).json({
-                success: false,
-                error: 'Failed to store user tokens'
-            });
-            return;
+            console.error('Error updating user record:', upsertError.message);
+            // Don't fail the request since vault storage succeeded
+            console.warn('Vault storage succeeded but user record update failed');
         }
-        console.log('Successfully stored/updated tokens for user:', user.email);
+        console.log(`Successfully stored tokens in vault for user: ${user.email} (${vaultResult.elapsed_ms}ms)`);
         // Success response
         res.status(200).json({
             success: true,
-            message: 'Tokens stored successfully'
+            message: 'Tokens stored securely',
+            vault_latency_ms: vaultResult.elapsed_ms
         });
     }
     catch (error) {

@@ -15,6 +15,9 @@ dotenvFlow.config({
 });
 // Import routes
 import apiRoutes from './routes/index.js';
+// Import services
+import { initializeBackgroundJobs } from './services/backgroundJobs.js';
+import { healthCheck } from './services/tokenService.js';
 // Create Express application with proper typing
 const app = express();
 // Apply base middleware
@@ -38,6 +41,34 @@ app.use('/api', apiRoutes);
 // Health check endpoint for Render with proper typing
 app.get('/healthz', (_req, res) => {
     res.sendStatus(200);
+});
+// Enhanced health check endpoint with vault connectivity
+app.get('/health', async (_req, res) => {
+    try {
+        const vaultHealthy = await healthCheck();
+        if (vaultHealthy) {
+            res.status(200).json({
+                status: 'healthy',
+                vault: 'connected',
+                timestamp: new Date().toISOString()
+            });
+        }
+        else {
+            res.status(503).json({
+                status: 'unhealthy',
+                vault: 'disconnected',
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        res.status(503).json({
+            status: 'unhealthy',
+            error: errorMessage,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 // Server configuration with environment variable typing
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -67,6 +98,20 @@ const initializeServer = async () => {
         app.listen(PORT, () => {
             console.log(`Server running on http://localhost:${PORT}`);
             console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+            // Initialize background jobs after server starts
+            console.log('Initializing background jobs...');
+            initializeBackgroundJobs();
+            // Perform initial health check
+            healthCheck().then(healthy => {
+                if (healthy) {
+                    console.log('✅ Vault health check passed - system ready');
+                }
+                else {
+                    console.warn('⚠️  Vault health check failed - some features may not work');
+                }
+            }).catch(error => {
+                console.error('❌ Health check error:', error.message);
+            });
         });
     }
     catch (error) {

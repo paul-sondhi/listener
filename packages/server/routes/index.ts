@@ -20,7 +20,7 @@ router.use('/sync-spotify-shows', syncShowsRouter);    // Spotify show synchroni
 router.use('/healthz', healthRouter);                 // Health check endpoints
 
 // Manual job trigger endpoints (for testing and emergency use)
-router.post('/admin/jobs/vault-cleanup', async (req: Request, res: Response): Promise<void> => {
+router.post('/admin/jobs/vault-cleanup', async (_req: Request, res: Response): Promise<void> => {
   try {
     console.log('ADMIN: Manually triggering vault cleanup job');
     await runJob('vault_cleanup');
@@ -38,7 +38,7 @@ router.post('/admin/jobs/vault-cleanup', async (req: Request, res: Response): Pr
   }
 });
 
-router.post('/admin/jobs/key-rotation', async (req: Request, res: Response): Promise<void> => {
+router.post('/admin/jobs/key-rotation', async (_req: Request, res: Response): Promise<void> => {
   try {
     console.log('ADMIN: Manually triggering key rotation job');
     await runJob('key_rotation');
