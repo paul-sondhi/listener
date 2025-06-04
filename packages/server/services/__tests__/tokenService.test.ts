@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { getValidTokens, refreshTokens, getMetrics, healthCheck } from '../tokenService'
-import * as vaultHelpers from '../../lib/vaultHelpers'
-import * as tokenCache from '../../lib/tokenCache'
+import { getValidTokens, refreshTokens, getMetrics, healthCheck } from '../tokenService.js'
+import * as vaultHelpers from '../../lib/vaultHelpers.js'
+import * as tokenCache from '../../lib/tokenCache.js'
 
 // Mock dependencies
 vi.mock('../../lib/vaultHelpers')

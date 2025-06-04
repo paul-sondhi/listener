@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 import type { HealthCheckResponse } from '@listener/shared'
-import healthRouter from '../health'
+import healthRouter from '../health.js'
 
 // Create a simple express app to test the router
 const app = express()

@@ -1,8 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@listener/shared';
 
-// Use require for node-cron to ensure compatibility
-const cron = require('node-cron');
+// Import node-cron for ES modules
+import cron from 'node-cron';
 
 // Job execution tracking
 interface JobExecution {

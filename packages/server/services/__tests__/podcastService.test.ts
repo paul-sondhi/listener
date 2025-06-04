@@ -30,7 +30,7 @@ vi.mock('../../lib/utils.js', () => ({
 }))
 
 // Import the service and error class
-import podcastService, { PodcastError } from '../podcastService'
+import podcastService, { PodcastError } from '../podcastService.js'
 
 // Mock global fetch used by fetchRssFeed
 const mockFetch = vi.fn() as MockInstance

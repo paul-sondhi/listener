@@ -8,8 +8,8 @@ import type { MockInstance } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 import cookieParser from 'cookie-parser'
-import spotifyTokensRouter from '../spotifyTokens'
-import * as vaultHelpers from '../../lib/vaultHelpers'
+import spotifyTokensRouter from '../spotifyTokens.js'
+import * as vaultHelpers from '../../lib/vaultHelpers.js'
 
 // Type definitions for test utilities
 interface MockUser {

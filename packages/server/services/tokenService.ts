@@ -1,7 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database, SpotifyTokens } from '@listener/shared';
-import { getUserSecret, updateUserSecret } from '../lib/vaultHelpers';
-import { getTokenCache, SpotifyTokenData } from '../lib/tokenCache';
+import { getUserSecret, updateUserSecret } from '../lib/vaultHelpers.js';
+import { getTokenCache, SpotifyTokenData } from '../lib/tokenCache.js';
 
 // Local type definitions for token management
 interface TokenRefreshResult {

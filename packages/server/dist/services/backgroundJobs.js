@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-// Use require for node-cron to ensure compatibility
-const cron = require('node-cron');
+// Import node-cron for ES modules
+import cron from 'node-cron';
 // Lazy Supabase client initialization
 let supabaseAdmin = null;
 function getSupabaseAdmin() {

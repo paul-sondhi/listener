@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { getUserSecret, updateUserSecret } from '../lib/vaultHelpers';
-import { getTokenCache } from '../lib/tokenCache';
+import { getUserSecret, updateUserSecret } from '../lib/vaultHelpers.js';
+import { getTokenCache } from '../lib/tokenCache.js';
 // Rate limiting state - global across all users
 let spotifyRateLimit = {
     is_limited: false
