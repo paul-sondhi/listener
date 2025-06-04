@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react'
 import { User, Session, OAuthResponse } from '@supabase/supabase-js'
 import type { SignInWithOAuthCredentials } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
@@ -29,9 +29,19 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   const [loading, setLoading] = useState<boolean>(true)
   const [requiresReauth, setRequiresReauth] = useState<boolean>(false)
   const [checkingReauth, setCheckingReauth] = useState<boolean>(false)
+  
+  // Use ref to track reauth check status without causing useEffect loops
+  const reauthCheckInProgress = useRef<boolean>(false)
 
-  // Define checkReauthStatus function
-  const checkReauthStatus = async (): Promise<void> => {
+  // Define checkReauthStatus function with useCallback to prevent infinite loops
+  const checkReauthStatus = useCallback(async (): Promise<void> => {
+    // Prevent multiple simultaneous reauth checks using ref
+    if (reauthCheckInProgress.current) {
+      console.log('Reauth check already in progress, skipping...')
+      return
+    }
+
+    reauthCheckInProgress.current = true
     setCheckingReauth(true)
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
@@ -60,12 +70,13 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       console.error('Error checking reauth status:', error)
       setRequiresReauth(false)
     } finally {
+      reauthCheckInProgress.current = false
       setCheckingReauth(false)
     }
-  }
+  }, []) // Remove checkingReauth dependency to prevent useEffect loop
 
-  // Define clearReauthFlag function
-  const clearReauthFlag = async (): Promise<void> => {
+  // Define clearReauthFlag function with useCallback for consistency
+  const clearReauthFlag = useCallback(async (): Promise<void> => {
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
@@ -90,7 +101,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     } catch (error) {
       console.error('Error clearing reauth flag:', error)
     }
-  }
+  }, [])
 
   useEffect(() => {
     // Check active sessions and sets the user
@@ -140,7 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     return () => {
       subscription.unsubscribe()
     }
-  }, [checkReauthStatus])
+  }, []) // Remove checkReauthStatus dependency to prevent infinite loop
 
   // Authentication context value with proper typing
   const value: AuthContextType = {

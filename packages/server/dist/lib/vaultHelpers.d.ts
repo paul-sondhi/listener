@@ -49,5 +49,13 @@ export declare function updateUserSecret(userId: string, tokenData: SpotifyToken
  * @returns {Promise<VaultDeleteResult>} Result of the delete operation with 204 status code
  */
 export declare function deleteUserSecret(userId: string, hardDelete?: boolean, deletionReason?: string): Promise<VaultDeleteResult>;
+/**
+ * Store user secret in Vault (creates new or updates existing)
+ * Automatically determines whether to create a new secret or update existing one
+ * @param {string} userId - The user's UUID
+ * @param {SpotifyTokenData} tokenData - The Spotify token data to store
+ * @returns {Promise<VaultOperationResult>} Result of the store operation
+ */
+export declare function storeUserSecret(userId: string, tokenData: SpotifyTokenData): Promise<VaultOperationResult>;
 export {};
 //# sourceMappingURL=vaultHelpers.d.ts.map

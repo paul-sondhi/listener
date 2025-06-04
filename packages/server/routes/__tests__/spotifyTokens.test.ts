@@ -59,9 +59,9 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockSupabaseClient),
 }))
 
-// Mock vault helpers
+// Mock vault helpers - Update to mock storeUserSecret instead of createUserSecret
 vi.mock('../../lib/vaultHelpers', () => ({
-  createUserSecret: vi.fn()
+  storeUserSecret: vi.fn()
 }))
 
 // Create a test app
@@ -99,8 +99,8 @@ describe('POST /spotify-tokens', () => {
     mockSupabaseAuthGetUser.mockResolvedValue({ data: { user: mockUser }, error: null })
     // Default successful update mock
     mockSupabaseSelect.mockResolvedValue({ error: null })
-    // Default successful vault operation mock
-    vi.mocked(vaultHelpers.createUserSecret).mockResolvedValue({
+    // Default successful vault operation mock - Update to use storeUserSecret
+    vi.mocked(vaultHelpers.storeUserSecret).mockResolvedValue({
       success: true,
       data: mockTokens,
       elapsed_ms: 100
@@ -122,7 +122,7 @@ describe('POST /spotify-tokens', () => {
       vault_latency_ms: 100
     })
     expect(mockSupabaseAuthGetUser).toHaveBeenCalledWith('user_supabase_token')
-    expect(vi.mocked(vaultHelpers.createUserSecret)).toHaveBeenCalledWith(mockUser.id, {
+    expect(vi.mocked(vaultHelpers.storeUserSecret)).toHaveBeenCalledWith(mockUser.id, {
       access_token: mockTokens.access_token,
       refresh_token: mockTokens.refresh_token,
       expires_at: mockTokens.expires_at,
@@ -188,7 +188,7 @@ describe('POST /spotify-tokens', () => {
 
   it('should return 500 if Supabase update fails', async () => {
     // Arrange - Mock vault failure
-    vi.mocked(vaultHelpers.createUserSecret).mockResolvedValueOnce({
+    vi.mocked(vaultHelpers.storeUserSecret).mockResolvedValueOnce({
       success: false,
       error: 'Vault operation failed',
       elapsed_ms: 50

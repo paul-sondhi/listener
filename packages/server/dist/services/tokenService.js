@@ -397,16 +397,18 @@ export function getMetrics() {
 export async function healthCheck() {
     try {
         const supabase = getSupabaseAdmin();
-        // Test vault connectivity
-        const { error } = await supabase
-            .from('vault.secrets')
-            .select('id')
-            .limit(1);
+        // Test vault connectivity using RPC function (vault schema is not directly accessible via REST API)
+        const { data, error } = await supabase.rpc('test_vault_count');
         if (error) {
             console.error('TOKEN_SERVICE: Vault health check failed:', error.message);
             return false;
         }
-        console.log('TOKEN_SERVICE: Vault health check passed');
+        // Verify we got a valid count response
+        if (typeof data !== 'number') {
+            console.error('TOKEN_SERVICE: Vault health check failed: invalid response format');
+            return false;
+        }
+        console.log(`TOKEN_SERVICE: Vault health check passed - ${data} secrets in vault`);
         return true;
     }
     catch (error) {

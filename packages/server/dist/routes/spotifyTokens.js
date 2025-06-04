@@ -1,6 +1,6 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
-import { createUserSecret } from '../lib/vaultHelpers.js';
+import { storeUserSecret } from '../lib/vaultHelpers.js';
 // Create router with proper typing
 const router = express.Router();
 // Initialize Supabase Admin client lazily with proper typing
@@ -61,7 +61,7 @@ router.post('/', async (req, res) => {
             scope: 'user-read-email user-library-read' // Default scopes
         };
         // Store tokens in vault
-        const vaultResult = await createUserSecret(user.id, tokenData);
+        const vaultResult = await storeUserSecret(user.id, tokenData);
         if (!vaultResult.success) {
             console.error('Failed to store tokens in vault:', vaultResult.error);
             res.status(500).json({

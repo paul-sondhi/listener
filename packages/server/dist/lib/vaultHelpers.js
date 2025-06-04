@@ -56,18 +56,12 @@ export async function createUserSecret(userId, tokenData) {
     const secretName = getSpotifySecretName(userId);
     try {
         const supabase = getSupabaseAdmin();
-        // Store the secret in vault.secrets table
-        // The vault extension handles encryption automatically
-        const { data, error } = await supabase
-            .from('vault.secrets')
-            .insert({
-            name: secretName,
-            secret: JSON.stringify(tokenData),
-            description: `Spotify tokens for user ${userId}`,
-            key_id: 'default' // Use default vault key
-        })
-            .select()
-            .single();
+        // Create the secret using RPC function (bypasses REST API vault schema limitations)
+        const { data: secretId, error } = await supabase.rpc('vault_create_user_secret', {
+            p_secret_name: secretName,
+            p_secret_data: JSON.stringify(tokenData),
+            p_description: `Spotify tokens for user ${userId}`
+        });
         const elapsedMs = Date.now() - startTime;
         if (error) {
             logVaultOperation(userId, 'create', elapsedMs, false, error.message);
@@ -81,7 +75,7 @@ export async function createUserSecret(userId, tokenData) {
         const { error: updateError } = await supabase
             .from('users')
             .update({
-            spotify_vault_secret_id: data.id,
+            spotify_vault_secret_id: secretId,
             spotify_reauth_required: false,
             updated_at: new Date().toISOString()
         })
@@ -138,12 +132,10 @@ export async function getUserSecret(userId) {
                 elapsed_ms: elapsedMs
             };
         }
-        // Retrieve the secret from vault using the ID
-        const { data, error } = await supabase
-            .from('vault.decrypted_secrets')
-            .select('decrypted_secret')
-            .eq('id', userData.spotify_vault_secret_id)
-            .single();
+        // Retrieve the secret using RPC function (bypasses REST API vault schema limitations)
+        const { data: secretData, error } = await supabase.rpc('vault_read_user_secret', {
+            p_secret_id: userData.spotify_vault_secret_id
+        });
         const elapsedMs = Date.now() - startTime;
         if (error) {
             logVaultOperation(userId, 'read', elapsedMs, false, error.message);
@@ -154,7 +146,7 @@ export async function getUserSecret(userId) {
             };
         }
         // Parse the JSON token data
-        const tokenData = JSON.parse(data.decrypted_secret);
+        const tokenData = JSON.parse(secretData);
         logVaultOperation(userId, 'read', elapsedMs, true);
         return {
             success: true,
@@ -200,20 +192,18 @@ export async function updateUserSecret(userId, tokenData) {
                 elapsed_ms: elapsedMs
             };
         }
-        // Update the secret in vault
-        const { error } = await supabase
-            .from('vault.secrets')
-            .update({
-            secret: JSON.stringify(tokenData),
-            updated_at: new Date().toISOString()
-        })
-            .eq('id', userData.spotify_vault_secret_id);
+        // Update the secret using RPC function (bypasses REST API vault schema limitations)
+        const { data: updateSuccess, error } = await supabase.rpc('vault_update_user_secret', {
+            p_secret_id: userData.spotify_vault_secret_id,
+            p_secret_data: JSON.stringify(tokenData)
+        });
         const elapsedMs = Date.now() - startTime;
-        if (error) {
-            logVaultOperation(userId, 'update', elapsedMs, false, error.message);
+        if (error || !updateSuccess) {
+            const errorMsg = error?.message || 'Update operation failed';
+            logVaultOperation(userId, 'update', elapsedMs, false, errorMsg);
             return {
                 success: false,
-                error: error.message,
+                error: errorMsg,
                 elapsed_ms: elapsedMs
             };
         }
@@ -298,6 +288,43 @@ export async function deleteUserSecret(userId, hardDelete = false, deletionReaso
             status_code: 500,
             elapsed_ms: elapsedMs,
             error: errorMessage
+        };
+    }
+}
+/**
+ * Store user secret in Vault (creates new or updates existing)
+ * Automatically determines whether to create a new secret or update existing one
+ * @param {string} userId - The user's UUID
+ * @param {SpotifyTokenData} tokenData - The Spotify token data to store
+ * @returns {Promise<VaultOperationResult>} Result of the store operation
+ */
+export async function storeUserSecret(userId, tokenData) {
+    const startTime = Date.now();
+    try {
+        const supabase = getSupabaseAdmin();
+        // First check if user already has a vault secret ID
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('spotify_vault_secret_id')
+            .eq('id', userId)
+            .single();
+        // If user has existing secret ID, update it
+        if (!userError && userData?.spotify_vault_secret_id) {
+            console.log(`User ${userId} has existing secret, updating...`);
+            return await updateUserSecret(userId, tokenData);
+        }
+        // If no existing secret, create a new one
+        console.log(`User ${userId} has no existing secret, creating...`);
+        return await createUserSecret(userId, tokenData);
+    }
+    catch (error) {
+        const elapsedMs = Date.now() - startTime;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Error in storeUserSecret for user ${userId}:`, errorMessage);
+        return {
+            success: false,
+            error: errorMessage,
+            elapsed_ms: elapsedMs
         };
     }
 }

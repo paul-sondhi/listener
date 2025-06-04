@@ -1,6 +1,7 @@
 import express, { Router, Request, Response } from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database, ApiResponse, SpotifyShow, SpotifyUserShows } from '@listener/shared';
+import { getUserSecret } from '../lib/vaultHelpers.js';
 
 // Create router with proper typing
 const router: Router = express.Router();
@@ -23,13 +24,6 @@ interface SyncShowsResponse {
     success: boolean;
     active_count: number;
     inactive_count: number;
-}
-
-// Interface for user Spotify tokens
-interface UserSpotifyTokens {
-    spotify_access_token: string | null;
-    spotify_refresh_token: string | null;
-    spotify_token_expires_at: string | null;
 }
 
 /**
@@ -67,15 +61,11 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         
         const userId: string = user.id;
 
-        // Retrieve the user's Spotify tokens from the users table
-        const { data: userRow, error: userRowError } = await getSupabaseAdmin()
-            .from('users')
-            .select('spotify_access_token, spotify_refresh_token, spotify_token_expires_at')
-            .eq('id', userId)
-            .single();
+        // Retrieve the user's Spotify tokens from the vault
+        const vaultResult = await getUserSecret(userId);
             
-        if (userRowError || !userRow) {
-            console.error('Could not retrieve user Spotify tokens:', userRowError?.message);
+        if (!vaultResult.success) {
+            console.error('Could not retrieve user Spotify tokens from vault:', vaultResult.error);
             res.status(400).json({ 
                 success: false, 
                 error: 'Could not retrieve user Spotify tokens' 
@@ -83,8 +73,8 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
             return;
         }
         
-        const userTokens = userRow as UserSpotifyTokens;
-        const spotifyAccessToken: string | null = userTokens.spotify_access_token;
+        const spotifyTokens = vaultResult.data!;
+        const spotifyAccessToken: string = spotifyTokens.access_token;
         
         if (!spotifyAccessToken) {
             console.error('No Spotify access token found for user');

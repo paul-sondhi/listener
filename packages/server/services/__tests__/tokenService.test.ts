@@ -318,30 +318,53 @@ describe('TokenService', () => {
   })
 
   describe('healthCheck', () => {
-    it('should return true when vault is accessible', async () => {
-      // Mock successful vault query
-      mockSupabaseClient.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue({ error: null })
-        })
+    it('should return true when vault is accessible via RPC', async () => {
+      // Mock successful RPC call to test_vault_count
+      mockSupabaseClient.rpc.mockResolvedValue({ 
+        data: 6, // Mock count of secrets in vault
+        error: null 
       })
 
       const result = await healthCheck()
 
       expect(result).toBe(true)
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('test_vault_count')
     })
 
-    it('should return false when vault is not accessible', async () => {
-      // Mock vault query error
-      mockSupabaseClient.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue({ error: { message: 'Connection failed' } })
-        })
+    it('should return false when vault RPC call fails', async () => {
+      // Mock RPC call error
+      mockSupabaseClient.rpc.mockResolvedValue({ 
+        data: null,
+        error: { message: 'Connection failed' } 
       })
 
       const result = await healthCheck()
 
       expect(result).toBe(false)
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('test_vault_count')
+    })
+
+    it('should return false when RPC returns invalid response format', async () => {
+      // Mock RPC call with invalid response (not a number)
+      mockSupabaseClient.rpc.mockResolvedValue({ 
+        data: 'invalid', // Should be a number
+        error: null 
+      })
+
+      const result = await healthCheck()
+
+      expect(result).toBe(false)
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('test_vault_count')
+    })
+
+    it('should handle unexpected errors during health check', async () => {
+      // Mock RPC call throwing an exception
+      mockSupabaseClient.rpc.mockRejectedValue(new Error('Network error'))
+
+      const result = await healthCheck()
+
+      expect(result).toBe(false)
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('test_vault_count')
     })
   })
 }) 

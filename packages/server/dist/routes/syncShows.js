@@ -1,5 +1,6 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { getUserSecret } from '../lib/vaultHelpers.js';
 // Create router with proper typing
 const router = express.Router();
 // Initialize Supabase Admin client lazily with proper typing
@@ -40,22 +41,18 @@ router.post('/', async (req, res) => {
             return;
         }
         const userId = user.id;
-        // Retrieve the user's Spotify tokens from the users table
-        const { data: userRow, error: userRowError } = await getSupabaseAdmin()
-            .from('users')
-            .select('spotify_access_token, spotify_refresh_token, spotify_token_expires_at')
-            .eq('id', userId)
-            .single();
-        if (userRowError || !userRow) {
-            console.error('Could not retrieve user Spotify tokens:', userRowError?.message);
+        // Retrieve the user's Spotify tokens from the vault
+        const vaultResult = await getUserSecret(userId);
+        if (!vaultResult.success) {
+            console.error('Could not retrieve user Spotify tokens from vault:', vaultResult.error);
             res.status(400).json({
                 success: false,
                 error: 'Could not retrieve user Spotify tokens'
             });
             return;
         }
-        const userTokens = userRow;
-        const spotifyAccessToken = userTokens.spotify_access_token;
+        const spotifyTokens = vaultResult.data;
+        const spotifyAccessToken = spotifyTokens.access_token;
         if (!spotifyAccessToken) {
             console.error('No Spotify access token found for user');
             res.status(400).json({

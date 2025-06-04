@@ -1,7 +1,7 @@
 import express, { Router, Request, Response } from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database, ApiResponse } from '@listener/shared';
-import { createUserSecret, SpotifyTokenData } from '../lib/vaultHelpers.js';
+import { storeUserSecret, SpotifyTokenData } from '../lib/vaultHelpers.js';
 
 // Create router with proper typing
 const router: Router = express.Router();
@@ -83,7 +83,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         };
 
         // Store tokens in vault
-        const vaultResult = await createUserSecret(user.id, tokenData);
+        const vaultResult = await storeUserSecret(user.id, tokenData);
         
         if (!vaultResult.success) {
             console.error('Failed to store tokens in vault:', vaultResult.error);

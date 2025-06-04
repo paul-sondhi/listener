@@ -54,16 +54,22 @@ const AppPage = (): React.JSX.Element => {
         if (sessionError) {
           console.error('Error getting session:', sessionError)
           setError(sessionError.message)
+          // Mark as attempted to prevent infinite retries
+          hasSynced.current = true
           return
         }
         if (!session) {
           console.warn('No session found - user needs to log in')
+          // Mark as attempted to prevent infinite retries
+          hasSynced.current = true
           return
         }
 
         // Check if this is a Spotify OAuth session
         if (session.user?.app_metadata?.provider !== 'spotify') {
           console.warn('User not authenticated with Spotify')
+          // Mark as attempted to prevent infinite retries
+          hasSynced.current = true
           return
         }
 
@@ -80,6 +86,8 @@ const AppPage = (): React.JSX.Element => {
             hasExpiresAt: !!expiresAt 
           })
           setError('Spotify authentication incomplete. Please log in again.')
+          // Mark as attempted to prevent infinite retries
+          hasSynced.current = true
           return
         }
 
@@ -99,11 +107,21 @@ const AppPage = (): React.JSX.Element => {
 
         if (!storeResponse.ok) {
           const errorData: ErrorResponse = await storeResponse.json()
-          throw new Error(errorData.error || 'Failed to store Spotify tokens')
+          const errorMessage = errorData.error || 'Failed to store Spotify tokens'
+          console.error('Vault storage failed:', errorMessage)
+          setError(`Authentication error: ${errorMessage}`)
+          // CRITICAL: Mark as attempted even on failure to prevent infinite loops
+          hasSynced.current = true
+          return
         }
 
         console.log('Successfully stored tokens, clearing reauth flag...')
-        await clearReauthFlag()
+        try {
+          await clearReauthFlag()
+        } catch (clearError) {
+          // Don't fail the entire flow if clearing reauth flag fails
+          console.warn('Failed to clear reauth flag:', clearError)
+        }
 
         console.log('Now syncing shows...')
         const syncResponse: globalThis.Response = await fetch(`${API_BASE_URL}/api/sync-spotify-shows`, {
@@ -115,7 +133,12 @@ const AppPage = (): React.JSX.Element => {
 
         if (!syncResponse.ok) {
           const errorData: ErrorResponse = await syncResponse.json()
-          throw new Error(errorData.error || 'Failed to sync Spotify shows')
+          const errorMessage = errorData.error || 'Failed to sync Spotify shows'
+          console.error('Show sync failed:', errorMessage)
+          setError(`Sync error: ${errorMessage}`)
+          // Mark as attempted since token storage succeeded
+          hasSynced.current = true
+          return
         }
 
         const result: SyncShowsResponse = await syncResponse.json()
@@ -127,6 +150,8 @@ const AppPage = (): React.JSX.Element => {
         const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
         console.error('Error syncing Spotify tokens or subsequent operations:', errorMessage)
         setError(`Authentication error: ${errorMessage}`)
+        // CRITICAL: Always mark as attempted to prevent infinite loops
+        hasSynced.current = true
       } finally {
         setIsSyncing(false)
       }
@@ -136,7 +161,7 @@ const AppPage = (): React.JSX.Element => {
     if (user && !hasSynced.current) {
       syncSpotifyTokens()
     }
-  }, [user]) // Remove isSyncing from dependencies to prevent infinite loop
+  }, [user, clearReauthFlag]) // Add clearReauthFlag to dependencies for completeness
 
   // Reset sync status when user changes (logout/login)
   useEffect(() => {

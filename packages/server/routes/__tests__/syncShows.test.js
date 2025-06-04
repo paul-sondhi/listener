@@ -3,6 +3,7 @@ import request from 'supertest';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import syncShowsRouter from '../syncShows'; // Adjust path
+import * as vaultHelpers from '../../lib/vaultHelpers.js';
 
 // --- Supabase Client Mock (Table-Differentiated Strategy) ---
 const mockSupabaseAuthGetUser = vi.fn();
@@ -56,6 +57,11 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockSupabaseClient),
 }));
 
+// --- Mock vault helpers ---
+vi.mock('../../lib/vaultHelpers', () => ({
+  getUserSecret: vi.fn()
+}));
+
 // --- Mock global fetch (used for Spotify API calls) ---
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -97,6 +103,7 @@ describe('POST /sync-spotify-shows', () => {
     mockSubsSelectEq.mockReset();
     mockSubsUpdateIn.mockReset();
     mockSubsUpsert.mockReset();
+    vi.mocked(vaultHelpers.getUserSecret).mockReset();
     // Note: mockSupabaseFrom is a vi.fn().mockImplementation(...) and its internal structure
     // relies on the other mocks (mockUsersSelectEqSingle, etc.). Resetting the underlying mocks
     // effectively resets the paths through mockSupabaseFrom. No need to reset mockSupabaseFrom itself
@@ -111,7 +118,18 @@ describe('POST /sync-spotify-shows', () => {
     mockSupabaseAuthGetUser.mockResolvedValue({ data: { user: mockUser }, error: null });
 
     // Default mocks for Supabase operations (successful path)
-    mockUsersSelectEqSingle.mockResolvedValue({ data: { user_id: mockUser.id, spotify_access_token: 'spotify_token', spotify_refresh_token: 'refresh', spotify_token_expires_at: 'date' }, error: null });
+    // Note: The route now uses vault for token retrieval, so we mock getUserSecret instead of user table access
+    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+      success: true,
+      data: {
+        access_token: 'spotify_token',
+        refresh_token: 'refresh',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: 'Bearer',
+        scope: 'user-read-email user-library-read'
+      },
+      elapsed_ms: 100
+    });
     mockSubsSelectEq.mockResolvedValue({ data: [], error: null }); // No existing subscriptions to mark inactive by default
     mockSubsUpdateIn.mockResolvedValue({ error: null });
     mockSubsUpsert.mockResolvedValue({ error: null });
@@ -127,8 +145,7 @@ describe('POST /sync-spotify-shows', () => {
     expect(response.body.active_count).toBe(3); 
     expect(response.body.inactive_count).toBe(0);
     expect(mockSupabaseAuthGetUser).toHaveBeenCalledWith(mockSupabaseToken);
-    expect(mockSupabaseFrom).toHaveBeenCalledWith('users'); // Check from('users') was called
-    expect(mockUsersSelectEqSingle).toHaveBeenCalled();    // Check the specific chain for users was called
+    expect(vi.mocked(vaultHelpers.getUserSecret)).toHaveBeenCalledWith(mockUser.id);
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('api.spotify.com/v1/me/shows'), expect.any(Object));
     expect(mockSupabaseFrom).toHaveBeenCalledWith('podcast_subscriptions'); // Check from('podcast_subscriptions')
     expect(mockSubsUpsert).toHaveBeenCalledTimes(3); 
@@ -192,9 +209,12 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should return 400 if user has no Spotify token in DB (userRow is null)', async () => {
-    // mockSupabaseAuthGetUser is already set in beforeEach to resolve successfully.
-    // We only need to mock the user token fetch to simulate no token row.
-    mockUsersSelectEqSingle.mockResolvedValueOnce({ data: null, error: null }); // Simulate user not found or no token row
+    // Mock vault getUserSecret to simulate failure to retrieve tokens
+    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValueOnce({
+      success: false,
+      error: 'No vault secret found',
+      elapsed_ms: 50
+    });
     
     const response = await request(app).post('/api/sync-spotify-shows').set('Cookie', `sb-access-token=${mockSupabaseToken}`);
     expect(response.status).toBe(400);
@@ -202,9 +222,18 @@ describe('POST /sync-spotify-shows', () => {
   });
   
   it('should return 400 if user row has no spotify_access_token field', async () => {
-    // mockSupabaseAuthGetUser is already set in beforeEach to resolve successfully.
-    // We only need to mock the user token fetch to simulate a row without the access token.
-    mockUsersSelectEqSingle.mockResolvedValueOnce({ data: { user_id: mockUser.id /* no access token */ }, error: null });
+    // Mock vault getUserSecret to return data without access_token
+    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValueOnce({
+      success: true,
+      data: {
+        refresh_token: 'refresh',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: 'Bearer',
+        scope: 'user-read-email user-library-read'
+        // Missing access_token
+      },
+      elapsed_ms: 50
+    });
     
     const response = await request(app).post('/api/sync-spotify-shows').set('Cookie', `sb-access-token=${mockSupabaseToken}`);
     expect(response.status).toBe(400);
@@ -266,7 +295,7 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should return 500 for unexpected errors (e.g. users.select.eq.single throws)', async () => {
-    mockUsersSelectEqSingle.mockRejectedValueOnce(new Error('Unexpected DB Crash during user token fetch!'));
+    vi.mocked(vaultHelpers.getUserSecret).mockRejectedValueOnce(new Error('Unexpected vault error during token fetch!'));
     const response = await request(app).post('/api/sync-spotify-shows').set('Cookie', `sb-access-token=${mockSupabaseToken}`);
     expect(response.status).toBe(500);
     expect(response.body.error).toBe('Internal server error');

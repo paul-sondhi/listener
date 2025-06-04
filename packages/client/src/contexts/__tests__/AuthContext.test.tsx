@@ -23,7 +23,17 @@ const mockSupabase = vi.hoisted(() => ({
     onAuthStateChange: vi.fn(),
     signInWithOAuth: vi.fn(),
     signOut: vi.fn(),
-  }
+  },
+  from: vi.fn(() => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        single: vi.fn()
+      }))
+    })),
+    update: vi.fn(() => ({
+      eq: vi.fn()
+    }))
+  }))
 }))
 
 // Mock supabase client - this will now work with hoisting
@@ -55,11 +65,11 @@ const mockSession: Session = {
 const mockSubscription = { unsubscribe: vi.fn() }
 
 /**
- * Test component to use the auth context
- * Provides buttons to test signIn and signOut functionality
+ * Test component to use the auth context including reauth functionality
+ * Provides buttons to test signIn, signOut, and reauth functionality
  */
 const TestConsumerComponent = (): React.JSX.Element => {
-  const { user, signIn, signOut } = useAuth()
+  const { user, signIn, signOut, requiresReauth, checkReauthStatus, clearReauthFlag, checkingReauth } = useAuth()
   
   const handleSignIn = (): void => {
     signIn({ provider: 'google' }).catch(console.error)
@@ -68,19 +78,31 @@ const TestConsumerComponent = (): React.JSX.Element => {
   const handleSignOut = (): void => {
     signOut().catch(console.error)
   }
+
+  const handleCheckReauth = (): void => {
+    checkReauthStatus().catch(console.error)
+  }
+
+  const handleClearReauth = (): void => {
+    clearReauthFlag().catch(console.error)
+  }
   
   return (
     <div>
       <span data-testid="user">{user ? user.email : 'No user'}</span>
+      <span data-testid="requires-reauth">{requiresReauth ? 'true' : 'false'}</span>
+      <span data-testid="checking-reauth">{checkingReauth ? 'true' : 'false'}</span>
       <button onClick={handleSignIn}>Sign In</button>
       <button onClick={handleSignOut}>Sign Out</button>
+      <button onClick={handleCheckReauth}>Check Reauth</button>
+      <button onClick={handleClearReauth}>Clear Reauth</button>
     </div>
   )
 }
 
 /**
  * Test suite for the AuthContext
- * Tests authentication state management, session handling, and auth callbacks
+ * Tests authentication state management, session handling, auth callbacks, and reauth functionality
  */
 describe('AuthContext', () => {
   // Store the callback passed to onAuthStateChange for testing
@@ -104,6 +126,23 @@ describe('AuthContext', () => {
     
     mockSupabase.auth.signInWithOAuth.mockResolvedValue({ error: null })
     mockSupabase.auth.signOut.mockResolvedValue({ error: null })
+
+    // Set up default Supabase table mocks with proper chaining
+    const mockSingle = vi.fn().mockResolvedValue({
+      data: { spotify_reauth_required: false },
+      error: null
+    })
+    
+    const mockEq = vi.fn().mockReturnValue({ single: mockSingle })
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
+    
+    const mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
+    const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq })
+
+    mockSupabase.from.mockReturnValue({
+      select: mockSelect,
+      update: mockUpdate
+    })
   })
 
   it('should initialize with no user and not loading after getSession resolves', async () => {
@@ -318,5 +357,372 @@ describe('AuthContext', () => {
     expect(userElement.textContent).toBe('No user')
 
     consoleErrorSpy.mockRestore()
+  })
+
+  describe('Reauth Functionality', () => {
+    it('should check reauth status when user is authenticated on initialization', async () => {
+      // Arrange - Mock session for initialization AND for checkReauthStatus call
+      const mockSessionData = { 
+        data: { session: mockSession }, 
+        error: null 
+      }
+      
+      mockSupabase.auth.getSession
+        .mockResolvedValueOnce(mockSessionData) // For initialization
+        .mockResolvedValue(mockSessionData) // For checkReauthStatus call
+
+      const mockSingle = vi.fn().mockResolvedValue({
+        data: { spotify_reauth_required: true },
+        error: null
+      })
+
+      const mockEq = vi.fn().mockReturnValue({ single: mockSingle })
+      const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
+      
+      // Include both select and update for TypeScript compatibility
+      const mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq })
+
+      mockSupabase.from.mockReturnValue({
+        select: mockSelect,
+        update: mockUpdate
+      })
+
+      // Act
+      render(
+        <AuthProvider>
+          <TestConsumerComponent />
+        </AuthProvider>
+      )
+
+      // Assert - Wait for both user state and reauth check to complete
+      await waitFor(() => {
+        const userElement = screen.getByTestId('user')
+        expect(userElement.textContent).toBe(mockUser.email)
+      })
+
+      await waitFor(() => {
+        expect(mockSupabase.from).toHaveBeenCalledWith('users')
+        expect(mockSelect).toHaveBeenCalledWith('spotify_reauth_required')
+        expect(mockEq).toHaveBeenCalledWith('id', mockUser.id)
+        const requiresReauthElement = screen.getByTestId('requires-reauth')
+        expect(requiresReauthElement.textContent).toBe('true')
+      }, { timeout: 2000 })
+    })
+
+    it('should handle network errors during reauth status check gracefully', async () => {
+      // Arrange - Mock session for initialization AND for checkReauthStatus call
+      const mockSessionData = { 
+        data: { session: mockSession }, 
+        error: null 
+      }
+      
+      mockSupabase.auth.getSession
+        .mockResolvedValueOnce(mockSessionData) // For initialization
+        .mockResolvedValue(mockSessionData) // For checkReauthStatus call
+
+      const networkError = new Error('Network request failed')
+      const mockSingle = vi.fn().mockRejectedValue(networkError)
+      const mockEq = vi.fn().mockReturnValue({ single: mockSingle })
+      const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
+      
+      // Include both select and update for TypeScript compatibility
+      const mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq })
+
+      mockSupabase.from.mockReturnValue({
+        select: mockSelect,
+        update: mockUpdate
+      })
+
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      // Act
+      render(
+        <AuthProvider>
+          <TestConsumerComponent />
+        </AuthProvider>
+      )
+
+      // Assert - Wait for user state first, then error handling
+      await waitFor(() => {
+        const userElement = screen.getByTestId('user')
+        expect(userElement.textContent).toBe(mockUser.email)
+      })
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Error checking reauth status:', networkError)
+        const requiresReauthElement = screen.getByTestId('requires-reauth')
+        expect(requiresReauthElement.textContent).toBe('false') // Should default to false on error
+      }, { timeout: 2000 })
+
+      consoleErrorSpy.mockRestore()
+    })
+
+    it('should prevent multiple simultaneous reauth checks', async () => {
+      // Arrange
+      mockSupabase.auth.getSession.mockResolvedValue({ 
+        data: { session: mockSession }, 
+        error: null 
+      })
+
+      const mockSingle = vi.fn().mockImplementation(() => 
+        new Promise(resolve => setTimeout(() => resolve({
+          data: { spotify_reauth_required: false },
+          error: null
+        }), 100))
+      )
+
+      const mockEq = vi.fn().mockReturnValue({ single: mockSingle })
+      const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
+      
+      // Include both select and update for TypeScript compatibility
+      const mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq })
+
+      mockSupabase.from.mockReturnValue({
+        select: mockSelect,
+        update: mockUpdate
+      })
+
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      // Act
+      render(
+        <AuthProvider>
+          <TestConsumerComponent />
+        </AuthProvider>
+      )
+
+      // Wait for component to be ready
+      const checkReauthButton = await screen.findByText('Check Reauth')
+      
+      // Trigger multiple reauth checks quickly
+      act(() => {
+        checkReauthButton.click()
+        checkReauthButton.click()
+        checkReauthButton.click()
+      })
+
+      // Assert
+      await waitFor(() => {
+        expect(consoleLogSpy).toHaveBeenCalledWith('Reauth check already in progress, skipping...')
+      })
+
+      // Verify that the database was only queried appropriately (once on init, once on button click, others skipped)
+      await waitFor(() => {
+        expect(mockSingle).toHaveBeenCalledTimes(2) // Once on init, once on button click (others skipped)
+      })
+
+      consoleLogSpy.mockRestore()
+    })
+
+    it('should clear reauth flag successfully', async () => {
+      // Arrange
+      mockSupabase.auth.getSession.mockResolvedValue({ 
+        data: { session: mockSession }, 
+        error: null 
+      })
+
+      const mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq })
+      
+      // Include both select and update for TypeScript compatibility
+      const mockSingle = vi.fn().mockResolvedValue({
+        data: { spotify_reauth_required: false },
+        error: null
+      })
+      const mockEq = vi.fn().mockReturnValue({ single: mockSingle })
+      const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
+
+      mockSupabase.from.mockReturnValue({
+        select: mockSelect,
+        update: mockUpdate
+      })
+
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      // Act
+      render(
+        <AuthProvider>
+          <TestConsumerComponent />
+        </AuthProvider>
+      )
+
+      const clearReauthButton = await screen.findByText('Clear Reauth')
+      act(() => {
+        clearReauthButton.click()
+      })
+
+      // Assert
+      await waitFor(() => {
+        expect(mockSupabase.from).toHaveBeenCalledWith('users')
+        expect(mockUpdate).toHaveBeenCalledWith({ spotify_reauth_required: false })
+        expect(mockUpdateEq).toHaveBeenCalledWith('id', mockUser.id)
+        expect(consoleLogSpy).toHaveBeenCalledWith('Reauth flag cleared successfully')
+        
+        const requiresReauthElement = screen.getByTestId('requires-reauth')
+        expect(requiresReauthElement.textContent).toBe('false')
+      })
+
+      consoleLogSpy.mockRestore()
+    })
+
+    it('should handle clearReauthFlag errors gracefully', async () => {
+      // Arrange
+      mockSupabase.auth.getSession.mockResolvedValue({ 
+        data: { session: mockSession }, 
+        error: null 
+      })
+
+      const updateError = new Error('Database update failed')
+      const mockUpdateEq = vi.fn().mockResolvedValue({ error: updateError })
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq })
+      
+      // Include both select and update for TypeScript compatibility
+      const mockSingle = vi.fn().mockResolvedValue({
+        data: { spotify_reauth_required: false },
+        error: null
+      })
+      const mockEq = vi.fn().mockReturnValue({ single: mockSingle })
+      const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
+
+      mockSupabase.from.mockReturnValue({
+        select: mockSelect,
+        update: mockUpdate
+      })
+
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      // Act
+      render(
+        <AuthProvider>
+          <TestConsumerComponent />
+        </AuthProvider>
+      )
+
+      const clearReauthButton = await screen.findByText('Clear Reauth')
+      act(() => {
+        clearReauthButton.click()
+      })
+
+      // Assert
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Error clearing reauth flag:', updateError)
+      })
+
+      consoleErrorSpy.mockRestore()
+    })
+
+    it('should check reauth status on SIGNED_IN event', async () => {
+      // Arrange
+      const mockSingle = vi.fn().mockResolvedValue({
+        data: { spotify_reauth_required: true },
+        error: null
+      })
+
+      const mockEq = vi.fn().mockReturnValue({ single: mockSingle })
+      const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
+      
+      // Include both select and update for TypeScript compatibility
+      const mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq })
+
+      mockSupabase.from.mockReturnValue({
+        select: mockSelect,
+        update: mockUpdate
+      })
+
+      // Act
+      render(
+        <AuthProvider>
+          <TestConsumerComponent />
+        </AuthProvider>
+      )
+      
+      // Wait for initial setup
+      await waitFor(() => {
+        expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled()
+      })
+
+      // Verify the auth state change handler was captured
+      if (!capturedAuthStateHandler) {
+        throw new Error('capturedAuthStateHandler was not set by the mock')
+      }
+
+      // Mock session for the SIGNED_IN event
+      mockSupabase.auth.getSession.mockResolvedValue({ 
+        data: { session: mockSession }, 
+        error: null 
+      })
+
+      // Simulate auth state change (login)
+      await act(async () => {
+        capturedAuthStateHandler!('SIGNED_IN', mockSession)
+      })
+
+      // Assert
+      await waitFor(() => {
+        expect(mockSupabase.from).toHaveBeenCalledWith('users')
+        const requiresReauthElement = screen.getByTestId('requires-reauth')
+        expect(requiresReauthElement.textContent).toBe('true')
+      }, { timeout: 2000 })
+    })
+
+    it('should clear reauth flag on SIGNED_OUT event', async () => {
+      // Arrange
+      // Include both select and update for TypeScript compatibility
+      const mockSingle = vi.fn().mockResolvedValue({
+        data: { spotify_reauth_required: false },
+        error: null
+      })
+      const mockEq = vi.fn().mockReturnValue({ single: mockSingle })
+      const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
+      const mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq })
+
+      mockSupabase.from.mockReturnValue({
+        select: mockSelect,
+        update: mockUpdate
+      })
+
+      render(
+        <AuthProvider>
+          <TestConsumerComponent />
+        </AuthProvider>
+      )
+      
+      // Wait for initial setup
+      await waitFor(() => {
+        expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled()
+      })
+
+      // Verify the auth state change handler was captured
+      if (!capturedAuthStateHandler) {
+        throw new Error('capturedAuthStateHandler was not set by the mock')
+      }
+
+      // Mock session for the SIGNED_IN event
+      mockSupabase.auth.getSession.mockResolvedValue({ 
+        data: { session: mockSession }, 
+        error: null 
+      })
+
+      // First set reauth to true, then sign out
+      await act(async () => {
+        capturedAuthStateHandler!('SIGNED_IN', mockSession)
+      })
+
+      // Simulate sign out
+      await act(async () => {
+        capturedAuthStateHandler!('SIGNED_OUT', null)
+      })
+
+      // Assert
+      await waitFor(() => {
+        const requiresReauthElement = screen.getByTestId('requires-reauth')
+        expect(requiresReauthElement.textContent).toBe('false')
+      })
+    })
   })
 }) 
