@@ -17,9 +17,11 @@ const { writeFileSync, existsSync, mkdirSync } = require('fs');
 const { join } = require('path');
 const dotenv = require('dotenv');
 
-// Load environment variables
-dotenv.config({ path: '.env.local' });
-dotenv.config({ path: '.env' });
+// Load environment variables from parent directory (project root)
+// This handles both local development and CI environments
+const parentDir = join(__dirname, '..');
+dotenv.config({ path: join(parentDir, '.env.local') });
+dotenv.config({ path: join(parentDir, '.env') });
 
 class BackupRestoreTest {
   constructor() {

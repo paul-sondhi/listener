@@ -16,10 +16,13 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
+const path = require('path');
 
-// Load environment variables
-dotenv.config({ path: '.env.local' });
-dotenv.config({ path: '.env' });
+// Load environment variables from parent directory (project root)
+// This handles both local development and CI environments
+const parentDir = path.join(__dirname, '..');
+dotenv.config({ path: path.join(parentDir, '.env.local') });
+dotenv.config({ path: path.join(parentDir, '.env') });
 
 class MigrationValidator {
   constructor() {
@@ -142,8 +145,19 @@ class MigrationValidator {
 async function main() {
   console.log('🚀 Migration Validation Starting...');
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Working Directory: ${process.cwd()}`);
+  console.log(`Script Location: ${__dirname}`);
+  console.log(`Parent Directory: ${path.join(__dirname, '..')}`);
   console.log(`Supabase URL: ${process.env.SUPABASE_URL ? '✅ Set' : '❌ Missing'}`);
   console.log(`Service Key: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Set' : '❌ Missing'}`);
+  
+  // Additional debug info for environment variable sources
+  if (process.env.SUPABASE_URL) {
+    console.log(`  └─ SUPABASE_URL length: ${process.env.SUPABASE_URL.length} chars`);
+  }
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log(`  └─ SUPABASE_SERVICE_ROLE_KEY length: ${process.env.SUPABASE_SERVICE_ROLE_KEY.length} chars`);
+  }
   
   try {
     const validator = new MigrationValidator();
@@ -161,6 +175,10 @@ async function main() {
     
   } catch (error) {
     console.error('\n💥 Migration validation crashed:', error.message);
+    console.error('Debug info:');
+    console.error(`  - NODE_ENV: ${process.env.NODE_ENV}`);
+    console.error(`  - Has SUPABASE_URL: ${!!process.env.SUPABASE_URL}`);
+    console.error(`  - Has SUPABASE_SERVICE_ROLE_KEY: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
     process.exit(1);
   }
 }

@@ -9,10 +9,13 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
+const path = require('path');
 
-// Load environment variables
-dotenv.config({ path: '.env.local' });
-dotenv.config({ path: '.env' });
+// Load environment variables from parent directory (project root)
+// This handles both local development and CI environments
+const parentDir = path.join(__dirname, '..');
+dotenv.config({ path: path.join(parentDir, '.env.local') });
+dotenv.config({ path: path.join(parentDir, '.env') });
 
 class VaultMonitor {
   constructor() {
