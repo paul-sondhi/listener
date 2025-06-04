@@ -45,6 +45,15 @@ max_client_conn = 100
 # [db.vault]
 # secret_key = "env(SECRET_VALUE)"
 
+# This configuration enables Supabase Vault for secure token storage
+# Note: vault key names are lowercased by the CLI (known issue)
+[db.vault]
+# Environment-specific vault keys for dev/staging/prod
+spotify_client_id = "env(SPOTIFY_CLIENT_ID)"
+spotify_client_secret = "env(SPOTIFY_CLIENT_SECRET)"
+# Use environment vault key for encryption
+secret_key = "env(VAULT_SECRET_KEY)"
+
 [db.migrations]
 # Specifies an ordered list of schema files that describe your database.
 # Supports glob patterns relative to supabase directory: "./schemas/*.sql"

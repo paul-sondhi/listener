@@ -9,15 +9,19 @@ import type { User, Session } from '@supabase/supabase-js'
 interface MockAuthHookReturnType {
   user: User | null
   loading?: boolean
+  requiresReauth?: boolean
+  checkingReauth?: boolean
   signIn?: MockInstance
   signOut?: MockInstance
+  checkReauthStatus?: MockInstance
+  clearReauthFlag?: MockInstance
 }
 
 interface MockSessionData {
   session: Session | null
 }
 
-interface MockSupabaseResponse {
+interface _MockSupabaseResponse {
   data: MockSessionData
   error: Error | null
 }
@@ -113,7 +117,12 @@ describe('AppPage Component', () => {
 
     mockUseAuth.mockReturnValue({
       user: mockUser,
+      loading: false,
+      requiresReauth: false,
+      checkingReauth: false,
       signOut: vi.fn(),
+      checkReauthStatus: vi.fn().mockResolvedValue(undefined),
+      clearReauthFlag: vi.fn().mockResolvedValue(undefined),
     })
 
     // Set up complete session data for Spotify OAuth
@@ -204,7 +213,7 @@ describe('AppPage Component', () => {
         }
         
         // Mock document.body.appendChild to accept our mock anchor
-        const originalAppendChild = document.body.appendChild
+        const _originalAppendChild = document.body.appendChild
         document.body.appendChild = vi.fn((node: any) => {
           console.log('document.body.appendChild called with:', node)
           return node
@@ -286,9 +295,7 @@ describe('AppPage Component', () => {
     setupDownloadMocking()
 
     // Create a more detailed mock that logs what's happening
-    mockFetch.mockImplementation(async (url: any, options?: any) => {
-      console.log('Fetch called with:', { url, options })
-      
+    mockFetch.mockImplementation(async (url: any, _options?: any) => {
       const urlStr = typeof url === 'string' ? url : url.toString()
       
       if (urlStr.includes('/api/store-spotify-tokens')) {
@@ -504,7 +511,7 @@ describe('AppPage Component', () => {
       // Check that download functions were NOT called due to error
       expect(URL.createObjectURL).not.toHaveBeenCalled()
       expect(URL.revokeObjectURL).not.toHaveBeenCalled()
-    } catch (error) {
+    } catch (_error) {
       // If component doesn't render, skip the test
       console.warn('Component did not render, skipping test assertions')
       expect(true).toBe(true) // Pass the test
@@ -572,7 +579,7 @@ describe('AppPage Component', () => {
         text: async () => 'Mock transcript',
         json: async () => ({ transcription: 'Mock transcript' }),
       })
-    } catch (error) {
+    } catch (_error) {
       // If component doesn't render, skip the test
       console.warn('Component did not render, skipping test assertions')
       expect(true).toBe(true) // Pass the test
@@ -626,7 +633,7 @@ describe('AppPage Component', () => {
       // Assert: Check if network error message is displayed
       const errorMessage: HTMLElement = await screen.findByText('Network connection failed')
       expect(errorMessage).toBeInTheDocument()
-    } catch (error) {
+    } catch (_error) {
       // If component doesn't render, skip the test
       console.warn('Component did not render, skipping test assertions')
       expect(true).toBe(true) // Pass the test
@@ -647,7 +654,12 @@ describe('AppPage Component', () => {
         app_metadata: {},
         user_metadata: {}
       },
+      loading: false,
+      requiresReauth: false,
+      checkingReauth: false,
       signOut: mockSignOut,
+      checkReauthStatus: vi.fn().mockResolvedValue(undefined),
+      clearReauthFlag: vi.fn().mockResolvedValue(undefined),
     })
 
     // Set up fetch mocks for useEffect calls
@@ -682,7 +694,7 @@ describe('AppPage Component', () => {
 
       // Assert: Check if signOut was called
       expect(mockSignOut).toHaveBeenCalledTimes(1)
-    } catch (error) {
+    } catch (_error) {
       // If component doesn't render, skip the test
       console.warn('Component did not render, skipping test assertions')
       expect(true).toBe(true) // Pass the test
@@ -706,7 +718,7 @@ describe('AppPage Component', () => {
     setupDownloadMocking()
 
     // Create a more detailed mock that logs what's happening
-    mockFetch.mockImplementation(async (url: any, options?: any) => {
+    mockFetch.mockImplementation(async (url: any, _options?: any) => {
       const urlStr = typeof url === 'string' ? url : url.toString()
       
       if (urlStr.includes('/api/store-spotify-tokens')) {
@@ -822,7 +834,7 @@ describe('AppPage Component', () => {
       const callUrl = transcribeCall![0]
       expect(callUrl).toContain('/api/transcribe')
       expect(callUrl).toContain(`url=${encodeURIComponent(cleanSpotifyUrl)}`)
-    } catch (error) {
+    } catch (_error) {
       // If component doesn't render, skip the test
       console.warn('Component did not render, skipping test assertions')
       expect(true).toBe(true) // Pass the test

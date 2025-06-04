@@ -33,11 +33,64 @@ jobs:
       - name: Run All Tests
         run: npm test # Runs all tests defined in your root package.json
 
+  # NEW: Backup-Restore Migration Tests
+  migration-tests:
+    name: Migration & Vault Tests
+    runs-on: ubuntu-latest
+    needs: run-tests # Only run after basic tests pass
+    
+    # Only run migration tests on main branch pushes and PRs to main
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    
+    env:
+      # Use test environment variables
+      SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL || secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NODE_ENV: test
+      TEST_SECRET_COUNT: 3
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install scripts dependencies
+        run: |
+          cd scripts
+          npm install
+
+      - name: Run Migration Validation
+        run: |
+          echo "🔍 Running migration validation tests..."
+          cd scripts
+          node validate-migration.js
+
+      - name: Run Backup-Restore Test
+        run: |
+          echo "🔄 Running backup-restore test..."
+          cd scripts
+          node backup-restore-test.js
+
+      - name: Upload backup artifacts (if test fails)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-artifacts-${{ github.sha }}
+          path: backups/
+          retention-days: 7
+
   deploy-vercel:
     name: Deploy to Vercel
     environment: production
     runs-on: ubuntu-latest
-    needs: run-tests # Depends on the 'run-tests' job
+    needs: [run-tests, migration-tests] # Now depends on migration tests too
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Only on push to main
     steps:
       - name: Checkout code
@@ -55,7 +108,7 @@ jobs:
     name: Deploy to Render
     environment: production
     runs-on: ubuntu-latest
-    needs: [run-tests, deploy-vercel] # Depends on 'run-tests' and 'deploy-vercel'
+    needs: [run-tests, migration-tests, deploy-vercel] # Include migration tests in dependencies
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Only on push to main
     steps:
       - name: Checkout code

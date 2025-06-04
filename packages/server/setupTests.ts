@@ -10,7 +10,7 @@ import type { MockInstance } from 'vitest'
 // Global type declarations for test utilities
 declare global {
   // Environment variable mocks
-  var TEST_ENV: {
+  let TEST_ENV: {
     SUPABASE_URL: string
     SUPABASE_SERVICE_ROLE_KEY: string
     SPOTIFY_CLIENT_ID: string
@@ -21,14 +21,14 @@ declare global {
   }
   
   // Mock function types
-  var mockFetch: MockInstance
-  var mockConsoleLog: MockInstance
-  var mockConsoleError: MockInstance
-  var mockConsoleWarn: MockInstance
+  let mockFetch: MockInstance
+  let mockConsoleLog: MockInstance
+  let mockConsoleError: MockInstance
+  let mockConsoleWarn: MockInstance
 }
 
 // Set up test environment variables
-global.TEST_ENV = {
+(global as any).TEST_ENV = {
   SUPABASE_URL: 'http://localhost:54321',
   SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
   SPOTIFY_CLIENT_ID: 'test-spotify-client-id',
@@ -42,24 +42,24 @@ global.TEST_ENV = {
 vi.mock('process', () => ({
   env: {
     ...process.env,
-    ...global.TEST_ENV,
+    ...(global as any).TEST_ENV,
   },
 }))
 
 // Mock fetch for API testing - More selective to avoid conflicts with node-fetch
-global.mockFetch = vi.fn()
+;(global as any).mockFetch = vi.fn()
 
 // Only mock global fetch if it's not already mocked by a specific test
 Object.defineProperty(global, 'fetch', {
   writable: true,
   configurable: true,
-  value: global.mockFetch,
+  value: (global as any).mockFetch,
 })
 
 // Mock console methods to reduce noise in tests
-global.mockConsoleLog = vi.fn()
-global.mockConsoleError = vi.fn()
-global.mockConsoleWarn = vi.fn()
+;(global as any).mockConsoleLog = vi.fn()
+;(global as any).mockConsoleError = vi.fn()
+;(global as any).mockConsoleWarn = vi.fn()
 
 const originalConsole = {
   log: console.log,
@@ -67,11 +67,36 @@ const originalConsole = {
   warn: console.warn,
 }
 
+const originalError = console.error
+const originalWarn = console.warn
+
 beforeAll(() => {
   // Replace console methods with mocks during tests
-  console.log = global.mockConsoleLog
-  console.error = global.mockConsoleError
-  console.warn = global.mockConsoleWarn
+  console.log = (global as any).mockConsoleLog
+  console.error = (...args: unknown[]) => {
+    // Filter out React warning messages that are noise in tests
+    if (
+      typeof args[0] === 'string' &&
+      (args[0].includes('Warning: ReactDOM.render is deprecated') ||
+       args[0].includes('Warning: React.createFactory is deprecated') ||
+       args[0].includes('Warning: componentWillReceiveProps has been renamed'))
+    ) {
+      return
+    }
+    originalError.call(console, ...args)
+  }
+  console.warn = (...args: unknown[]) => {
+    // Filter out React warning messages that are noise in tests
+    if (
+      typeof args[0] === 'string' &&
+      (args[0].includes('Warning: ReactDOM.render is deprecated') ||
+       args[0].includes('Warning: React.createFactory is deprecated') ||
+       args[0].includes('Warning: componentWillReceiveProps has been renamed'))
+    ) {
+      return
+    }
+    originalWarn.call(console, ...args)
+  }
 })
 
 afterAll(() => {
@@ -159,7 +184,7 @@ const mockSpotifyResponses = {
 
 // Setup selective fetch mock responses
 beforeAll(() => {
-  global.mockFetch.mockImplementation((url: string, options?: RequestInit) => {
+  (global as any).mockFetch.mockImplementation((url: string, options?: RequestInit) => {
     // Skip mocking if this appears to be a node-fetch test (has specific mock headers or patterns)
     if (options?.headers && 
         (JSON.stringify(options.headers).includes('client_credentials') || 
@@ -202,14 +227,14 @@ afterEach(() => {
   vi.clearAllMocks()
   
   // Reset fetch mock to default implementation but don't clear existing setups
-  if (global.mockFetch.mockClear) {
-    global.mockFetch.mockClear()
+  if ((global as any).mockFetch.mockClear) {
+    (global as any).mockFetch.mockClear()
   }
   
   // Clear console mocks
-  global.mockConsoleLog.mockClear()
-  global.mockConsoleError.mockClear()
-  global.mockConsoleWarn.mockClear()
+  ;(global as any).mockConsoleLog.mockClear()
+  ;(global as any).mockConsoleError.mockClear()
+  ;(global as any).mockConsoleWarn.mockClear()
   
   // Clear any timers
   vi.clearAllTimers()
@@ -223,7 +248,7 @@ export const testUtils = {
   /**
    * Create a mock request object for testing Express routes
    */
-  createMockRequest: (overrides: Partial<any> = {}) => ({
+  createMockRequest: (overrides: Record<string, unknown> = {}) => ({
     body: {},
     params: {},
     query: {},
@@ -236,7 +261,7 @@ export const testUtils = {
    * Create a mock response object for testing Express routes
    */
   createMockResponse: () => {
-    const res: any = {}
+    const res: Record<string, unknown> = {}
     res.status = vi.fn().mockReturnValue(res)
     res.json = vi.fn().mockReturnValue(res)
     res.send = vi.fn().mockReturnValue(res)

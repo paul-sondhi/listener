@@ -4,10 +4,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest'
-import type { MockInstance } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 import { EventEmitter } from 'events'
+import fs from 'fs'
+import { Readable } from 'stream'
 
 // Set up test environment variables before any imports
 process.env.SPOTIFY_CLIENT_ID = 'test-client-id'
@@ -149,8 +150,6 @@ beforeEach(() => {
   vi.spyOn(spotifyLib, 'getSpotifyAccessToken').mockResolvedValue('mock-token')
 
   // Set up default stream mocking in beforeEach to ensure it's available for all tests
-  const fs = require('fs')
-  const { Readable } = require('stream')
 
   // Default mock - can be overridden in individual tests
   const defaultWriteStream = new MockWriteStream()
@@ -192,10 +191,10 @@ afterEach(() => {
 
 describe('GET /transcribe', () => {
   const mockSpotifyUrl = 'https://open.spotify.com/show/12345'
-  const mockSlug = 'test-podcast'
-  const mockFeedUrl = 'http://example.com/feed.xml'
-  const mockRssText = '<rss><channel><item><enclosure url="http://example.com/test.mp3"/></item></channel></rss>'
-  const mockRssData: MockRssData = {
+  const _mockSlug = 'test-podcast'
+  const _mockFeedUrl = 'http://example.com/feed.xml'
+  const _mockRssText = '<rss><channel><item><enclosure url="http://example.com/test.mp3"/></item></channel></rss>'
+  const _mockRssData: MockRssData = {
     rss: {
       channel: {
         item: {
@@ -206,9 +205,9 @@ describe('GET /transcribe', () => {
       },
     },
   }
-  const mockMp3Url = 'http://example.com/test.mp3'
-  const mockTmpFile = '/tmp/test-podcast.mp3'
-  const mockTranscript = 'This is a test transcription'
+  const _mockMp3Url = 'http://example.com/test.mp3'
+  const _mockTmpFile = '/tmp/test-podcast.mp3'
+  const _mockTranscript = 'This is a test transcription'
 
   it('should successfully transcribe a podcast given a valid Spotify URL', async () => {
     // Act - No additional setup needed, using default mocks from beforeEach
@@ -223,7 +222,6 @@ describe('GET /transcribe', () => {
     expect(transcribeLib.transcribe).toHaveBeenCalled()
     
     // Get the current mocks from beforeEach
-    const fs = require('fs')
     const { finished } = await import('stream/promises')
     expect(fs.createWriteStream).toHaveBeenCalled()
     expect(finished).toHaveBeenCalled()
@@ -342,7 +340,6 @@ describe('POST /transcribe', () => {
     expect(transcribeLib.transcribe).toHaveBeenCalled()
     
     // Verify stream operations were called
-    const fs = require('fs')
     const { finished } = await import('stream/promises')
     expect(fs.createWriteStream).toHaveBeenCalled()
     expect(finished).toHaveBeenCalled()
@@ -415,7 +412,6 @@ describe('POST /transcribe', () => {
 
   it('should return 500 if creating file stream fails', async () => {
     // Arrange
-    const fs = require('fs')
     vi.spyOn(fs, 'createWriteStream').mockImplementation(() => {
       throw new Error('FS error')
     })
@@ -430,8 +426,6 @@ describe('POST /transcribe', () => {
 
   it('should return 500 if piping stream to file fails (stream.finished rejects)', async () => {
     // Arrange - Set up stream mocking to fail during stream completion
-    const fs = require('fs')
-    const { Readable } = require('stream')
 
     // Create new mock instances for this test to override the defaults
     const errorWriteStream = new MockWriteStream()
@@ -479,7 +473,6 @@ describe('POST /transcribe', () => {
 
   it('should attempt to delete temp file even if transcription fails', async () => {
     // Arrange - Set up transcription failure and spy on file deletion
-    const fs = require('fs')
     const unlinkSpy = vi.spyOn(fs, 'unlink').mockImplementation((path: any, callback?: any) => {
       if (callback) callback()
     })
@@ -494,7 +487,6 @@ describe('POST /transcribe', () => {
 
   it('should return normally if deleting temp file fails but main operation succeeded', async () => {
     // Arrange - Set up successful transcription but file deletion failure
-    const fs = require('fs')
     
     // Make transcription succeed but file deletion fail
     vi.spyOn(transcribeLib, 'transcribe').mockResolvedValue('Success')

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, FormEvent, ChangeEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabaseClient'
 import { ApiResponse } from '@listener/shared'
+import ReauthPrompt from './ReauthPrompt'
 
 // Get the API base URL from environment variables
 // Default to an empty string for relative paths if not set (for local development)
@@ -24,7 +25,7 @@ interface SyncShowsResponse extends ApiResponse {
  * and Spotify token synchronization
  */
 const AppPage = (): React.JSX.Element => {
-  const { user, signOut } = useAuth()
+  const { user, signOut, clearReauthFlag, checkReauthStatus: _checkReauthStatus } = useAuth()
   const [spotifyUrl, setSpotifyUrl] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isSyncing, setIsSyncing] = useState<boolean>(false)
@@ -101,7 +102,10 @@ const AppPage = (): React.JSX.Element => {
           throw new Error(errorData.error || 'Failed to store Spotify tokens')
         }
 
-        console.log('Successfully stored tokens, now syncing shows...')
+        console.log('Successfully stored tokens, clearing reauth flag...')
+        await clearReauthFlag()
+
+        console.log('Now syncing shows...')
         const syncResponse: globalThis.Response = await fetch(`${API_BASE_URL}/api/sync-spotify-shows`, {
           method: 'POST',
           headers: {
@@ -219,6 +223,9 @@ const AppPage = (): React.JSX.Element => {
 
   return (
     <div className="container">
+      {/* Reauth prompt overlay - shows when user needs to re-authenticate */}
+      <ReauthPrompt />
+      
       <h1>Podcast Transcript Downloader</h1>
       {!user ? (
         <div className="login-prompt">

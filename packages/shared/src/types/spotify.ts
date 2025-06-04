@@ -129,4 +129,54 @@ export interface SpotifyShowEpisodes extends SpotifyPagination<SpotifyEpisode> {
 export interface SpotifyUserShows extends SpotifyPagination<{
   added_at: string;
   show: SpotifyShow;
-}> {} 
+}> {}
+
+// === Vault & Token Management Types ===
+
+// Vault operation result for token operations
+export interface VaultOperationResult {
+  success: boolean;
+  data?: SpotifyTokens;
+  error?: string;
+  elapsed_ms: number;
+}
+
+// Vault delete operation result
+export interface VaultDeleteResult {
+  success: boolean;
+  status_code: number;
+  elapsed_ms: number;
+  error?: string;
+}
+
+// Token refresh operation result
+export interface TokenRefreshResult {
+  success: boolean;
+  tokens?: SpotifyTokens;
+  requires_reauth: boolean;
+  error?: string;
+  elapsed_ms: number;
+}
+
+// Token validation result
+export interface TokenValidationResult {
+  valid: boolean;
+  expires_in_minutes: number;
+  needs_refresh: boolean;
+  error?: string;
+}
+
+// Spotify rate limit state
+export interface SpotifyRateLimit {
+  is_limited: boolean;
+  reset_at?: number; // Unix timestamp when limit resets
+  retry_after_seconds?: number;
+}
+
+// Token service configuration
+export interface TokenServiceConfig {
+  refresh_threshold_minutes: number; // When to refresh tokens before expiry (default: 5)
+  max_refresh_retries: number; // Max retries on refresh failure (default: 1)
+  cache_ttl_seconds: number; // Cache TTL in seconds (default: 60)
+  rate_limit_pause_seconds: number; // Global pause on 429 errors (default: 30)
+} 

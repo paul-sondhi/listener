@@ -19,10 +19,10 @@ vi.mock('../middleware/auth.js', () => ({
 }));
 
 // Mock error.js - the server imports { errorHandler, notFoundHandler }
-const mockErrorHandler = vi.fn((err, req, res, next) => {
+const mockErrorHandler = vi.fn((err, req, res, _next) => {
   res.status(500).json({ error: 'mocked error' });
 });
-const mockNotFoundHandler = vi.fn((req, res, next) => {
+const mockNotFoundHandler = vi.fn((req, res, _next) => {
   res.status(404).json({ error: 'not found' });
 });
 vi.mock('../middleware/error.js', () => ({
@@ -39,6 +39,18 @@ vi.mock('../routes/index.js', () => ({
 // Mock http-proxy-middleware to avoid proxy issues in tests
 vi.mock('http-proxy-middleware', () => ({
   createProxyMiddleware: vi.fn(() => (req, res, next) => next())
+}));
+
+// Mock backgroundJobs.js to avoid node-cron import issues
+const mockInitializeBackgroundJobs = vi.fn();
+vi.mock('../services/backgroundJobs.js', () => ({
+  initializeBackgroundJobs: mockInitializeBackgroundJobs
+}));
+
+// Mock tokenService.js  
+const mockHealthCheck = vi.fn().mockResolvedValue(true);
+vi.mock('../services/tokenService.js', () => ({
+  healthCheck: mockHealthCheck
 }));
 
 describe('Server Application (server.js)', () => {

@@ -2,18 +2,18 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach, type MockInstance } from 'vitest'
 import { render, act, waitFor, screen } from '@testing-library/react'
 import { AuthProvider, useAuth } from '../AuthContext'
-import type { User, Session, AuthChangeEvent, SignInWithOAuthCredentials } from '@supabase/supabase-js'
+import type { User, Session, AuthChangeEvent, SignInWithOAuthCredentials as _OAuthCredentials } from '@supabase/supabase-js'
 
 // Type definitions for test utilities
-interface MockSupabaseAuth {
+interface _MockSupabaseAuth {
   getSession: MockInstance
   onAuthStateChange: MockInstance
   signInWithOAuth: MockInstance
   signOut: MockInstance
 }
 
-interface MockSupabaseClient {
-  auth: MockSupabaseAuth
+interface _MockSupabaseClient {
+  auth: _MockSupabaseAuth
 }
 
 // Use vi.hoisted to properly hoist mock declarations before imports

@@ -8,7 +8,7 @@ import type { MockInstance } from 'vitest'
 import type { Readable } from 'stream'
 
 // Type definitions for test utilities
-interface MockDeepgramClient {
+interface _MockDeepgramClient {
   listen: {
     prerecorded: {
       transcribeFile: MockInstance

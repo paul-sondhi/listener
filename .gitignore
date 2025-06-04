@@ -48,6 +48,4 @@ yarn-error.log*
 next-env.d.ts
 packages/client/dist
 
-TESTING_RECOMMENDATIONS.md
-
-file_structure.md
+esling.config.mjs

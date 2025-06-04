@@ -79,7 +79,7 @@ describe('Shared Utilities (shared/src/index.js)', () => {
       // but helps to document the expectation that these are constants.
       try {
         API_ENDPOINTS.AUTH = '/new-auth';
-      } catch (e) {
+      } catch (_e) {
         // If frozen, this would throw. For now, we just check it didn't persist if not frozen.
       }
       expect(API_ENDPOINTS.AUTH).toBe('/auth'); // Should remain unchanged

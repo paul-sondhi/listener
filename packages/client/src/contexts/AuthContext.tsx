@@ -1,13 +1,18 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { User, Session, SignInWithOAuthCredentials, OAuthResponse } from '@supabase/supabase-js'
+import { User, Session, OAuthResponse } from '@supabase/supabase-js'
+import type { SignInWithOAuthCredentials } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
 
 // Interface for the authentication context value
 interface AuthContextType {
   user: User | null
   loading: boolean
+  requiresReauth: boolean
+  checkingReauth: boolean
   signIn: (credentials: SignInWithOAuthCredentials) => Promise<OAuthResponse>
   signOut: () => Promise<{ error: any }>
+  checkReauthStatus: () => Promise<void>
+  clearReauthFlag: () => Promise<void>
 }
 
 // Interface for AuthProvider props
@@ -22,6 +27,70 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
+  const [requiresReauth, setRequiresReauth] = useState<boolean>(false)
+  const [checkingReauth, setCheckingReauth] = useState<boolean>(false)
+
+  // Define checkReauthStatus function
+  const checkReauthStatus = async (): Promise<void> => {
+    setCheckingReauth(true)
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError || !session?.user) {
+        console.error('Error getting session:', sessionError)
+        setRequiresReauth(false)
+        return
+      }
+      
+      // Query the users table for reauth status
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('spotify_reauth_required')
+        .eq('id', session.user.id)
+        .single()
+      
+      if (userError) {
+        console.error('Error checking reauth status:', userError)
+        setRequiresReauth(false)
+        return
+      }
+      
+      setRequiresReauth(userData?.spotify_reauth_required === true)
+    } catch (error) {
+      console.error('Error checking reauth status:', error)
+      setRequiresReauth(false)
+    } finally {
+      setCheckingReauth(false)
+    }
+  }
+
+  // Define clearReauthFlag function
+  const clearReauthFlag = async (): Promise<void> => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError || !session?.user) {
+        console.error('Error getting session:', sessionError)
+        return
+      }
+      
+      // Update the users table to clear reauth flag
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ spotify_reauth_required: false })
+        .eq('id', session.user.id)
+      
+      if (updateError) {
+        console.error('Error clearing reauth flag:', updateError)
+        return
+      }
+      
+      setRequiresReauth(false)
+      console.log('Reauth flag cleared successfully')
+    } catch (error) {
+      console.error('Error clearing reauth flag:', error)
+    }
+  }
 
   useEffect(() => {
     // Check active sessions and sets the user
@@ -34,6 +103,11 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         }
         
         setUser(session?.user ?? null)
+        
+        // Check reauth status if user is authenticated
+        if (session?.user) {
+          await checkReauthStatus()
+        }
       } catch (error) {
         console.error('Unexpected error during auth initialization:', error)
       } finally {
@@ -45,10 +119,20 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
 
     // Listen for changes on auth state (logged in, signed out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session: Session | null) => {
+      async (event, session: Session | null) => {
         console.log('Auth state changed:', event, session?.user?.email)
         setUser(session?.user ?? null)
         setLoading(false)
+        
+        // Check reauth status when user signs in
+        if (session?.user && event === 'SIGNED_IN') {
+          await checkReauthStatus()
+        }
+        
+        // Clear reauth flag when user signs out
+        if (event === 'SIGNED_OUT') {
+          setRequiresReauth(false)
+        }
       }
     )
 
@@ -56,14 +140,18 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
+  }, [checkReauthStatus])
 
   // Authentication context value with proper typing
   const value: AuthContextType = {
     user,
     loading,
+    requiresReauth,
+    checkingReauth,
     signIn: (credentials: SignInWithOAuthCredentials) => supabase.auth.signInWithOAuth(credentials),
     signOut: () => supabase.auth.signOut(),
+    checkReauthStatus: checkReauthStatus,
+    clearReauthFlag: clearReauthFlag,
   }
 
   return (

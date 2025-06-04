@@ -7,24 +7,22 @@
 import '@testing-library/jest-dom'
 
 // Import Vitest matchers and utilities
-import { expect, vi } from 'vitest'
+import { vi } from 'vitest'
 
 // Global test utilities and mocks
 declare global {
-  namespace Vi {
-    interface JestAssertion<T = any> {
-      toBeInTheDocument(): void
-      toHaveAttribute(attr: string, value?: string): void
-      toHaveClass(className: string): void
-      toHaveStyle(style: string | Record<string, any>): void
-      toHaveTextContent(content: string | RegExp): void
-      toBeVisible(): void
-      toBeDisabled(): void
-      toBeEnabled(): void
-      toBeChecked(): void
-      toHaveValue(value: string | number): void
-      toHaveFocus(): void
-    }
+  interface ViJestAssertion<_T = any> {
+    toBeInTheDocument(): void
+    toHaveAttribute(attr: string, value?: string): void
+    toHaveClass(className: string): void
+    toHaveStyle(style: string | Record<string, any>): void
+    toHaveTextContent(content: string | RegExp): void
+    toBeVisible(): void
+    toBeDisabled(): void
+    toBeEnabled(): void
+    toBeChecked(): void
+    toHaveValue(value: string | number): void
+    toHaveFocus(): void
   }
 }
 
@@ -51,7 +49,7 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
 }))
 
 // Mock IntersectionObserver for components that use intersection observation
-global.IntersectionObserver = vi.fn().mockImplementation((callback: IntersectionObserverCallback) => ({
+global.IntersectionObserver = vi.fn().mockImplementation((_callback: IntersectionObserverCallback) => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),

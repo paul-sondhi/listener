@@ -7,10 +7,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { MockInstance } from 'vitest'
 
 // Type definitions for test utilities
-interface MockResponse {
+interface _MockResponse {
   ok: boolean
-  status?: number
-  statusText?: string
+  status: number
+  json: () => Promise<any>
   text: () => Promise<string>
 }
 

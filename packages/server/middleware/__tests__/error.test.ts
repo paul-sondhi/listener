@@ -8,9 +8,9 @@ import type { MockInstance } from 'vitest'
 import type { Request, Response, NextFunction } from 'express'
 
 // Type definitions for test utilities
-interface MockRequest extends Partial<Request> {}
+interface _MockRequest extends Partial<Request> {}
 
-interface MockResponse {
+interface _MockResponse {
   status: MockInstance
   json: MockInstance
 }
@@ -20,8 +20,8 @@ interface CustomError extends Error {
 }
 
 describe('Error Handling Middleware', () => {
-  let mockReq: MockRequest
-  let mockRes: MockResponse
+  let mockReq: _MockRequest
+  let mockRes: _MockResponse
   let mockNext: MockInstance
   let mockError: CustomError
   let errorHandler: (err: any, req: Request, res: Response, next: NextFunction) => void

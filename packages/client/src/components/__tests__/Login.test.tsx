@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, type MockInstance } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Login from '../Login'
-import type { User, OAuthResponse, SignInWithOAuthCredentials, AuthError } from '@supabase/supabase-js'
+import type { User, OAuthResponse, SignInWithOAuthCredentials as _OAuthCredentials, AuthError } from '@supabase/supabase-js'
 
 // Type definitions for test utilities
 interface MockAuthHookReturnType {

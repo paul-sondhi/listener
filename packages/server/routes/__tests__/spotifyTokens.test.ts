@@ -9,6 +9,7 @@ import request from 'supertest'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import spotifyTokensRouter from '../spotifyTokens'
+import * as vaultHelpers from '../../lib/vaultHelpers'
 
 // Type definitions for test utilities
 interface MockUser {
@@ -20,14 +21,16 @@ interface MockTokens {
   access_token: string
   refresh_token: string
   expires_at: number
+  token_type: string
+  scope: string
 }
 
-interface MockSupabaseResponse {
+interface _MockSupabaseResponse {
   data?: { user: MockUser | null }
   error?: { message: string } | null
 }
 
-interface MockSupabaseUpdateResponse {
+interface _MockSupabaseUpdateResponse {
   error?: { message: string } | null
 }
 
@@ -56,6 +59,11 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockSupabaseClient),
 }))
 
+// Mock vault helpers
+vi.mock('../../lib/vaultHelpers', () => ({
+  createUserSecret: vi.fn()
+}))
+
 // Create a test app
 const app = express()
 app.use(cookieParser())
@@ -79,6 +87,8 @@ describe('POST /spotify-tokens', () => {
     access_token: 'test_access_token',
     refresh_token: 'test_refresh_token',
     expires_at: Math.floor(Date.now() / 1000) + 3600, // Expires in 1 hour
+    token_type: 'Bearer',
+    scope: 'user-read-email user-library-read'
   }
 
   beforeEach(() => {
@@ -89,6 +99,12 @@ describe('POST /spotify-tokens', () => {
     mockSupabaseAuthGetUser.mockResolvedValue({ data: { user: mockUser }, error: null })
     // Default successful update mock
     mockSupabaseSelect.mockResolvedValue({ error: null })
+    // Default successful vault operation mock
+    vi.mocked(vaultHelpers.createUserSecret).mockResolvedValue({
+      success: true,
+      data: mockTokens,
+      elapsed_ms: 100
+    })
   })
 
   it('should store tokens successfully with valid token in cookie and valid body', async () => {
@@ -100,20 +116,19 @@ describe('POST /spotify-tokens', () => {
 
     // Assert
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ success: true, message: 'Tokens stored successfully' })
-    expect(mockSupabaseAuthGetUser).toHaveBeenCalledWith('user_supabase_token')
-    expect(mockSupabaseFrom).toHaveBeenCalledWith('users')
-    expect(mockSupabaseUpsert).toHaveBeenCalledWith({
-      id: mockUser.id,
-      email: mockUser.email,
-      spotify_access_token: mockTokens.access_token,
-      spotify_refresh_token: mockTokens.refresh_token,
-      spotify_token_expires_at: new Date(mockTokens.expires_at * 1000).toISOString(),
-      updated_at: expect.any(String), // This is dynamically generated
-    }, {
-      onConflict: 'id'
+    expect(response.body).toEqual({ 
+      success: true, 
+      message: 'Tokens stored securely',
+      vault_latency_ms: 100
     })
-    expect(mockSupabaseSelect).toHaveBeenCalledWith()
+    expect(mockSupabaseAuthGetUser).toHaveBeenCalledWith('user_supabase_token')
+    expect(vi.mocked(vaultHelpers.createUserSecret)).toHaveBeenCalledWith(mockUser.id, {
+      access_token: mockTokens.access_token,
+      refresh_token: mockTokens.refresh_token,
+      expires_at: mockTokens.expires_at,
+      token_type: 'Bearer',
+      scope: 'user-read-email user-library-read'
+    })
   })
 
   it('should store tokens successfully with valid token in Authorization header', async () => {
@@ -125,7 +140,11 @@ describe('POST /spotify-tokens', () => {
 
     // Assert
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ success: true, message: 'Tokens stored successfully' })
+    expect(response.body).toEqual({ 
+      success: true, 
+      message: 'Tokens stored securely',
+      vault_latency_ms: 100
+    })
     expect(mockSupabaseAuthGetUser).toHaveBeenCalledWith('user_supabase_token')
   })
 
@@ -168,8 +187,12 @@ describe('POST /spotify-tokens', () => {
   })
 
   it('should return 500 if Supabase update fails', async () => {
-    // Arrange
-    mockSupabaseSelect.mockResolvedValueOnce({ error: { message: 'DB update error' } })
+    // Arrange - Mock vault failure
+    vi.mocked(vaultHelpers.createUserSecret).mockResolvedValueOnce({
+      success: false,
+      error: 'Vault operation failed',
+      elapsed_ms: 50
+    })
 
     // Act
     const response = await (request(app) as any)
@@ -179,7 +202,7 @@ describe('POST /spotify-tokens', () => {
 
     // Assert
     expect(response.status).toBe(500)
-    expect(response.body).toEqual({ success: false, error: 'Failed to store user tokens' })
+    expect(response.body).toEqual({ success: false, error: 'Failed to store tokens securely' })
   })
 
   it('should return 500 for unexpected errors during Supabase getUser', async () => {
