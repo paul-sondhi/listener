@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import * as cron from 'node-cron';
+import { schedule } from 'node-cron';
 // Lazy Supabase client initialization
 let supabaseAdmin = null;
 function getSupabaseAdmin() {
@@ -253,7 +253,7 @@ export function initializeBackgroundJobs() {
     }
     // Nightly vault cleanup at 2 AM UTC
     // Cron format: minute hour day-of-month month day-of-week
-    cron.schedule('0 2 * * *', async () => {
+    schedule('0 2 * * *', async () => {
         console.log('BACKGROUND_JOBS: Starting scheduled vault cleanup job');
         await vaultCleanupJob();
     }, {
@@ -262,7 +262,7 @@ export function initializeBackgroundJobs() {
     });
     // Quarterly key rotation on 1st day of quarter at 3 AM UTC
     // Runs on January 1st, April 1st, July 1st, October 1st
-    cron.schedule('0 3 1 1,4,7,10 *', async () => {
+    schedule('0 3 1 1,4,7,10 *', async () => {
         console.log('BACKGROUND_JOBS: Starting scheduled key rotation job');
         await keyRotationJob();
     }, {

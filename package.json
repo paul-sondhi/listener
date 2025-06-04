@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"supabase start\" \"npm run dev -w @listener/server\" \"npm run dev -w @listener/client\"",
-    "build": "npm run build -w @listener/server && npm run build -w @listener/client",
+    "build": "npm install && npm run build -w @listener/server && npm run build -w @listener/client",
     "start": "cd packages/server && npm run start",
     "test": "npm run test -ws --if-present",
     "test:coverage": "npm run test:coverage -ws --if-present",
@@ -41,6 +41,7 @@
     "express": "^4.18.2",
     "fast-xml-parser": "^5.2.2",
     "http-proxy-middleware": "^3.0.5",
+    "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
@@ -48,6 +49,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^22.10.7",
+    "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^8.33.1",
     "@typescript-eslint/parser": "^8.33.1",
     "concurrently": "^9.1.2",
