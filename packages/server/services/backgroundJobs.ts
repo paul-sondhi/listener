@@ -1,6 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@listener/shared';
-import { schedule } from 'node-cron';
+
+// Use require for node-cron to ensure compatibility
+const cron = require('node-cron');
 
 // Job execution tracking
 interface JobExecution {
@@ -327,7 +329,7 @@ export function initializeBackgroundJobs(): void {
   
   // Nightly vault cleanup at 2 AM UTC
   // Cron format: minute hour day-of-month month day-of-week
-  schedule('0 2 * * *', async () => {
+  cron.schedule('0 2 * * *', async () => {
     console.log('BACKGROUND_JOBS: Starting scheduled vault cleanup job');
     await vaultCleanupJob();
   }, {
@@ -337,7 +339,7 @@ export function initializeBackgroundJobs(): void {
   
   // Quarterly key rotation on 1st day of quarter at 3 AM UTC
   // Runs on January 1st, April 1st, July 1st, October 1st
-  schedule('0 3 1 1,4,7,10 *', async () => {
+  cron.schedule('0 3 1 1,4,7,10 *', async () => {
     console.log('BACKGROUND_JOBS: Starting scheduled key rotation job');
     await keyRotationJob();
   }, {
