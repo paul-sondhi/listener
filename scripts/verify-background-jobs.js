@@ -7,8 +7,8 @@
  * Run this script periodically to ensure cron jobs are functioning
  */
 
-import fetch from 'node-fetch';
-import { config } from 'dotenv';
+const fetch = require('node-fetch');
+const { config } = require('dotenv');
 
 // Load environment variables
 config();
