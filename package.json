@@ -25,6 +25,8 @@
     "backup-restore:test": "cd scripts && npm install && cd .. && node scripts/backup-restore-test.js",
     "test:migration": "npm run migration:validate && npm run backup-restore:test",
     "monitor:vault": "cd scripts && npm install && cd .. && node scripts/monitor-vault.js",
+    "verify:vault-usage": "node scripts/verify-vault-usage.js",
+    "monitor:vault-usage": "node scripts/vault-usage-monitor.js",
     "scripts:install": "cd scripts && npm install",
     "scripts:test": "cd scripts && npm test"
   },
