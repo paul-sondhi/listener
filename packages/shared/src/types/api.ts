@@ -118,9 +118,6 @@ export interface SyncShowsError extends ApiErrorResponse {
 
 // User Spotify tokens type (for internal use)
 export interface UserSpotifyTokens {
-  spotify_access_token: string | null
-  spotify_refresh_token: string | null
-  spotify_token_expires_at: string | null
   user_id?: string
 }
 

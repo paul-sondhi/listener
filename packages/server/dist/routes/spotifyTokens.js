@@ -64,6 +64,8 @@ router.post('/', async (req, res) => {
         const vaultResult = await storeUserSecret(user.id, tokenData);
         if (!vaultResult.success) {
             console.error('Failed to store tokens in vault:', vaultResult.error);
+            // Add more detailed logging for production debugging
+            console.error(`VAULT_ERROR_DETAIL: User ID: ${user.id}, Error: ${vaultResult.error}, Elapsed: ${vaultResult.elapsed_ms}ms`);
             res.status(500).json({
                 success: false,
                 error: 'Failed to store tokens securely'

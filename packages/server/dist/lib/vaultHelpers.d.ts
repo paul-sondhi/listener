@@ -57,5 +57,11 @@ export declare function deleteUserSecret(userId: string, hardDelete?: boolean, d
  * @returns {Promise<VaultOperationResult>} Result of the store operation
  */
 export declare function storeUserSecret(userId: string, tokenData: SpotifyTokenData): Promise<VaultOperationResult>;
+/**
+ * Health check function to verify vault connectivity
+ * Tests basic vault operations without storing real data
+ * @returns {Promise<boolean>} True if vault is accessible, false otherwise
+ */
+export declare function vaultHealthCheck(): Promise<boolean>;
 export {};
 //# sourceMappingURL=vaultHelpers.d.ts.map

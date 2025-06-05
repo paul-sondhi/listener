@@ -328,3 +328,40 @@ export async function storeUserSecret(userId, tokenData) {
         };
     }
 }
+/**
+ * Health check function to verify vault connectivity
+ * Tests basic vault operations without storing real data
+ * @returns {Promise<boolean>} True if vault is accessible, false otherwise
+ */
+export async function vaultHealthCheck() {
+    try {
+        const supabase = getSupabaseAdmin();
+        // Test if we can call the vault RPC functions (they should exist)
+        // We'll test with a dummy call that should fail gracefully
+        const { error } = await supabase.rpc('vault_read_user_secret', {
+            p_secret_id: '00000000-0000-0000-0000-000000000000' // Dummy UUID that won't exist
+        });
+        // If we get a "Secret not found" error, that means the RPC function exists and vault is working
+        // If we get a "function does not exist" error, that means vault extension is not enabled
+        if (error) {
+            if (error.message.includes('function vault_read_user_secret does not exist')) {
+                console.error('Vault health check failed: RPC functions not found - vault extension likely not enabled');
+                return false;
+            }
+            if (error.message.includes('Secret not found') || error.message.includes('inaccessible')) {
+                // This is expected for our dummy UUID test
+                return true;
+            }
+            // Other errors indicate vault problems
+            console.error('Vault health check failed:', error.message);
+            return false;
+        }
+        // If no error with dummy UUID, something unexpected happened, but vault seems accessible
+        return true;
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Vault health check exception:', errorMessage);
+        return false;
+    }
+}

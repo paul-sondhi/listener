@@ -18,6 +18,7 @@ import apiRoutes from './routes/index.js';
 // Import services
 import { initializeBackgroundJobs } from './services/backgroundJobs.js';
 import { healthCheck } from './services/tokenService.js';
+import { vaultHealthCheck } from './lib/vaultHelpers.js';
 // Create Express application with proper typing
 const app = express();
 // Apply base middleware
@@ -45,18 +46,23 @@ app.get('/healthz', (_req, res) => {
 // Enhanced health check endpoint with vault connectivity
 app.get('/health', async (_req, res) => {
     try {
-        const vaultHealthy = await healthCheck();
-        if (vaultHealthy) {
+        const [tokenServiceHealthy, vaultHealthy] = await Promise.all([
+            healthCheck(),
+            vaultHealthCheck()
+        ]);
+        if (tokenServiceHealthy && vaultHealthy) {
             res.status(200).json({
                 status: 'healthy',
                 vault: 'connected',
+                tokenService: 'connected',
                 timestamp: new Date().toISOString()
             });
         }
         else {
             res.status(503).json({
                 status: 'unhealthy',
-                vault: 'disconnected',
+                vault: vaultHealthy ? 'connected' : 'disconnected',
+                tokenService: tokenServiceHealthy ? 'connected' : 'disconnected',
                 timestamp: new Date().toISOString()
             });
         }
@@ -102,12 +108,12 @@ const initializeServer = async () => {
             console.log('Initializing background jobs...');
             initializeBackgroundJobs();
             // Perform initial health check
-            healthCheck().then(healthy => {
-                if (healthy) {
-                    console.log('✅ Vault health check passed - system ready');
+            Promise.all([healthCheck(), vaultHealthCheck()]).then(([tokenHealthy, vaultHealthy]) => {
+                if (tokenHealthy && vaultHealthy) {
+                    console.log('✅ Health checks passed - system ready');
                 }
                 else {
-                    console.warn('⚠️  Vault health check failed - some features may not work');
+                    console.warn(`⚠️  Health check issues - Token Service: ${tokenHealthy ? 'OK' : 'FAIL'}, Vault: ${vaultHealthy ? 'OK' : 'FAIL'}`);
                 }
             }).catch(error => {
                 console.error('❌ Health check error:', error.message);
