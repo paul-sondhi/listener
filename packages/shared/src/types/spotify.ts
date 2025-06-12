@@ -123,13 +123,13 @@ export interface SpotifyPagination<T> {
 }
 
 // Spotify show episodes response
-export interface SpotifyShowEpisodes extends SpotifyPagination<SpotifyEpisode> {}
+export type SpotifyShowEpisodes = SpotifyPagination<SpotifyEpisode>;
 
 // Spotify user's saved shows
-export interface SpotifyUserShows extends SpotifyPagination<{
+export type SpotifyUserShows = SpotifyPagination<{
   added_at: string;
   show: SpotifyShow;
-}> {}
+}>;
 
 // === Vault & Token Management Types ===
 

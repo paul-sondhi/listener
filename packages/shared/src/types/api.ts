@@ -127,7 +127,7 @@ export interface AuthTokenRequest {
   password: string
 }
 
-export interface AuthTokenResponse extends ApiSuccess<{
+export type AuthTokenResponse = ApiSuccess<{
   access_token: string
   refresh_token: string
   user: {
@@ -135,16 +135,16 @@ export interface AuthTokenResponse extends ApiSuccess<{
     email: string
     created_at: string
   }
-}> {}
+}>;
 
 export interface RefreshTokenRequest {
   refresh_token: string
 }
 
-export interface RefreshTokenResponse extends ApiSuccess<{
+export type RefreshTokenResponse = ApiSuccess<{
   access_token: string
   expires_at: number
-}> {}
+}>;
 
 // Podcast management API types
 export interface CreatePodcastRequest {
@@ -155,29 +155,29 @@ export interface CreatePodcastRequest {
   category?: string
 }
 
-export interface CreatePodcastResponse extends ApiSuccess<{
+export type CreatePodcastResponse = ApiSuccess<{
   id: string
   title: string
   created_at: string
-}> {}
+}>;
 
 export interface UpdatePodcastRequest extends Partial<CreatePodcastRequest> {
   id: string
 }
 
-export interface UpdatePodcastResponse extends ApiSuccess<{
+export type UpdatePodcastResponse = ApiSuccess<{
   id: string
   updated_at: string
-}> {}
+}>;
 
 export interface DeletePodcastRequest {
   id: string
 }
 
-export interface DeletePodcastResponse extends ApiSuccess<{
+export type DeletePodcastResponse = ApiSuccess<{
   id: string
   deleted_at: string
-}> {}
+}>;
 
 // Episode management API types
 export interface CreateEpisodeRequest {
@@ -191,21 +191,21 @@ export interface CreateEpisodeRequest {
   season_number?: number
 }
 
-export interface CreateEpisodeResponse extends ApiSuccess<{
+export type CreateEpisodeResponse = ApiSuccess<{
   id: string
   podcast_id: string
   title: string
   created_at: string
-}> {}
+}>;
 
 export interface UpdateEpisodeRequest extends Partial<CreateEpisodeRequest> {
   id: string
 }
 
-export interface UpdateEpisodeResponse extends ApiSuccess<{
+export type UpdateEpisodeResponse = ApiSuccess<{
   id: string
   updated_at: string
-}> {}
+}>;
 
 // Transcription job API types
 export interface CreateTranscriptionJobRequest {
@@ -218,13 +218,13 @@ export interface CreateTranscriptionJobRequest {
   }
 }
 
-export interface CreateTranscriptionJobResponse extends ApiSuccess<{
+export type CreateTranscriptionJobResponse = ApiSuccess<{
   job_id: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
   created_at: string
-}> {}
+}>;
 
-export interface GetTranscriptionJobResponse extends ApiSuccess<{
+export type GetTranscriptionJobResponse = ApiSuccess<{
   job_id: string
   episode_id: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
@@ -234,7 +234,7 @@ export interface GetTranscriptionJobResponse extends ApiSuccess<{
   created_at: string
   updated_at: string
   completed_at?: string
-}> {}
+}>;
 
 // Subscription management API types
 export interface CreateSubscriptionRequest {
@@ -242,23 +242,23 @@ export interface CreateSubscriptionRequest {
   status?: 'active' | 'inactive'
 }
 
-export interface CreateSubscriptionResponse extends ApiSuccess<{
+export type CreateSubscriptionResponse = ApiSuccess<{
   id: string
   podcast_url: string
   status: string
   created_at: string
-}> {}
+}>;
 
 export interface UpdateSubscriptionRequest {
   id: string
   status: 'active' | 'inactive'
 }
 
-export interface UpdateSubscriptionResponse extends ApiSuccess<{
+export type UpdateSubscriptionResponse = ApiSuccess<{
   id: string
   status: string
   updated_at: string
-}> {}
+}>;
 
 export interface ListSubscriptionsRequest {
   status?: 'active' | 'inactive' | 'all'
@@ -266,7 +266,7 @@ export interface ListSubscriptionsRequest {
   offset?: number
 }
 
-export interface ListSubscriptionsResponse extends ApiSuccess<{
+export type ListSubscriptionsResponse = ApiSuccess<{
   subscriptions: Array<{
     id: string
     podcast_url: string
@@ -277,7 +277,7 @@ export interface ListSubscriptionsResponse extends ApiSuccess<{
   total: number
   limit: number
   offset: number
-}> {}
+}>;
 
 // File upload API types
 export interface FileUploadRequest {
@@ -287,14 +287,14 @@ export interface FileUploadRequest {
   metadata?: Record<string, unknown>
 }
 
-export interface FileUploadResponse extends ApiSuccess<{
+export type FileUploadResponse = ApiSuccess<{
   file_id: string
   filename: string
   url: string
   size: number
   content_type: string
   uploaded_at: string
-}> {}
+}>;
 
 // Batch operation types
 export interface BatchRequest<T> {
@@ -305,7 +305,7 @@ export interface BatchRequest<T> {
   }
 }
 
-export interface BatchResponse<T> extends ApiSuccess<{
+export type BatchResponse<T> = ApiSuccess<{
   results: Array<{
     success: boolean
     data?: T
@@ -315,7 +315,7 @@ export interface BatchResponse<T> extends ApiSuccess<{
   total: number
   successful: number
   failed: number
-}> {}
+}>;
 
 // WebSocket API types
 export interface WebSocketMessage<T = unknown> {

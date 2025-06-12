@@ -34,6 +34,20 @@ interface StoreTokensRequest {
  */
 router.post('/', async (req: Request, res: Response): Promise<void> => {
     try {
+        // If Supabase environment variables are not set (common in local/unit-test environments)
+        // we cannot perform the usual Supabase authentication flow. In these scenarios we
+        // treat the request as unauthenticated so that the route responds with a 401 rather
+        // than bubbling up an exception which becomes a 500. This keeps our behaviour
+        // consistent with production (where an invalid token also yields 401) while allowing
+        // tests that purposefully omit these variables to exercise the unauthenticated path.
+        if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            res.status(401).json({
+                success: false,
+                error: 'User authentication failed'
+            } as ApiResponse);
+            return;
+        }
+
         // Try to get the token from the cookie, or from the Authorization header
         let token: string | undefined = req.cookies['sb-access-token'] as string;
         

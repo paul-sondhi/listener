@@ -4,6 +4,15 @@ import { Database } from '@listener/shared';
 // Import node-cron for ES modules
 import cron from 'node-cron';
 
+// Import daily refresh scheduler services
+import { 
+  refreshAllUserSubscriptionsEnhanced, 
+  BatchRefreshResult 
+} from './subscriptionRefreshService.js';
+
+// Import enhanced logging
+import { log } from '../lib/logger.js';
+
 // Job execution tracking
 interface JobExecution {
   job_name: string;
@@ -315,6 +324,127 @@ export async function keyRotationJob(): Promise<void> {
 }
 
 /**
+ * Daily subscription refresh job
+ * Syncs all user Spotify subscriptions and updates active/inactive status
+ * Runs at midnight PT (Pacific Time) daily
+ */
+export async function dailySubscriptionRefreshJob(): Promise<void> {
+  const startTime = Date.now();
+  const jobName = 'daily_subscription_refresh';
+  const jobId = `daily-${new Date().toISOString()}`;
+  let recordsProcessed = 0;
+  
+  log.info('scheduler', `Starting ${jobName} job`, {
+    job_id: jobId,
+    component: 'background_jobs'
+  });
+  
+  try {
+    // Execute the batch refresh for all users
+    log.info('subscription_refresh', 'Executing daily subscription refresh for all users', {
+      job_id: jobId,
+      component: 'batch_processor'
+    });
+    
+    const result: BatchRefreshResult = await refreshAllUserSubscriptionsEnhanced();
+    
+    const elapsedMs = Date.now() - startTime;
+    recordsProcessed = result.total_users;
+    
+    // Enhanced logging with structured data
+    log.info('subscription_refresh', `Daily refresh processed ${result.total_users} users`, {
+      job_id: jobId,
+      total_users: result.total_users,
+      successful_users: result.successful_users,
+      failed_users: result.failed_users,
+      success_rate: result.total_users > 0 ? (result.successful_users / result.total_users * 100).toFixed(1) : '0',
+      duration_ms: elapsedMs,
+      subscriptions: {
+        total_active: result.summary.total_active_subscriptions,
+        total_inactive: result.summary.total_inactive_subscriptions,
+        auth_errors: result.summary.auth_errors,
+        api_errors: result.summary.spotify_api_errors,
+        database_errors: result.summary.database_errors
+      }
+    });
+    
+    if (result.errors && result.errors.length > 0) {
+      log.warn('subscription_refresh', 'Daily refresh completed with categorized errors', {
+        job_id: jobId,
+        error_categories: result.errors.map(errorCategory => ({
+          category: errorCategory.category,
+          count: errorCategory.count,
+          percentage: result.total_users > 0 ? (errorCategory.count / result.total_users * 100).toFixed(1) : '0',
+          sample_errors: errorCategory.sample_errors?.slice(0, 3) || []
+        }))
+      });
+    }
+    
+    // Log successful execution
+    const execution: JobExecution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: result.success,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs,
+      ...((!result.success || result.failed_users > 0) && { 
+        error: result.error || `${result.failed_users} users failed to sync` 
+      })
+    };
+    
+    logJobExecution(execution);
+    emitJobMetric(jobName, result.success, recordsProcessed, elapsedMs);
+    
+    if (result.success) {
+      log.info('scheduler', `Daily subscription refresh completed successfully`, {
+        job_id: jobId,
+        component: 'background_jobs',
+        duration_ms: elapsedMs,
+        users_processed: recordsProcessed,
+        success_rate: result.total_users > 0 ? (result.successful_users / result.total_users * 100).toFixed(1) : '100'
+      });
+    } else {
+      log.error('scheduler', `Daily subscription refresh completed with issues`, {
+        job_id: jobId,
+        component: 'background_jobs', 
+        duration_ms: elapsedMs,
+        error: result.error,
+        users_processed: recordsProcessed,
+        failed_users: result.failed_users
+      });
+    }
+    
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const err = error as Error;
+    
+    log.error('scheduler', `Daily subscription refresh job failed with exception`, err, {
+      job_id: jobId,
+      component: 'background_jobs',
+      duration_ms: elapsedMs,
+      users_processed: recordsProcessed,
+      stack_trace: err?.stack
+    });
+    
+    // Log failed execution
+    const execution: JobExecution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: false,
+      error: errorMessage,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs
+    };
+    
+    logJobExecution(execution);
+    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
+  }
+}
+
+/**
  * Initialize background job scheduling
  * Sets up cron jobs for vault cleanup and key rotation
  */
@@ -325,6 +455,26 @@ export function initializeBackgroundJobs(): void {
   if (process.env.NODE_ENV === 'test') {
     console.log('BACKGROUND_JOBS: Skipping job scheduling in test environment');
     return;
+  }
+  
+  // Daily subscription refresh job configuration
+  const dailyRefreshEnabled = process.env.DAILY_REFRESH_ENABLED !== 'false';
+  const dailyRefreshCron = process.env.DAILY_REFRESH_CRON || '0 0 * * *'; // Default: midnight
+  const dailyRefreshTimezone = process.env.DAILY_REFRESH_TIMEZONE || 'America/Los_Angeles';
+  
+  if (dailyRefreshEnabled) {
+    // Daily subscription refresh at configured time and timezone
+    // Cron format: minute hour day-of-month month day-of-week
+    cron.schedule(dailyRefreshCron, async () => {
+      console.log('BACKGROUND_JOBS: Starting scheduled daily subscription refresh job');
+      await dailySubscriptionRefreshJob();
+    }, {
+      scheduled: true,
+      timezone: dailyRefreshTimezone
+    });
+    console.log(`  - Daily subscription refresh: ${dailyRefreshCron} ${dailyRefreshTimezone}`);
+  } else {
+    console.log('  - Daily subscription refresh: DISABLED');
   }
   
   // Nightly vault cleanup at 2 AM UTC
@@ -360,6 +510,10 @@ export async function runJob(jobName: string): Promise<void> {
   console.log(`BACKGROUND_JOBS: Manually running job: ${jobName}`);
   
   switch (jobName.toLowerCase()) {
+    case 'daily_subscription_refresh':
+    case 'subscription_refresh':
+      await dailySubscriptionRefreshJob();
+      break;
     case 'vault_cleanup':
       await vaultCleanupJob();
       break;

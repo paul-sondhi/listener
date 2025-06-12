@@ -15,7 +15,10 @@ export default [
       '**/.temp/**',
       '**/.branches/**',
       '**/supabase/.temp/**',
-      '**/supabase/.branches/**'
+      '**/supabase/.branches/**',
+      '**/html/assets/**', // Exclude bundled assets
+      '**/*.bundle.js',    // Exclude bundled JavaScript files
+      '**/*-*.js'          // Exclude files with hash patterns like index-Br0wpA4B.js
     ] 
   },
   

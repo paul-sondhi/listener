@@ -98,7 +98,7 @@ class VaultUsageMonitor {
         if (!fallbackError) {
           fallbackUsers = fallbackData[0]?.count || 0;
         }
-      } catch (error) {
+      } catch (_error) {
         // user_secrets table may not exist in production - this is good
         fallbackUsers = 0;
       }

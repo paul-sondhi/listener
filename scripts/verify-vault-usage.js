@@ -45,7 +45,7 @@ class VaultUsageVerifier {
 
     try {
       // Test vault accessibility using RPC functions (since direct table access is restricted)
-      const { data, error } = await this.supabase
+      const { data: _data, error } = await this.supabase
         .rpc('vault_read_user_secret', {
           p_secret_id: '00000000-0000-0000-0000-000000000000' // Dummy UUID for testing
         });
@@ -129,7 +129,7 @@ class VaultUsageVerifier {
 
     try {
       // Check if user_secrets table exists
-      const { data: userSecretsData, error: userSecretsError, count: fallbackRecordCount } = await this.supabase
+      const { data: _userSecretsData, error: userSecretsError, count: fallbackRecordCount } = await this.supabase
         .from('user_secrets')
         .select('id', { count: 'exact' })
         .limit(1);
@@ -201,7 +201,7 @@ class VaultUsageVerifier {
       console.log(`✅ Found ${vaultUserCount} users with Vault secret IDs`);
 
       // Check total user count for comparison
-      const { data: totalUsers, error: totalError, count: totalUserCount } = await this.supabase
+      const { data: _totalUsers, error: totalError, count: totalUserCount } = await this.supabase
         .from('users')
         .select('id', { count: 'exact' });
 

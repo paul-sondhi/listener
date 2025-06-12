@@ -49,3 +49,7 @@ next-env.d.ts
 packages/client/dist
 
 esling.config.mjs
+
+.cursor
+/tasks
+/backups

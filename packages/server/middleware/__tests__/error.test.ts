@@ -8,7 +8,7 @@ import type { MockInstance } from 'vitest'
 import type { Request, Response, NextFunction } from 'express'
 
 // Type definitions for test utilities
-interface _MockRequest extends Partial<Request> {}
+type _MockRequest = Partial<Request>;
 
 interface _MockResponse {
   status: MockInstance

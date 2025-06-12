@@ -11,6 +11,11 @@ import cookieParser from 'cookie-parser'
 import spotifyTokensRouter from '../spotifyTokens.js'
 import * as vaultHelpers from '../../lib/vaultHelpers.js'
 
+// Set up required environment variables for testing
+// These need to be present to pass the environment check in the route handler
+process.env.SUPABASE_URL = 'http://localhost:54321'
+process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-key-for-testing'
+
 // Type definitions for test utilities
 interface MockUser {
   id: string
@@ -95,6 +100,14 @@ describe('POST /spotify-tokens', () => {
     // Clear mocks before each test
     vi.clearAllMocks()
 
+    // Re-establish the Supabase method chaining that was cleared above
+    mockSupabaseFrom.mockImplementation(() => ({
+      upsert: mockSupabaseUpsert,
+    }))
+    mockSupabaseUpsert.mockImplementation(() => ({
+      select: mockSupabaseSelect,
+    }))
+
     // Default successful getUser mock
     mockSupabaseAuthGetUser.mockResolvedValue({ data: { user: mockUser }, error: null })
     // Default successful update mock
@@ -132,6 +145,15 @@ describe('POST /spotify-tokens', () => {
   })
 
   it('should store tokens successfully with valid token in Authorization header', async () => {
+    // Arrange - Ensure mocks are properly set up for this test
+    mockSupabaseAuthGetUser.mockResolvedValue({ data: { user: mockUser }, error: null })
+    mockSupabaseSelect.mockResolvedValue({ error: null })
+    vi.mocked(vaultHelpers.storeUserSecret).mockResolvedValue({
+      success: true,
+      data: mockTokens,
+      elapsed_ms: 100
+    })
+
     // Act
     const response = await (request(app) as any)
       .post('/spotify-tokens')

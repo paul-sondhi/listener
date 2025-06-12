@@ -34,7 +34,7 @@ async function checkVaultSchema() {
     }
     
     console.log('\n2. Testing RPC function availability...');
-    const { data: rpcTest, error: rpcError } = await supabase
+    const { data: _rpcTest, error: rpcError } = await supabase
       .rpc('vault_read_user_secret', {
         p_secret_id: '00000000-0000-0000-0000-000000000000'
       });
@@ -70,7 +70,7 @@ async function checkVaultSchema() {
     }
     
     console.log('\n4. Testing supabase auth context...');
-    const { data: authTest, error: authError } = await supabase.auth.getUser();
+    const { data: _authTest, error: authError } = await supabase.auth.getUser();
     console.log('Auth context:', authError ? 'No user context (service role)' : 'User context available');
     
     console.log('\n📊 DIAGNOSIS');

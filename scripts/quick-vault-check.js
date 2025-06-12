@@ -34,7 +34,7 @@ async function quickCheck() {
     
     // Test 1: Basic connection
     console.log('\n1. Testing basic connection...');
-    const { data: testData, error: testError, count: testCount } = await supabase
+    const { data: _testData, error: testError, count: testCount } = await supabase
       .from('users')
       .select('id', { count: 'exact' })
       .limit(1);
@@ -49,7 +49,7 @@ async function quickCheck() {
     
     // Test 2: Vault accessibility (using RPC functions since direct access is restricted)
     console.log('\n2. Testing Vault accessibility...');
-    const { data: vaultTest, error: vaultError } = await supabase
+    const { data: _vaultTest, error: vaultError } = await supabase
       .rpc('vault_read_user_secret', {
         p_secret_id: '00000000-0000-0000-0000-000000000000' // Dummy UUID for testing
       });
@@ -72,7 +72,7 @@ async function quickCheck() {
     
     // Test 3: Users with Vault secrets
     console.log('\n3. Checking user storage patterns...');
-    const { data: userData, error: userError, count: vaultUserCount } = await supabase
+    const { data: _userData, error: userError, count: vaultUserCount } = await supabase
       .from('users')
       .select('id', { count: 'exact' })
       .not('spotify_vault_secret_id', 'is', null)
