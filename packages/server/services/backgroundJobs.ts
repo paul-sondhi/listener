@@ -460,7 +460,7 @@ export function initializeBackgroundJobs(): void {
   
   // Daily subscription refresh job configuration
   const dailyRefreshEnabled = process.env.DAILY_REFRESH_ENABLED !== 'false';
-  const dailyRefreshCron = process.env.DAILY_REFRESH_CRON || '0 0 * * *'; // Default: midnight
+  const dailyRefreshCron = process.env.DAILY_REFRESH_CRON || '50 10 * * *'; // Default: 10:50 AM PT
   const dailyRefreshTimezone = process.env.DAILY_REFRESH_TIMEZONE || 'America/Los_Angeles';
   
   if (dailyRefreshEnabled) {
