@@ -574,7 +574,7 @@ describe('initializeBackgroundJobs', () => {
 
     // Assert: Verify daily subscription refresh job was scheduled
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 0 * * *', // Default midnight cron expression
+      '50 10 * * *', // Default 10:50 AM PT cron expression
       expect.any(Function),
       expect.objectContaining({
         scheduled: true,
@@ -674,7 +674,7 @@ describe('initializeBackgroundJobs', () => {
 
     // Assert: Verify daily refresh was not scheduled
     const dailyRefreshCalls = mockCronSchedule.mock.calls.filter(call => 
-      call[0] === '0 0 * * *' || call[0] === process.env.DAILY_REFRESH_CRON
+      call[0] === '50 10 * * *' || call[0] === process.env.DAILY_REFRESH_CRON
     );
     expect(dailyRefreshCalls).toHaveLength(0);
 
