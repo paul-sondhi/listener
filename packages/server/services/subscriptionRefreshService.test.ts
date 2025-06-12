@@ -214,16 +214,21 @@ describe('refreshUserSubscriptions', () => {
     };
     
     // Set up method chaining - all methods return the same mock object to allow chaining
-    const chainableMethods = ['from', 'select', 'eq', 'in', 'not', 'is', 'upsert', 'update', 'insert', 'delete'];
+    const chainableMethods = ['from', 'select', 'in', 'not', 'is', 'upsert', 'update', 'insert', 'delete'];
     chainableMethods.forEach(method => {
       supabaseMock[method].mockReturnValue(supabaseMock);
     });
     
-    // Also ensure each mock returns itself for chaining
-    Object.keys(supabaseMock).forEach(key => {
-      if (typeof supabaseMock[key] === 'function' && !['single', 'count', 'then'].includes(key)) {
-        supabaseMock[key].mockReturnValue(supabaseMock);
-      }
+    // Special handling for .eq() method - it can be either chainable or terminal
+    // When used as terminal (like in test mode), it should return a promise
+    // When used as chainable, it should return the mock object
+    supabaseMock.eq.mockImplementation((..._args) => {
+      // Create a thenable object that can be both awaited and chained
+      const result = {
+        ...supabaseMock,
+        then: (resolve: (value: any) => void) => resolve({ data: [], error: null })
+      };
+      return result;
     });
     
     // Terminal methods return promises
@@ -606,6 +611,7 @@ describe('User Discovery Functions', () => {
     // Set up required environment variables for Supabase
     process.env.SUPABASE_URL = 'http://localhost:54321';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+    process.env.NODE_ENV = 'test'; // Ensure we're in test mode
     
     // Set up comprehensive Supabase mock with proper method chaining
     supabaseMock = {
@@ -652,17 +658,13 @@ describe('User Discovery Functions', () => {
         TestDataFactory.createMockUser({ id: 'user-3' })
       ];
 
-      // The first database call (getAllUsersWithSpotifyTokens) resolves on the final `.is()`
-      supabaseMock.is.mockResolvedValueOnce({ data: mockUsers, error: null });
-
-      // Subsequent count queries for statistics still resolve on `.select()` as they are terminal
-      supabaseMock.select
-        .mockResolvedValueOnce({ count: 3, error: null })        // total users count
-        .mockResolvedValueOnce({ count: 3, error: null })        // spotify integrated
-        .mockResolvedValueOnce({ count: 0, error: null });       // needs reauth
-
-      // Any subscription lookup resolves on the `.eq()` call
-      supabaseMock.eq.mockResolvedValue({ data: [], error: null });
+      // Override the .eq() method for this specific test to return the user data
+      supabaseMock.eq.mockImplementationOnce((..._args) => {
+        return {
+          ...supabaseMock,
+          then: (resolve: (value: any) => void) => resolve({ data: mockUsers, error: null })
+        };
+      });
 
       // Act: Get users with Spotify tokens
       const result = await getAllUsersWithSpotifyTokens();
@@ -672,14 +674,20 @@ describe('User Discovery Functions', () => {
 
       // Assert: Verify correct database query was made
       expect(supabaseMock.from).toHaveBeenCalledWith('users');
-      expect(supabaseMock.is).toHaveBeenCalledWith('spotify_reauth_required', false);
+      expect(supabaseMock.select).toHaveBeenCalledWith('id');
+      expect(supabaseMock.eq).toHaveBeenCalledWith('spotify_reauth_required', false);
     });
 
     it('should handle database errors gracefully', async () => {
-      // Arrange: Set up database error (returned by `.is()`)
-      supabaseMock.is.mockResolvedValue({
-        data: null,
-        error: { message: 'Database connection failed' }
+      // Arrange: Set up database error (returned by `.eq()`)
+      supabaseMock.eq.mockImplementationOnce((..._args) => {
+        return {
+          ...supabaseMock,
+          then: (resolve: (value: any) => void) => resolve({
+            data: null,
+            error: { message: 'Database connection failed' }
+          })
+        };
       });
 
       // Act & Assert: Verify error is thrown
@@ -757,6 +765,7 @@ describe('Batch Processing', () => {
     // Set up required environment variables for Supabase
     process.env.SUPABASE_URL = 'http://localhost:54321';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+    process.env.NODE_ENV = 'test'; // Ensure we're in test mode
     
     // Set up comprehensive Supabase mock with proper method chaining
     supabaseMock = {
@@ -775,10 +784,22 @@ describe('Batch Processing', () => {
       then: vi.fn()
     };
     
-    // Set up method chaining - all methods return the same mock object
-    const chainableMethods = ['from', 'select', 'eq', 'in', 'not', 'is', 'upsert', 'update', 'insert', 'delete'];
+    // Set up method chaining - all methods return the same mock object to allow chaining
+    const chainableMethods = ['from', 'select', 'in', 'not', 'is', 'upsert', 'update', 'insert', 'delete'];
     chainableMethods.forEach(method => {
       supabaseMock[method].mockReturnValue(supabaseMock);
+    });
+    
+    // Special handling for .eq() method - it can be either chainable or terminal
+    // When used as terminal (like in test mode), it should return a promise
+    // When used as chainable, it should return the mock object
+    supabaseMock.eq.mockImplementation((..._args) => {
+      // Create a thenable object that can be both awaited and chained
+      const result = {
+        ...supabaseMock,
+        then: (resolve: (value: any) => void) => resolve({ data: [], error: null })
+      };
+      return result;
     });
     
     // Terminal methods return promises
@@ -813,14 +834,13 @@ describe('Batch Processing', () => {
     }, 1000); // Short timeout since we're skipping
 
     it('should handle empty user list gracefully', async () => {
-      // Arrange: Set up empty user list
-      supabaseMock.is.mockResolvedValueOnce({ data: [], error: null }); // getAllUsersWithSpotifyTokens
-
-      // Count queries (statistics)
-      supabaseMock.select
-        .mockResolvedValueOnce({ count: 0, error: null })    // total users
-        .mockResolvedValueOnce({ count: 0, error: null })    // spotify integrated
-        .mockResolvedValueOnce({ count: 0, error: null });   // needs reauth
+      // Arrange: Set up empty user list for getAllUsersWithSpotifyTokens
+      supabaseMock.eq.mockImplementationOnce((..._args) => {
+        return {
+          ...supabaseMock,
+          then: (resolve: (value: any) => void) => resolve({ data: [], error: null })
+        };
+      });
 
       // Act: Execute batch processing with no users
       const result = await refreshAllUserSubscriptionsEnhanced();

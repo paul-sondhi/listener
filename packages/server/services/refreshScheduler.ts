@@ -277,7 +277,8 @@ export function startDailyRefreshScheduler(customConfig: Partial<SchedulerConfig
 export function stopDailyRefreshScheduler(): void {
     if (schedulerTask) {
         schedulerTask.stop();
-        schedulerTask.destroy();
+        // Use type assertion since destroy() method may not be in types but exists at runtime
+        (schedulerTask as any).destroy?.();
         schedulerTask = null;
         
         logSchedulerEvent('info', 'Daily refresh scheduler stopped');
@@ -300,7 +301,7 @@ export function getSchedulerStatus(): {
     const ptInfo = getPacificTimeInfo();
     
     return {
-        isRunning: schedulerTask ? schedulerTask.getStatus() === 'scheduled' : false,
+        isRunning: schedulerTask ? (schedulerTask as any).getStatus?.() === 'scheduled' : false,
         currentJob,
         recentJobs: jobHistory.slice(0, 10), // Last 10 jobs
         nextRun: schedulerTask ? 'Next midnight PT' : null,

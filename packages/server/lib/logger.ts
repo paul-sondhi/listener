@@ -309,14 +309,17 @@ export class SubscriptionRefreshLogger {
      * @param {Partial<SubscriptionRefreshLogData>} data - Additional data
      */
     refreshStart(userId: string, data: Partial<SubscriptionRefreshLogData> = {}): void {
-        this.logger.info('subscription_refresh', 'Starting subscription refresh', {
+        const logEntry: Partial<LogEntry> = {
             component: 'refresh_service',
             user_id: userId,
-            job_id: this.jobId,
             metadata: {
                 subscription_data: data
             }
-        });
+        };
+        if (this.jobId) {
+            logEntry.job_id = this.jobId;
+        }
+        this.logger.info('subscription_refresh', 'Starting subscription refresh', logEntry);
     }
 
     /**
@@ -326,18 +329,23 @@ export class SubscriptionRefreshLogger {
      * @param {SubscriptionRefreshLogData} data - Refresh data
      */
     refreshComplete(userId: string, success: boolean, data: SubscriptionRefreshLogData): void {
+        const logEntry: Partial<LogEntry> = {
+            component: 'refresh_service',
+            user_id: userId,
+            success,
+            metadata: {
+                subscription_data: data
+            }
+        };
+        if (this.jobId) {
+            logEntry.job_id = this.jobId;
+        }
+        if (data.processing_time_ms !== undefined) {
+            logEntry.duration_ms = data.processing_time_ms;
+        }
         this.logger.info('subscription_refresh', 
             success ? 'Subscription refresh completed successfully' : 'Subscription refresh failed',
-            {
-                component: 'refresh_service',
-                user_id: userId,
-                job_id: this.jobId,
-                success,
-                duration_ms: data.processing_time_ms,
-                metadata: {
-                    subscription_data: data
-                }
-            }
+            logEntry
         );
     }
 
@@ -350,20 +358,25 @@ export class SubscriptionRefreshLogger {
      * @param {string} error - Error message if failed
      */
     spotifyApiCall(userId: string, endpoint: string, success: boolean, duration: number, error?: string): void {
+        const logEntry: Partial<LogEntry> = {
+            component: 'spotify_client',
+            user_id: userId,
+            success,
+            duration_ms: duration,
+            metadata: {
+                endpoint,
+                api_call: true
+            }
+        };
+        if (this.jobId) {
+            logEntry.job_id = this.jobId;
+        }
+        if (error) {
+            logEntry.error = error;
+        }
         this.logger.info('spotify_api', 
             success ? `Spotify API call successful: ${endpoint}` : `Spotify API call failed: ${endpoint}`,
-            {
-                component: 'spotify_client',
-                user_id: userId,
-                job_id: this.jobId,
-                success,
-                duration_ms: duration,
-                error,
-                metadata: {
-                    endpoint,
-                    api_call: true
-                }
-            }
+            logEntry
         );
     }
 
@@ -376,20 +389,25 @@ export class SubscriptionRefreshLogger {
      * @param {string} error - Error message if failed
      */
     databaseOperation(userId: string, operation: string, success: boolean, recordsAffected: number, error?: string): void {
+        const logEntry: Partial<LogEntry> = {
+            component: 'database_client',
+            user_id: userId,
+            success,
+            metadata: {
+                operation,
+                records_affected: recordsAffected,
+                database_operation: true
+            }
+        };
+        if (this.jobId) {
+            logEntry.job_id = this.jobId;
+        }
+        if (error) {
+            logEntry.error = error;
+        }
         this.logger.info('database', 
             success ? `Database operation successful: ${operation}` : `Database operation failed: ${operation}`,
-            {
-                component: 'database_client',
-                user_id: userId,
-                job_id: this.jobId,
-                success,
-                error,
-                metadata: {
-                    operation,
-                    records_affected: recordsAffected,
-                    database_operation: true
-                }
-            }
+            logEntry
         );
     }
 
@@ -401,16 +419,19 @@ export class SubscriptionRefreshLogger {
      * @param {SubscriptionRefreshLogData} data - Progress data
      */
     batchProgress(batchNumber: number, totalBatches: number, usersInBatch: number, data: SubscriptionRefreshLogData): void {
-        this.logger.info('subscription_refresh', `Processing batch ${batchNumber}/${totalBatches} (${usersInBatch} users)`, {
+        const logEntry: Partial<LogEntry> = {
             component: 'batch_processor',
-            job_id: this.jobId,
             metadata: {
                 batch_number: batchNumber,
                 total_batches: totalBatches,
                 users_in_batch: usersInBatch,
                 subscription_data: data
             }
-        });
+        };
+        if (this.jobId) {
+            logEntry.job_id = this.jobId;
+        }
+        this.logger.info('subscription_refresh', `Processing batch ${batchNumber}/${totalBatches} (${usersInBatch} users)`, logEntry);
     }
 
     /**
@@ -421,11 +442,9 @@ export class SubscriptionRefreshLogger {
      * @param {Error} error - Error object
      */
     logError(userId: string, message: string, category: SubscriptionRefreshLogData['error_category'], error?: Error): void {
-        this.logger.error('subscription_refresh', message, {
+        const logEntry: Partial<LogEntry> = {
             component: 'refresh_service',
             user_id: userId,
-            job_id: this.jobId,
-            error: error?.message,
             metadata: {
                 error_category: category,
                 stack_trace: this.logger['config'].enableStackTraces ? error?.stack : undefined,
@@ -433,7 +452,14 @@ export class SubscriptionRefreshLogger {
                     error_category: category
                 }
             }
-        });
+        };
+        if (this.jobId) {
+            logEntry.job_id = this.jobId;
+        }
+        if (error?.message) {
+            logEntry.error = error.message;
+        }
+        this.logger.error('subscription_refresh', message, logEntry);
     }
 }
 
@@ -459,14 +485,18 @@ export const log = {
     warn: (context: LogContext, message: string, metadata?: any) => 
         globalLogger.warn(context, message, { metadata }),
     
-    error: (context: LogContext, message: string, error?: Error, metadata?: any) => 
-        globalLogger.error(context, message, { 
-            error: error?.message, 
+    error: (context: LogContext, message: string, error?: Error, metadata?: any) => {
+        const logEntry: Partial<LogEntry> = {
             metadata: {
                 ...metadata,
                 stack_trace: error?.stack
             }
-        }),
+        };
+        if (error?.message) {
+            logEntry.error = error.message;
+        }
+        globalLogger.error(context, message, logEntry);
+    },
 
     // Convenience methods for specific contexts
     subscriptionRefresh: (level: LogLevel, message: string, metadata?: any) =>

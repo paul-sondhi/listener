@@ -12,7 +12,7 @@ const router = Router();
  * Admin endpoint to get system status and statistics
  * GET /api/admin/status
  */
-router.get('/status', async (req: Request, res: Response): Promise<void> => {
+router.get('/status', async (_req: Request, res: Response): Promise<void> => {
   try {
     // Get user statistics
     const userStats = await getUserSpotifyStatistics();
@@ -62,6 +62,15 @@ router.get('/status', async (req: Request, res: Response): Promise<void> => {
 router.post('/jobs/:jobName/run', async (req: Request, res: Response): Promise<void> => {
   const { jobName } = req.params;
   
+  if (!jobName) {
+    res.status(400).json({
+      success: false,
+      error: 'Job name is required',
+      timestamp: new Date().toISOString()
+    });
+    return;
+  }
+  
   try {
     console.log(`[Admin] Manual job trigger requested: ${jobName}`);
     
@@ -92,7 +101,7 @@ router.post('/jobs/:jobName/run', async (req: Request, res: Response): Promise<v
  * Admin endpoint to get detailed subscription refresh status
  * GET /api/admin/subscription-refresh/status
  */
-router.get('/subscription-refresh/status', async (req: Request, res: Response): Promise<void> => {
+router.get('/subscription-refresh/status', async (_req: Request, res: Response): Promise<void> => {
   try {
     const userStats = await getUserSpotifyStatistics();
     const eligibleUsers = await getAllUsersWithSpotifyTokens();
@@ -142,7 +151,7 @@ router.get('/subscription-refresh/status', async (req: Request, res: Response): 
  * Admin endpoint to run subscription refresh with real-time progress
  * POST /api/admin/subscription-refresh/run
  */
-router.post('/subscription-refresh/run', async (req: Request, res: Response): Promise<void> => {
+router.post('/subscription-refresh/run', async (_req: Request, res: Response): Promise<void> => {
   try {
     console.log('[Admin] Manual subscription refresh triggered');
     
@@ -178,7 +187,7 @@ router.post('/subscription-refresh/run', async (req: Request, res: Response): Pr
  * Admin endpoint to get job history and logs
  * GET /api/admin/jobs/history
  */
-router.get('/jobs/history', (req: Request, res: Response): void => {
+router.get('/jobs/history', (_req: Request, res: Response): void => {
   try {
     // Note: In a production system, job history would be stored in database
     // For now, we return basic information about available jobs
@@ -226,7 +235,7 @@ router.get('/jobs/history', (req: Request, res: Response): void => {
  * Admin endpoint for health check with detailed system information
  * GET /api/admin/health
  */
-router.get('/health', async (req: Request, res: Response): Promise<void> => {
+router.get('/health', async (_req: Request, res: Response): Promise<void> => {
   try {
     const health = {
       status: 'healthy',

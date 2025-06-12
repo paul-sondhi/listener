@@ -368,15 +368,16 @@ export async function dailySubscriptionRefreshJob(): Promise<void> {
       }
     });
     
-    if (result.errors && result.errors.length > 0) {
+    if (result.failed_users > 0) {
       log.warn('subscription_refresh', 'Daily refresh completed with categorized errors', {
         job_id: jobId,
-        error_categories: result.errors.map(errorCategory => ({
-          category: errorCategory.category,
-          count: errorCategory.count,
-          percentage: result.total_users > 0 ? (errorCategory.count / result.total_users * 100).toFixed(1) : '0',
-          sample_errors: errorCategory.sample_errors?.slice(0, 3) || []
-        }))
+        error_categories: {
+          auth_errors: result.summary.auth_errors,
+          api_errors: result.summary.spotify_api_errors,
+          database_errors: result.summary.database_errors,
+          failed_users: result.failed_users,
+          percentage: result.total_users > 0 ? (result.failed_users / result.total_users * 100).toFixed(1) : '0'
+        }
       });
     }
     
@@ -421,11 +422,11 @@ export async function dailySubscriptionRefreshJob(): Promise<void> {
     const err = error as Error;
     
     log.error('scheduler', `Daily subscription refresh job failed with exception`, err, {
-      job_id: jobId,
       component: 'background_jobs',
       duration_ms: elapsedMs,
       users_processed: recordsProcessed,
-      stack_trace: err?.stack
+      stack_trace: err?.stack,
+      job_name: jobName
     });
     
     // Log failed execution

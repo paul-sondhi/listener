@@ -237,7 +237,7 @@ async function makeRateLimitedSpotifyRequest(
                 throw new Error(`Spotify API error: ${response.status} ${response.statusText}`);
             }
             
-            return await response.json();
+            return await response.json() as SpotifyUserShows;
             
         } catch (error) {
             const err = error as Error;
@@ -344,8 +344,8 @@ async function updateSubscriptionStatus(
     }
     
     // Filter out subscriptions that are no longer current
-    const subsToInactivate = (allSubs || []).filter(s => !currentPodcastUrls.includes(s.podcast_url));
-    const inactiveIds: string[] = subsToInactivate.map(s => s.id);
+    const subsToInactivate = (allSubs || []).filter((s: any) => !currentPodcastUrls.includes(s.podcast_url));
+    const inactiveIds: string[] = subsToInactivate.map((s: any) => s.id);
     
     let inactiveCount: number = 0;
     if (inactiveIds.length > 0) {
@@ -662,7 +662,8 @@ export async function getAllUsersWithSpotifyTokens(): Promise<string[]> {
         if (process.env.NODE_ENV === 'test') {
             const { data, error } = await getSupabaseAdmin()
                 .from('users')
-                .is('spotify_reauth_required', false);
+                .select('id')
+                .eq('spotify_reauth_required', false);
             
             if (error) {
                 throw new Error(`Failed to fetch users: ${error.message}`);
@@ -857,8 +858,7 @@ export async function getUserSpotifyStatistics(): Promise<{
             supabase.from('users').select('*', { count: 'exact', head: true })
         );
         const totalUsers = extractCount(totalRes);
-        const _totalError = totalRes?.error;
-        
+
         // Get users with Spotify integration (valid tokens)
         let integratedQuery: any = supabase.from('users').select('*', { count: 'exact', head: true });
         if (typeof integratedQuery.not === 'function' && typeof integratedQuery.is === 'function') {
@@ -866,8 +866,7 @@ export async function getUserSpotifyStatistics(): Promise<{
         }
         const integratedRes: any = await safeAwait(integratedQuery);
         const spotifyIntegrated = extractCount(integratedRes);
-        const _integratedError = integratedRes?.error;
-        
+
         // Get users who need re-authentication
         let reauthQuery: any = supabase.from('users').select('*', { count: 'exact', head: true });
         if (typeof reauthQuery.eq === 'function') {
@@ -875,8 +874,7 @@ export async function getUserSpotifyStatistics(): Promise<{
         }
         const reauthRes: any = await safeAwait(reauthQuery);
         const needsReauth = extractCount(reauthRes);
-        const _reauthError = reauthRes?.error;
-        
+
         const totalNum = totalUsers ?? 0;
         const integratedNum = spotifyIntegrated ?? 0;
         const reauthNum = needsReauth ?? 0;
@@ -935,11 +933,11 @@ export async function validateUserSpotifyIntegration(userId: string): Promise<bo
 }
 
 // Interface for batch refresh configuration
-interface BatchRefreshConfig {
-    concurrency: number; // Number of users to process concurrently
-    delayBetweenBatches: number; // Milliseconds to wait between batches
-    maxRetries: number; // Max retries for individual user failures
-}
+// interface BatchRefreshConfig {
+//     concurrency: number; // Number of users to process concurrently
+//     delayBetweenBatches: number; // Milliseconds to wait between batches
+//     maxRetries: number; // Max retries for individual user failures
+// }
 
 // Interface for batch refresh result
 export interface BatchRefreshResult {
@@ -963,11 +961,11 @@ export interface BatchRefreshResult {
  * Default configuration for batch processing with environment variable support
  * Optimized for 100 users to avoid rate limiting and ensure reliability
  */
-const _DEFAULT_BATCH_CONFIG: BatchRefreshConfig = {
-    concurrency: parseInt(process.env.DAILY_REFRESH_BATCH_SIZE || '5'), // Process users at a time
-    delayBetweenBatches: parseInt(process.env.DAILY_REFRESH_BATCH_DELAY || '2000'), // Delay between batches
-    maxRetries: 1 // Single retry for failed users
-};
+// const _DEFAULT_BATCH_CONFIG: BatchRefreshConfig = {
+//     concurrency: parseInt(process.env.DAILY_REFRESH_BATCH_SIZE || '5'), // Process users at a time
+//     delayBetweenBatches: parseInt(process.env.DAILY_REFRESH_BATCH_DELAY || '2000'), // Delay between batches
+//     maxRetries: 1 // Single retry for failed users
+// };
 
 /**
  * Process users in batches with enhanced rate limiting and controlled concurrency
@@ -976,54 +974,10 @@ const _DEFAULT_BATCH_CONFIG: BatchRefreshConfig = {
  * @param {BatchRefreshConfig} config - Configuration for batch processing
  * @returns {Promise<SubscriptionSyncResult[]>} Results for all users processed
  */
-async function _processBatchedUsers(
-    userIds: string[],
-    _config: BatchRefreshConfig
-): Promise<SubscriptionSyncResult[]> {
-    /**
-     * NOTE:
-     * -----
-     * The original implementation of this helper grew to several hundred
-     * lines and, during the recent refactor, was inadvertently truncated –
-     * leaving an unterminated template-literal which now breaks the build.
-     *
-     * For the purposes of our test-suite we do NOT rely on the fine-grained
-     * batching behaviour implemented here – we only require that the
-     * function:
-     *   1. Iterates over the supplied user-ids.
-     *   2. Invokes `refreshUserSubscriptions` for each user.
-     *   3. Returns the aggregated results.
-     *
-     * To get the CI green **quickly** we swap in this compact, sequential
-     * version.  It preserves the public contract (same parameters + return
-     * type) while avoiding the heavy concurrency / rate-limit logic that
-     * isn't exercised by the unit/integration tests.
-     *
-     * If we ever need the full batching semantics in production code we can
-     * restore the previous implementation from version-control.
-     */
-
-    const results: SubscriptionSyncResult[] = [];
-
-    for (const userId of userIds) {
-        try {
-            const res = await refreshUserSubscriptions(userId);
-            results.push(res);
-        } catch (err: any) {
-            results.push({
-                success: false,
-                userId,
-                active_count: 0,
-                inactive_count: 0,
-                error: err?.message || 'Unknown error during batch refresh',
-                spotify_api_error: false,
-                database_error: true,
-            });
-        }
-    }
-
-    return results;
-}
+// async function _processBatchedUsers(
+//     userIds: string[],
+//     _config: BatchRefreshConfig
+// ): Promise<SubscriptionSyncResult[]> {
 
 /**
  * Extremely simplified implementation that processes **all** users returned

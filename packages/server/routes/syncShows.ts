@@ -143,7 +143,7 @@ interface SyncShowsResponse {
 // methods) exercise our error handling because we bail out **before** any DB
 // operation when those methods are absent.
 // -----------------------------------------------------------------------------
-const _testSubscriptionsByUser: Record<string, Set<string>> = {};
+// const _testSubscriptionsByUser: Record<string, Set<string>> = {};
 
 /**
  * Sync Spotify shows endpoint
@@ -333,8 +333,8 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                 throw new Error('Error saving shows to database: Failed to fetch existing subscriptions.');
             }
             
-            const subsToInactivate = (allSubs || []).filter(s => !podcastUrls.includes(s.podcast_url));
-            const inactiveIds: string[] = subsToInactivate.map(s => s.id);
+            const subsToInactivate = (allSubs || []).filter((s: any) => !podcastUrls.includes(s.podcast_url));
+            const inactiveIds: string[] = subsToInactivate.map((s: any) => s.id);
             console.log('Subscriptions to inactivate IDs:', inactiveIds);
 
             let inactiveCount: number = 0;

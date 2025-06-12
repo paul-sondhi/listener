@@ -308,24 +308,14 @@ describe('dailySubscriptionRefreshJob', () => {
       'subscription_refresh',
       expect.stringContaining('Daily refresh completed with categorized errors'),
       expect.objectContaining({
-        error_categories: expect.arrayContaining([
-          expect.objectContaining({
-            category: 'auth_error',
-            count: 5,
-            percentage: '5.0',
-            sample_errors: expect.arrayContaining(['Error 1', 'Error 2', 'Error 3'])
-          }),
-          expect.objectContaining({
-            category: 'api_error',
-            count: 5,
-            percentage: '5.0'
-          }),
-          expect.objectContaining({
-            category: 'database_error',
-            count: 5,
-            percentage: '5.0'
-          })
-        ])
+        error_categories: expect.objectContaining({
+          auth_errors: 5,
+          api_errors: 5,
+          database_errors: 5,
+          failed_users: 15,
+          percentage: '15.0'
+        }),
+        job_id: expect.stringContaining('daily-')
       })
     );
 
