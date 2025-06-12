@@ -14,7 +14,19 @@ import { vi } from 'vitest';
 // ---------------------------------------------------------------------------
 // In-Memory Table Storage
 // ---------------------------------------------------------------------------
-const db: Record<string, any[]> = {};
+const db: Record<string, any[]> = {
+  // Mock pg_proc table with database functions
+  pg_proc: [
+    {
+      proname: 'begin_token_refresh_transaction',
+      proowner: 16384,
+      pronamespace: 2200,
+      procost: 100,
+      prorows: 1000
+    }
+    // Add more database functions here as needed
+  ]
+};
 
 // ---------------------------------------------------------------------------
 // Query Builder Factory
@@ -195,7 +207,47 @@ function buildClient() {
     from: (tbl: string) => buildQuery(tbl),
     auth: {
       getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null })
-    }
+    },
+    // Add RPC support for database functions
+    rpc: vi.fn((functionName: string, params?: any) => {
+      return Promise.resolve((() => {
+        // Mock database functions used in tests
+        switch (functionName) {
+          case 'begin_token_refresh_transaction':
+            // Mock the begin_token_refresh_transaction function
+            if (params?.p_user_id === 'invalid-uuid') {
+              // Return error for invalid UUID format
+              return {
+                data: null,
+                error: { message: 'invalid input syntax for type uuid: "invalid-uuid"' }
+              };
+            }
+            // Validate UUID format (basic check)
+            const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (params?.p_user_id && !uuidPattern.test(params.p_user_id)) {
+              return {
+                data: null,
+                error: { message: 'invalid input syntax for type uuid' }
+              };
+            }
+            // Return success for valid UUID
+            return {
+              data: [{
+                user_id: params?.p_user_id || '123e4567-e89b-12d3-a456-426614174000',
+                locked: false
+              }],
+              error: null
+            };
+          
+          default:
+            // Return error for unknown functions
+            return {
+              data: null,
+              error: { message: `function ${functionName} does not exist` }
+            };
+        }
+      })());
+    })
   };
 }
 

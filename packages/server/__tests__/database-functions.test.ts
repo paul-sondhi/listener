@@ -7,12 +7,13 @@ describe('Database Functions', () => {
   let supabase: any;
 
   beforeAll(() => {
-    // Initialize Supabase client for testing
-    const supabaseUrl = process.env.SUPABASE_URL || 'http://localhost:54321';
-    const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // Initialize Supabase client for testing using test environment variables
+    const supabaseUrl = process.env.TEST_SUPABASE_URL || process.env.SUPABASE_URL || 'http://localhost:54321';
+    // Use test environment variables first, then fallback to regular ones
+    const supabaseKey = process.env.TEST_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     
     if (!supabaseKey) {
-      throw new Error('SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY must be set for database function tests');
+      throw new Error('TEST_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY must be set for database function tests');
     }
 
     supabase = createClient(supabaseUrl, supabaseKey);

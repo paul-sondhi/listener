@@ -25,7 +25,7 @@ interface ScheduledJobResult {
 const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
     enabled: process.env.DAILY_REFRESH_ENABLED !== 'false', // Enabled by default, can be disabled via env var
     timezone: 'America/Los_Angeles', // Pacific Time (handles PST/PDT automatically)
-    cronExpression: '15 13 * * *', // Every day at midnight (00:00)
+    cronExpression: '30 10 * * *', // Every day at midnight (00:00)
     maxConcurrentJobs: 1, // Only allow one refresh job at a time
     jobTimeout: 1800000, // 30 minutes maximum execution time
 };
