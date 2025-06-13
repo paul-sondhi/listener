@@ -213,7 +213,7 @@ function buildClient() {
       return Promise.resolve((() => {
         // Mock database functions used in tests
         switch (functionName) {
-          case 'begin_token_refresh_transaction':
+          case 'begin_token_refresh_transaction': {
             // Mock the begin_token_refresh_transaction function
             if (params?.p_user_id === 'invalid-uuid') {
               // Return error for invalid UUID format
@@ -238,6 +238,7 @@ function buildClient() {
               }],
               error: null
             };
+          }
           
           default:
             // Return error for unknown functions
