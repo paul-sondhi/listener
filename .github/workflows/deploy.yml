@@ -187,7 +187,7 @@ jobs:
 
       - name: Install Supabase CLI
         run: |
-          npm install -g @supabase/cli@latest
+          npm install -g supabase@latest
 
       - name: Check for new migrations
         id: check-migrations
