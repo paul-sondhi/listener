@@ -206,7 +206,11 @@ jobs:
         run: |
           echo "🔍 Verifying migration deployment..."
           echo "Migration deployment completed. Please check Supabase dashboard for confirmation:"
-          echo "- Staging: https://supabase.com/dashboard/project/${{ secrets.SUPABASE_STAGING_PROJECT_REF && secrets.SUPABASE_STAGING_PROJECT_REF || 'not-configured' }}"
+          if [ -n "${{ secrets.SUPABASE_STAGING_PROJECT_REF }}" ]; then
+            echo "- Staging: https://supabase.com/dashboard/project/${{ secrets.SUPABASE_STAGING_PROJECT_REF }}"
+          else
+            echo "- Staging: not-configured"
+          fi
           echo "- Production: https://supabase.com/dashboard/project/${{ secrets.SUPABASE_PROJECT_REF }}"
           echo ""
           echo "📊 To monitor migration success:"
