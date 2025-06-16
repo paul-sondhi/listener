@@ -21,7 +21,9 @@ set    show_id = p.id
 from   podcast_shows p
 where  s.podcast_url = p.rss_url;
 
--- ► 2.6 · Drop old unique index on (user_id, podcast_url)
+-- ► 2.6 · Drop old unique constraint and index on (user_id, podcast_url)
+alter table podcast_subscriptions 
+  drop constraint if exists podcast_subscriptions_user_id_podcast_url_key;
 drop index if exists podcast_subscriptions_user_id_podcast_url_key;
 
 -- ► 2.7 · Make show_id mandatory
