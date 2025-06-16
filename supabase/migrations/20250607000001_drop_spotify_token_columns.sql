@@ -16,20 +16,49 @@ $$;
 -- Check that users with existing tokens have been migrated to vault
 DO $$
 DECLARE
-    users_with_tokens INTEGER;
-    users_migrated INTEGER;
+    users_with_tokens INTEGER := 0;
+    users_migrated INTEGER := 0;
     migration_ready BOOLEAN := false;
+    spotify_access_token_exists BOOLEAN := false;
+    spotify_refresh_token_exists BOOLEAN := false;
+    spotify_vault_secret_id_exists BOOLEAN := false;
 BEGIN
-    -- Count users with existing plaintext tokens
-    SELECT COUNT(*) INTO users_with_tokens 
-    FROM public.users 
-    WHERE spotify_access_token IS NOT NULL 
-      AND spotify_refresh_token IS NOT NULL;
+    -- Check if columns exist before querying them
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'spotify_access_token'
+        AND table_schema = 'public'
+    ) INTO spotify_access_token_exists;
     
-    -- Count users with vault migration completed
-    SELECT COUNT(*) INTO users_migrated 
-    FROM public.users 
-    WHERE spotify_vault_secret_id IS NOT NULL;
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'spotify_refresh_token'
+        AND table_schema = 'public'
+    ) INTO spotify_refresh_token_exists;
+    
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'spotify_vault_secret_id'
+        AND table_schema = 'public'
+    ) INTO spotify_vault_secret_id_exists;
+    
+    -- Only count users with tokens if the columns exist
+    IF spotify_access_token_exists AND spotify_refresh_token_exists THEN
+        SELECT COUNT(*) INTO users_with_tokens 
+        FROM public.users 
+        WHERE spotify_access_token IS NOT NULL 
+          AND spotify_refresh_token IS NOT NULL;
+    END IF;
+    
+    -- Only count migrated users if the vault column exists
+    IF spotify_vault_secret_id_exists THEN
+        SELECT COUNT(*) INTO users_migrated 
+        FROM public.users 
+        WHERE spotify_vault_secret_id IS NOT NULL;
+    END IF;
     
     -- Check if migration is safe to proceed
     IF users_with_tokens = 0 OR users_migrated >= users_with_tokens THEN
@@ -37,6 +66,9 @@ BEGIN
         RAISE NOTICE 'Migration verification passed:';
         RAISE NOTICE '  Users with plaintext tokens: %', users_with_tokens;
         RAISE NOTICE '  Users with vault migration: %', users_migrated;
+        RAISE NOTICE '  spotify_access_token exists: %', spotify_access_token_exists;
+        RAISE NOTICE '  spotify_refresh_token exists: %', spotify_refresh_token_exists;
+        RAISE NOTICE '  spotify_vault_secret_id exists: %', spotify_vault_secret_id_exists;
     ELSE
         RAISE EXCEPTION 'Migration verification failed: % users have plaintext tokens but only % are migrated to vault', 
             users_with_tokens, users_migrated;
@@ -62,7 +94,8 @@ DECLARE
     spotify_access_token_exists BOOLEAN := false;
     spotify_refresh_token_exists BOOLEAN := false;
     spotify_token_expires_at_exists BOOLEAN := false;
-    vault_users_count_var INTEGER;
+    vault_users_count_var INTEGER := 0;
+    spotify_vault_secret_id_exists BOOLEAN := false;
 BEGIN
     -- Check if old columns still exist (they shouldn't after this migration)
     SELECT EXISTS (
@@ -86,10 +119,19 @@ BEGIN
         AND table_schema = 'public'
     ) INTO spotify_token_expires_at_exists;
     
-    -- Count users with vault secrets
-    SELECT COUNT(*) INTO vault_users_count_var
-    FROM public.users 
-    WHERE spotify_vault_secret_id IS NOT NULL;
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'spotify_vault_secret_id'
+        AND table_schema = 'public'
+    ) INTO spotify_vault_secret_id_exists;
+    
+    -- Count users with vault secrets only if the column exists
+    IF spotify_vault_secret_id_exists THEN
+        SELECT COUNT(*) INTO vault_users_count_var
+        FROM public.users 
+        WHERE spotify_vault_secret_id IS NOT NULL;
+    END IF;
     
     RETURN QUERY SELECT 
         (spotify_access_token_exists OR spotify_refresh_token_exists OR spotify_token_expires_at_exists),
@@ -127,13 +169,13 @@ $$;
 
 -- Update schema version tracking
 INSERT INTO "public"."supabase_migrations" ("version", "checksum") 
-VALUES ('20250108000001', 'drop_spotify_token_columns_v1') 
+VALUES ('20250607000001', 'drop_spotify_token_columns_v2') 
 ON CONFLICT ("version") DO UPDATE SET 
     "applied_at" = timezone('utc'::text, now()),
     "checksum" = EXCLUDED."checksum";
 
 -- Add comment to track the cleanup
-COMMENT ON TABLE public.users IS 'Users table with Spotify tokens migrated to vault storage (legacy columns dropped in 20250108000001)';
+COMMENT ON TABLE public.users IS 'Users table with Spotify tokens migrated to vault storage (legacy columns dropped in 20250607000001)';
 
 -- Log completion
 DO $$
