@@ -105,24 +105,26 @@ jobs:
         run: |
           echo "🔍 Debug: Checking environment variables..."
           echo "NODE_ENV: $NODE_ENV"
-          echo "SUPABASE_URL is set: ${{ secrets.SUPABASE_TEST_URL != '' || secrets.SUPABASE_URL != '' }}"
-          echo "SUPABASE_SERVICE_ROLE_KEY is set: ${{ secrets.SUPABASE_TEST_SERVICE_KEY != '' || secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}"
+          echo "SUPABASE_URL is set: ${{ secrets.SUPABASE_TEST_URL && 'true' || secrets.SUPABASE_URL && 'true' || 'false' }}"
+          echo "SUPABASE_SERVICE_ROLE_KEY is set: ${{ secrets.SUPABASE_TEST_SERVICE_KEY && 'true' || secrets.SUPABASE_SERVICE_ROLE_KEY && 'true' || 'false' }}"
           echo "Available secrets (names only):"
-          echo "- SUPABASE_TEST_URL exists: ${{ secrets.SUPABASE_TEST_URL != '' }}"
-          echo "- SUPABASE_URL exists: ${{ secrets.SUPABASE_URL != '' }}"
-          echo "- SUPABASE_TEST_SERVICE_KEY exists: ${{ secrets.SUPABASE_TEST_SERVICE_KEY != '' }}"
-          echo "- SUPABASE_SERVICE_ROLE_KEY exists: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}"
+          echo "- SUPABASE_TEST_URL exists: ${{ secrets.SUPABASE_TEST_URL && 'true' || 'false' }}"
+          echo "- SUPABASE_URL exists: ${{ secrets.SUPABASE_URL && 'true' || 'false' }}"
+          echo "- SUPABASE_TEST_SERVICE_KEY exists: ${{ secrets.SUPABASE_TEST_SERVICE_KEY && 'true' || 'false' }}"
+          echo "- SUPABASE_SERVICE_ROLE_KEY exists: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY && 'true' || 'false' }}"
 
       - name: Validate Required Secrets
         run: |
           echo "🔐 Validating required secrets..."
           MISSING_SECRETS=""
           
-          if [ -z "${{ secrets.SUPABASE_TEST_URL || secrets.SUPABASE_URL }}" ]; then
+          # Check if we have either test or production Supabase URL
+          if [ -z "${{ secrets.SUPABASE_TEST_URL }}" ] && [ -z "${{ secrets.SUPABASE_URL }}" ]; then
             MISSING_SECRETS="$MISSING_SECRETS SUPABASE_URL"
           fi
           
-          if [ -z "${{ secrets.SUPABASE_TEST_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+          # Check if we have either test or production Supabase service key
+          if [ -z "${{ secrets.SUPABASE_TEST_SERVICE_KEY }}" ] && [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
             MISSING_SECRETS="$MISSING_SECRETS SUPABASE_SERVICE_ROLE_KEY"
           fi
           
@@ -184,7 +186,7 @@ jobs:
           npm install -g @supabase/cli@latest
 
       - name: Deploy migrations to staging (if configured)
-        if: ${{ secrets.SUPABASE_STAGING_PROJECT_REF != '' }}
+        if: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
         run: |
           echo "🚀 Deploying migrations to staging environment..."
           supabase db push --project-ref ${{ secrets.SUPABASE_STAGING_PROJECT_REF }} --password ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
