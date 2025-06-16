@@ -189,10 +189,55 @@ jobs:
         run: |
           npm install -g @supabase/cli@latest
 
+      - name: Check for new migrations
+        id: check-migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "🔍 Checking if there are new migrations to deploy..."
+          
+          # Check staging migrations (if configured)
+          STAGING_NEEDS_MIGRATION=false
+          if [ -n "${{ env.STAGING_PROJECT_REF }}" ]; then
+            echo "Checking staging environment for new migrations..."
+            STAGING_OUTPUT=$(supabase migration list --project-ref ${{ env.STAGING_PROJECT_REF }} --password ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }} 2>/dev/null || echo "")
+            if echo "$STAGING_OUTPUT" | grep -q "^[[:space:]]*[0-9]\{14\}[[:space:]]*│[[:space:]]*│"; then
+              echo "📋 Found migrations pending for staging"
+              STAGING_NEEDS_MIGRATION=true
+            else
+              echo "✅ Staging is up to date"
+            fi
+          else
+            echo "⏭️ Staging environment not configured, skipping check"
+          fi
+          
+          # Check production migrations
+          echo "Checking production environment for new migrations..."
+          PRODUCTION_OUTPUT=$(supabase migration list --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }} 2>/dev/null || echo "")
+          PRODUCTION_NEEDS_MIGRATION=false
+          if echo "$PRODUCTION_OUTPUT" | grep -q "^[[:space:]]*[0-9]\{14\}[[:space:]]*│[[:space:]]*│"; then
+            echo "📋 Found migrations pending for production"
+            PRODUCTION_NEEDS_MIGRATION=true
+          else
+            echo "✅ Production is up to date"
+          fi
+          
+          # Set outputs for conditional steps
+          echo "staging-needs-migration=$STAGING_NEEDS_MIGRATION" >> $GITHUB_OUTPUT
+          echo "production-needs-migration=$PRODUCTION_NEEDS_MIGRATION" >> $GITHUB_OUTPUT
+          
+          # Summary
+          if [ "$STAGING_NEEDS_MIGRATION" = "true" ] || [ "$PRODUCTION_NEEDS_MIGRATION" = "true" ]; then
+            echo "🚀 Migration deployment will proceed"
+            echo "needs-migration=true" >> $GITHUB_OUTPUT
+          else
+            echo "⏭️ No migrations needed, skipping deployment steps"
+            echo "needs-migration=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy migrations to staging (if configured)
-        # `secrets` cannot be referenced directly in an `if:` conditional.
-        # Instead we rely on the job-level env variable defined above.
-        if: ${{ env.STAGING_PROJECT_REF }}
+        # Only deploy if staging is configured AND has new migrations to apply
+        if: ${{ env.STAGING_PROJECT_REF && steps.check-migrations.outputs.staging-needs-migration == 'true' }}
         run: |
           echo "🚀 Deploying migrations to staging environment..."
           supabase db push --project-ref ${{ env.STAGING_PROJECT_REF }} --password ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
@@ -200,7 +245,14 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      - name: Skip staging deployment (no new migrations)
+        if: ${{ env.STAGING_PROJECT_REF && steps.check-migrations.outputs.staging-needs-migration == 'false' }}
+        run: |
+          echo "✅ Staging environment is up to date - no new migrations to deploy"
+
       - name: Deploy migrations to production
+        # Only deploy if production has new migrations to apply
+        if: ${{ steps.check-migrations.outputs.production-needs-migration == 'true' }}
         run: |
           echo "🚀 Deploying migrations to production environment..."
           supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -208,7 +260,14 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      - name: Skip production deployment (no new migrations)
+        if: ${{ steps.check-migrations.outputs.production-needs-migration == 'false' }}
+        run: |
+          echo "✅ Production environment is up to date - no new migrations to deploy"
+
       - name: Verify migration deployment
+        # Only run verification if migrations were actually deployed
+        if: ${{ steps.check-migrations.outputs.needs-migration == 'true' }}
         env:
           STAGING_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
           PRODUCTION_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
@@ -228,6 +287,20 @@ jobs:
           echo "3. Check migration history in the 'Migrations' section"
           echo "4. Monitor application logs for any schema-related errors"
           echo "5. Run a quick smoke test on the deployed application"
+
+      - name: Migration deployment summary
+        if: ${{ steps.check-migrations.outputs.needs-migration == 'false' }}
+        run: |
+          echo "📋 Migration Deployment Summary"
+          echo "==============================="
+          echo "✅ All environments are up to date"
+          echo "⏭️ No database migrations were deployed"
+          echo ""
+          echo "This is normal when:"
+          echo "• No new migration files have been added since the last deployment"
+          echo "• All existing migrations have already been applied to both environments"
+          echo ""
+          echo "The deployment will continue with application updates only."
 
   deploy-vercel:
     name: Deploy to Vercel
