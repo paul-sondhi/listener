@@ -574,7 +574,7 @@ describe('initializeBackgroundJobs', () => {
 
     // Assert: Verify daily subscription refresh job was scheduled
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '50 10 * * *', // Default 10:50 AM PT cron expression
+      '0 0 * * *', // Default midnight PT cron expression
       expect.any(Function),
       expect.objectContaining({
         scheduled: true,

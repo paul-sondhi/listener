@@ -1,5 +1,9 @@
 # Manual Testing Guide: Daily Podcast Subscription Refresh System
 
+> **⚠️ SCHEMA UPDATE NOTICE**: This guide contains references to the old `podcast_subscriptions` table. 
+> The schema has been updated to use `user_podcast_subscriptions` table. Please update your SQL queries accordingly.
+> See `SCHEMA_MIGRATION_STATUS.md` for details.
+
 This guide provides comprehensive instructions for manually testing the **Daily Podcast Subscription Refresh System** at various levels, from individual components to complete end-to-end workflows.
 
 ## Table of Contents

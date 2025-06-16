@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { logger } from '../lib/logger'
 
 /**
  * ReauthPrompt component that displays when user needs to re-authenticate with Spotify
@@ -37,7 +38,7 @@ export default function ReauthPrompt(): React.JSX.Element | null {
       })
 
       if (error) {
-        console.error('Reauth error:', error)
+        logger.error('Reauth error:', error)
         // Don't clear the flag if reauth failed
       } else {
         // Clear the reauth flag on successful authentication
@@ -45,7 +46,7 @@ export default function ReauthPrompt(): React.JSX.Element | null {
       }
     } catch (error: unknown) {
       const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
-      console.error('Error during re-authentication:', errorMessage)
+      logger.error('Error during re-authentication:', errorMessage)
     } finally {
       setIsReauthenticating(false)
     }

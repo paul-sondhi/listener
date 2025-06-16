@@ -119,15 +119,25 @@ vi.mock('node-cron', () => ({
   ...overrides
 });
 
-// Global test subscription factory
+// Global test subscription factory (uses new schema)
 (global as any).createTestSubscription = (userId: string, overrides: Record<string, unknown> = {}) => ({
   id: `test-sub-${Math.random().toString(36).substr(2, 9)}`,
   user_id: userId,
-  podcast_url: `https://open.spotify.com/show/test-${Math.random().toString(36).substr(2, 9)}`,
+  show_id: `test-show-id-${Math.random().toString(36).substr(2, 9)}`, // New schema uses show_id
   status: 'active',
-  podcast_title: `Test Podcast ${Math.random().toString(36).substr(2, 5)}`,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
+  ...overrides
+});
+
+// Global test show factory (for new schema)
+(global as any).createTestShow = (overrides: Record<string, unknown> = {}) => ({
+  id: `test-show-${Math.random().toString(36).substr(2, 9)}`,
+  rss_url: `https://open.spotify.com/show/test-${Math.random().toString(36).substr(2, 9)}`,
+  title: `Test Podcast ${Math.random().toString(36).substr(2, 5)}`,
+  description: 'Test show description',
+  image_url: null,
+  last_updated: new Date().toISOString(),
   ...overrides
 });
 
@@ -169,7 +179,7 @@ vi.mock('node-cron', () => ({
   
   // Clean up subscriptions first (foreign key constraint)
   await supabase
-    .from('podcast_subscriptions')
+    .from('user_podcast_subscriptions')
     .delete()
     .in('user_id', userIds);
   

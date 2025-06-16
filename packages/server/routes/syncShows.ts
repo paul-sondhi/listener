@@ -256,63 +256,101 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                     console.log('Supabase client type:', typeof supabaseClient);
                     console.log('Supabase client from method exists:', !!supabaseClient.from);
                     if (supabaseClient.from) {
-                        const fromResult = supabaseClient.from('podcast_subscriptions');
-                        console.log('From result exists:', !!fromResult);
-                        console.log('From result type:', typeof fromResult);
-                        if (fromResult) {
-                            console.log('Upsert method exists:', !!fromResult.upsert);
+                        const fromShowsResult = supabaseClient.from('podcast_shows');
+                        const fromSubsResult = supabaseClient.from('user_podcast_subscriptions');
+                        console.log('podcast_shows table access exists:', !!fromShowsResult);
+                        console.log('user_podcast_subscriptions table access exists:', !!fromSubsResult);
+                        if (fromShowsResult && fromSubsResult) {
+                            console.log('Upsert method exists on shows table:', !!fromShowsResult.upsert);
+                            console.log('Upsert method exists on subscriptions table:', !!fromSubsResult.upsert);
                         }
                     }
                 }
             }
 
-            // Upsert each show into podcast_subscriptions
+            // First, upsert shows into podcast_shows table and collect their IDs
             const now: string = new Date().toISOString();
-            const podcastUrls: string[] = [];
+            const showIds: string[] = [];
             
             for (const showObj of shows) {
                 const show: SpotifyShow = showObj.show;
-                const podcastUrl: string = `https://open.spotify.com/show/${show.id}`;
-                podcastUrls.push(podcastUrl);
+                
+                // For Spotify shows, we need to create an RSS URL from the Spotify URL
+                // This is a placeholder - in a real implementation, you'd want to find
+                // the actual RSS feed URL for the podcast
+                const spotifyUrl: string = `https://open.spotify.com/show/${show.id}`;
+                const rssUrl: string = spotifyUrl; // Using Spotify URL as identifier for now
 
                 try {
-                    const upsertRes = await safeAwait<{ error: any }>(
+                    // Upsert the show into podcast_shows table
+                    const showUpsertRes = await safeAwait<{ data: any; error: any }>(
                         getSupabaseAdmin()
-                            .from('podcast_subscriptions')
+                            .from('podcast_shows')
+                            .upsert([
+                                {
+                                    rss_url: rssUrl,
+                                    title: show.name || 'Unknown Show',
+                                    description: show.description || null,
+                                    image_url: show.images?.[0]?.url || null,
+                                    last_updated: now
+                                }
+                            ], { 
+                                onConflict: 'rss_url',
+                                ignoreDuplicates: false 
+                            })
+                            .select('id')
+                    );
+
+                    if (showUpsertRes?.error) {
+                        console.error('Error upserting podcast show:', showUpsertRes.error.message);
+                        throw new Error(`Error saving show to database: ${showUpsertRes.error.message}`);
+                    }
+
+                    // Get the show ID for the subscription
+                    const showId = showUpsertRes?.data?.[0]?.id;
+                    if (!showId) {
+                        throw new Error('Failed to get show ID after upsert');
+                    }
+                    showIds.push(showId);
+
+                    // Now upsert the subscription into user_podcast_subscriptions table
+                    const subscriptionUpsertRes = await safeAwait<{ error: any }>(
+                        getSupabaseAdmin()
+                            .from('user_podcast_subscriptions')
                             .upsert([
                                 {
                                     user_id: userId,
-                                    podcast_url: podcastUrl,
+                                    show_id: showId,
                                     status: 'active',
                                     updated_at: now
                                 }
-                            ], { onConflict: 'user_id,podcast_url' })
+                            ], { onConflict: 'user_id,show_id' })
                     );
 
-                    if (upsertRes?.error) {
-                        console.error('Error upserting podcast subscription:', upsertRes.error.message);
-                        throw new Error('Error saving shows to database: Upsert failed for one or more shows.');
+                    if (subscriptionUpsertRes?.error) {
+                        console.error('Error upserting podcast subscription:', subscriptionUpsertRes.error.message);
+                        throw new Error(`Error saving subscription to database: ${subscriptionUpsertRes.error.message}`);
                     }
                 } catch (error: unknown) {
                     const err = error as Error;
                     // Handle the case where Supabase methods are undefined due to mock issues
                     if (err.message.includes('Cannot read properties of undefined')) {
                         console.error('Supabase client method undefined - likely mock issue:', err.message);
-                        throw new Error('Error saving shows to database: Upsert failed for one or more shows.');
+                        throw new Error('Error saving shows to database: Database client not properly initialized.');
                     }
                     throw err;
                 }
             }
 
-            // Fetch all subscriptions and filter inactive in JS
+            // Fetch all current subscriptions and mark any not in the current Spotify list as inactive
             let subsResult: any;
             let allSubs: any;
             let allSubsError: any;
             
             try {
                 const fetchSubsBuilder = getSupabaseAdmin()
-                    .from('podcast_subscriptions')
-                    .select('id,podcast_url')
+                    .from('user_podcast_subscriptions')
+                    .select('id,show_id')
                     .eq('user_id', userId);
 
                 subsResult = await safeAwait(fetchSubsBuilder);
@@ -333,7 +371,8 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                 throw new Error('Error saving shows to database: Failed to fetch existing subscriptions.');
             }
             
-            const subsToInactivate = (allSubs || []).filter((s: any) => !podcastUrls.includes(s.podcast_url));
+            // Find subscriptions that are no longer in the current Spotify list
+            const subsToInactivate = (allSubs || []).filter((s: any) => !showIds.includes(s.show_id));
             const inactiveIds: string[] = subsToInactivate.map((s: any) => s.id);
             console.log('Subscriptions to inactivate IDs:', inactiveIds);
 
@@ -342,7 +381,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                 try {
                     const updateRes = await safeAwait<{ error: any }>(
                         getSupabaseAdmin()
-                            .from('podcast_subscriptions')
+                            .from('user_podcast_subscriptions')
                             .update({ status: 'inactive', updated_at: now })
                             .in('id', inactiveIds)
                     );
@@ -366,7 +405,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
             // If all succeeds, return summary
             const syncResponse: SyncShowsResponse = {
                 success: true,
-                active_count: podcastUrls.length,
+                active_count: showIds.length,
                 inactive_count: inactiveCount || 0
             };
             

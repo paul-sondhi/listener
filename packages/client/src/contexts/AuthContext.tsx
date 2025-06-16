@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback,
 import { User, Session, OAuthResponse } from '@supabase/supabase-js'
 import type { SignInWithOAuthCredentials } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
+import { logger } from '../lib/logger'
 
 // Interface for the authentication context value
 interface AuthContextType {
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   const checkReauthStatus = useCallback(async (): Promise<void> => {
     // Prevent multiple simultaneous reauth checks using ref
     if (reauthCheckInProgress.current) {
-      console.log('Reauth check already in progress, skipping...')
+      logger.debug('Reauth check already in progress, skipping...')
       return
     }
 
@@ -47,7 +48,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError || !session?.user) {
-        console.error('Error getting session:', sessionError)
+        logger.error('Error getting session:', sessionError)
         setRequiresReauth(false)
         return
       }
@@ -60,14 +61,14 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         .single()
       
       if (userError) {
-        console.error('Error checking reauth status:', userError)
+        logger.error('Error checking reauth status:', userError)
         setRequiresReauth(false)
         return
       }
       
       setRequiresReauth(userData?.spotify_reauth_required === true)
     } catch (error) {
-      console.error('Error checking reauth status:', error)
+      logger.error('Error checking reauth status:', error)
       setRequiresReauth(false)
     } finally {
       reauthCheckInProgress.current = false
@@ -81,7 +82,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError || !session?.user) {
-        console.error('Error getting session:', sessionError)
+        logger.error('Error getting session:', sessionError)
         return
       }
       
@@ -92,14 +93,14 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         .eq('id', session.user.id)
       
       if (updateError) {
-        console.error('Error clearing reauth flag:', updateError)
+        logger.error('Error clearing reauth flag:', updateError)
         return
       }
       
       setRequiresReauth(false)
-      console.log('Reauth flag cleared successfully')
+      logger.info('Reauth flag cleared successfully')
     } catch (error) {
-      console.error('Error clearing reauth flag:', error)
+      logger.error('Error clearing reauth flag:', error)
     }
   }, [])
 
@@ -110,7 +111,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
-          console.error('Error getting session:', error)
+          logger.error('Error getting session:', error)
         }
         
         setUser(session?.user ?? null)
@@ -120,7 +121,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
           await checkReauthStatus()
         }
       } catch (error) {
-        console.error('Unexpected error during auth initialization:', error)
+        logger.error('Unexpected error during auth initialization:', error)
       } finally {
         setLoading(false)
       }
@@ -131,7 +132,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     // Listen for changes on auth state (logged in, signed out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session: Session | null) => {
-        console.log('Auth state changed:', event, session?.user?.email)
+        logger.debug('Auth state changed:', event, session?.user?.email)
         setUser(session?.user ?? null)
         setLoading(false)
         

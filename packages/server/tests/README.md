@@ -256,7 +256,7 @@ describe('End-to-End Subscription Refresh', () => {
 
     // Assert: Verify database state
     const { data: subscriptions } = await supabase
-      .from('podcast_subscriptions')
+      .from('user_podcast_subscriptions')
       .select('*')
       .eq('user_id', testUsers[0].id);
 

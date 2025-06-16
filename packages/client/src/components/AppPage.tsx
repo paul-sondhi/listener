@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabaseClient'
 import { ApiResponse } from '@listener/shared'
 import ReauthPrompt from './ReauthPrompt'
+import { logger } from '../lib/logger'
 
 // Get the API base URL from environment variables
 // Default to an empty string for relative paths if not set (for local development)
@@ -42,7 +43,7 @@ const AppPage = (): React.JSX.Element => {
     const syncSpotifyTokens = async (): Promise<void> => {
       // Prevent multiple simultaneous sync attempts or re-syncing for same user
       if (isSyncing || hasSynced.current) {
-        console.log('Sync already in progress or completed, skipping...')
+        logger.debug('Sync already in progress or completed, skipping...')
         return
       }
 
@@ -52,14 +53,14 @@ const AppPage = (): React.JSX.Element => {
         
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         if (sessionError) {
-          console.error('Error getting session:', sessionError)
+          logger.error('Error getting session:', sessionError)
           setError(sessionError.message)
           // Mark as attempted to prevent infinite retries
           hasSynced.current = true
           return
         }
         if (!session) {
-          console.warn('No session found - user needs to log in')
+          logger.warn('No session found - user needs to log in')
           // Mark as attempted to prevent infinite retries
           hasSynced.current = true
           return
@@ -67,7 +68,7 @@ const AppPage = (): React.JSX.Element => {
 
         // Check if this is a Spotify OAuth session
         if (session.user?.app_metadata?.provider !== 'spotify') {
-          console.warn('User not authenticated with Spotify')
+          logger.warn('User not authenticated with Spotify')
           // Mark as attempted to prevent infinite retries
           hasSynced.current = true
           return
@@ -80,7 +81,7 @@ const AppPage = (): React.JSX.Element => {
 
         // Only proceed if we have all required tokens
         if (!accessToken || !refreshToken || !expiresAt) {
-          console.warn('Missing Spotify tokens:', { 
+          logger.warn('Missing Spotify tokens:', { 
             hasAccessToken: !!accessToken, 
             hasRefreshToken: !!refreshToken, 
             hasExpiresAt: !!expiresAt 
@@ -91,7 +92,7 @@ const AppPage = (): React.JSX.Element => {
           return
         }
 
-        console.log('Storing Spotify tokens...')
+        logger.info('Storing Spotify tokens...')
         const storeResponse: globalThis.Response = await fetch(`${API_BASE_URL}/api/store-spotify-tokens`, {
           method: 'POST',
           headers: {
@@ -108,22 +109,22 @@ const AppPage = (): React.JSX.Element => {
         if (!storeResponse.ok) {
           const errorData: ErrorResponse = await storeResponse.json()
           const errorMessage = errorData.error || 'Failed to store Spotify tokens'
-          console.error('Vault storage failed:', errorMessage)
+          logger.error('Vault storage failed:', errorMessage)
           setError(`Authentication error: ${errorMessage}`)
           // CRITICAL: Mark as attempted even on failure to prevent infinite loops
           hasSynced.current = true
           return
         }
 
-        console.log('Successfully stored tokens, clearing reauth flag...')
+        logger.info('Successfully stored tokens, clearing reauth flag...')
         try {
           await clearReauthFlag()
         } catch (clearError) {
           // Don't fail the entire flow if clearing reauth flag fails
-          console.warn('Failed to clear reauth flag:', clearError)
+          logger.warn('Failed to clear reauth flag:', clearError)
         }
 
-        console.log('Now syncing shows...')
+        logger.info('Now syncing shows...')
         const syncResponse: globalThis.Response = await fetch(`${API_BASE_URL}/api/sync-spotify-shows`, {
           method: 'POST',
           headers: {
@@ -134,7 +135,7 @@ const AppPage = (): React.JSX.Element => {
         if (!syncResponse.ok) {
           const errorData: ErrorResponse = await syncResponse.json()
           const errorMessage = errorData.error || 'Failed to sync Spotify shows'
-          console.error('Show sync failed:', errorMessage)
+          logger.error('Show sync failed:', errorMessage)
           setError(`Sync error: ${errorMessage}`)
           // Mark as attempted since token storage succeeded
           hasSynced.current = true
@@ -142,13 +143,13 @@ const AppPage = (): React.JSX.Element => {
         }
 
         const result: SyncShowsResponse = await syncResponse.json()
-        console.log('Successfully synced Spotify shows:', result)
+        logger.info('Successfully synced Spotify shows:', result)
         
         // Mark as successfully synced for this session
         hasSynced.current = true
       } catch (error: unknown) {
         const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
-        console.error('Error syncing Spotify tokens or subsequent operations:', errorMessage)
+        logger.error('Error syncing Spotify tokens or subsequent operations:', errorMessage)
         setError(`Authentication error: ${errorMessage}`)
         // CRITICAL: Always mark as attempted to prevent infinite loops
         hasSynced.current = true
@@ -217,7 +218,7 @@ const AppPage = (): React.JSX.Element => {
       setSpotifyUrl('')
     } catch (error: unknown) {
       const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
-      console.error('Download error:', errorMessage)
+      logger.error('Download error:', errorMessage)
       setError(errorMessage)
     } finally {
       setIsLoading(false)
@@ -234,7 +235,7 @@ const AppPage = (): React.JSX.Element => {
       hasSynced.current = false
     } catch (error: unknown) {
       const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
-      console.error('Error during logout:', errorMessage)
+      logger.error('Error during logout:', errorMessage)
     }
   }
 

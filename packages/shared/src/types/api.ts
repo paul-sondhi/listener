@@ -238,13 +238,13 @@ export type GetTranscriptionJobResponse = ApiSuccess<{
 
 // Subscription management API types
 export interface CreateSubscriptionRequest {
-  podcast_url: string
+  rss_url: string  // Changed from podcast_url to rss_url to match new schema
   status?: 'active' | 'inactive'
 }
 
 export type CreateSubscriptionResponse = ApiSuccess<{
   id: string
-  podcast_url: string
+  rss_url: string  // Changed from podcast_url to rss_url to match new schema
   status: string
   created_at: string
 }>;
@@ -269,7 +269,7 @@ export interface ListSubscriptionsRequest {
 export type ListSubscriptionsResponse = ApiSuccess<{
   subscriptions: Array<{
     id: string
-    podcast_url: string
+    rss_url: string  // Changed from podcast_url to rss_url to match new schema
     status: string
     created_at: string
     updated_at: string

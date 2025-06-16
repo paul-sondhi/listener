@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:quiet": "vitest run --reporter=basic --silent",
+    "test:summary": "vitest run --reporter=summary",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:coverage:watch": "vitest --coverage",

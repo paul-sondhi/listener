@@ -11,11 +11,11 @@ import { vi } from 'vitest'
 
 // Global test utilities and mocks
 declare global {
-  interface ViJestAssertion<_T = any> {
+  interface ViJestAssertion<_T = unknown> {
     toBeInTheDocument(): void
     toHaveAttribute(attr: string, value?: string): void
     toHaveClass(className: string): void
-    toHaveStyle(style: string | Record<string, any>): void
+    toHaveStyle(style: string | Record<string, unknown>): void
     toHaveTextContent(content: string | RegExp): void
     toBeVisible(): void
     toBeDisabled(): void
@@ -83,6 +83,22 @@ vi.mock('import.meta', () => ({
     VITE_API_BASE_URL: 'http://localhost:3000',
     VITE_BASE_URL: 'http://localhost:5173',
   },
+}))
+
+// Mock the logger to use plain console methods without formatting for tests
+vi.mock('./src/lib/logger', () => ({
+  logger: {
+    debug: (...args: unknown[]) => console.log(...args),
+    info: (...args: unknown[]) => console.log(...args),
+    warn: (...args: unknown[]) => console.warn(...args),
+    error: (...args: unknown[]) => console.error(...args),
+  },
+  createLogger: () => ({
+    debug: (...args: unknown[]) => console.log(...args),
+    info: (...args: unknown[]) => console.log(...args),
+    warn: (...args: unknown[]) => console.warn(...args),
+    error: (...args: unknown[]) => console.error(...args),
+  }),
 }))
 
 // Console warning/error filtering for cleaner test output

@@ -24,8 +24,20 @@ let mockIn = vi.fn();
 // This function returns an object with the table operation methods
 // The implementation will be set up in beforeEach
 let mockSupabaseFrom = vi.fn().mockImplementation((tableName) => {
-  if (tableName === 'podcast_subscriptions') {
-    // Always return a fresh object with current mock functions
+  if (tableName === 'podcast_shows') {
+    // Mock for podcast_shows table
+    return {
+      upsert: vi.fn().mockReturnValue({
+        select: vi.fn().mockResolvedValue({
+          data: [{ id: 'show-uuid-123' }],
+          error: null
+        })
+      })
+    };
+  }
+  
+  if (tableName === 'user_podcast_subscriptions') {
+    // Mock for user_podcast_subscriptions table
     return {
       // Direct upsert call
       upsert: mockUpsert,
@@ -39,7 +51,8 @@ let mockSupabaseFrom = vi.fn().mockImplementation((tableName) => {
       })
     };
   }
-  // Fallback for any other table
+  
+  // Fallback for any other table (includes old podcast_subscriptions for backward compatibility)
   return {
     upsert: vi.fn().mockResolvedValue({ error: null }),
     select: vi.fn().mockReturnValue({
@@ -112,12 +125,44 @@ describe('POST /sync-spotify-shows', () => {
     mockEq = vi.fn();
     mockIn = vi.fn();
     
-    // Re-establish the complete mock chain structure
-    mockSupabaseFrom = vi.fn(() => ({
-      upsert: mockUpsert,
-      select: mockSelect,
-      update: mockUpdate,
-    }));
+    // Re-establish the complete mock chain structure with correct table handling
+    let showCounter = 1; // Reset counter for each test
+    mockSupabaseFrom = vi.fn().mockImplementation((tableName) => {
+      if (tableName === 'podcast_shows') {
+        // Mock for podcast_shows table - returns unique show IDs after upsert
+        return {
+          upsert: vi.fn().mockReturnValue({
+            select: vi.fn().mockImplementation(() => {
+              const showId = `show-uuid-${showCounter++}`;
+              return Promise.resolve({
+                data: [{ id: showId }],
+                error: null
+              });
+            })
+          })
+        };
+      }
+      
+      if (tableName === 'user_podcast_subscriptions') {
+        // Mock for user_podcast_subscriptions table
+        return {
+          upsert: mockUpsert,
+          select: mockSelect,
+          update: mockUpdate,
+        };
+      }
+      
+      // Fallback for any other table
+      return {
+        upsert: vi.fn().mockResolvedValue({ error: null }),
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: [], error: null })
+        }),
+        update: vi.fn().mockReturnValue({
+          in: vi.fn().mockResolvedValue({ error: null })
+        })
+      };
+    });
     
     mockSelect.mockReturnValue({
       eq: mockEq,
@@ -241,12 +286,15 @@ describe('POST /sync-spotify-shows', () => {
     mockFetch.mockResolvedValue({ ok: true, json: async () => spotifyResponse, headers: new Map() });
     
     // Set up existing subscriptions data (5 existing, 3 from Spotify = 2 should be inactive)
+    // New schema uses show_id (UUID) instead of podcast_url
+    // Since our mock will generate show-uuid-1, show-uuid-2, show-uuid-3 for the 3 new shows,
+    // we need existing subscriptions that include some that match and some that don't
     const existingSubscriptions = [
-      { id: 'subid_old1', podcast_url: 'https://open.spotify.com/show/show_old_1' },
-      { id: 'subid_old2', podcast_url: 'https://open.spotify.com/show/show_old_2' },
-      { id: 'subid1', podcast_url: 'https://open.spotify.com/show/show1' },
-      { id: 'subid2', podcast_url: 'https://open.spotify.com/show/show2' },
-      { id: 'subid3', podcast_url: 'https://open.spotify.com/show/show3' }
+      { id: 'subid_old1', show_id: 'old-show-uuid-1' },  // Will be marked inactive (not in new shows)
+      { id: 'subid_old2', show_id: 'old-show-uuid-2' },  // Will be marked inactive (not in new shows)
+      { id: 'subid1', show_id: 'show-uuid-1' },          // Will remain active (matches first new show)
+      { id: 'subid2', show_id: 'show-uuid-2' },          // Will remain active (matches second new show)
+      { id: 'subid3', show_id: 'show-uuid-3' }           // Will remain active (matches third new show)
     ];
     
     // Ensure all operations succeed
@@ -371,7 +419,7 @@ describe('POST /sync-spotify-shows', () => {
       .post('/sync-spotify-shows')
       .set('Cookie', `sb-access-token=${mockSupabaseToken}`);
     expect(response.status).toBe(500); 
-    expect(response.body.error).toMatch(/Error saving shows to database: Upsert failed/i);
+    expect(response.body.error).toMatch(/Error saving subscription to database: DB upsert error/i);
   });
 
   it('should handle errors during Supabase select for existing subscriptions', async () => {

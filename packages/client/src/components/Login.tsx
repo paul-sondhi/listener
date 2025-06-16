@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { logger } from '../lib/logger'
 
 /**
  * Login component that handles Spotify OAuth authentication
@@ -44,12 +45,12 @@ export default function Login(): React.JSX.Element {
       })
 
       if (error) {
-        console.error('Login error:', error)
+        logger.error('Login error:', error)
         setError('Error during login. Please try again.')
       }
     } catch (error: unknown) {
       const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
-      console.error('Error during login:', errorMessage)
+      logger.error('Error during login:', errorMessage)
       setError('An unexpected error occurred during login. Please try again.')
     } finally {
       setIsLoading(false)

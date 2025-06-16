@@ -298,6 +298,7 @@ async function fetchUserSpotifySubscriptionsWithRateLimit(spotifyAccessToken: st
 /**
  * Update database subscription status for a user based on current Spotify subscriptions
  * Handles both activating current subscriptions and deactivating removed ones
+ * Uses the new two-table schema: podcast_shows + user_podcast_subscriptions
  * @param {string} userId - The user's UUID
  * @param {string[]} currentPodcastUrls - Array of current Spotify podcast URLs
  * @returns {Promise<{active_count: number, inactive_count: number}>} Count of subscriptions updated
@@ -308,33 +309,75 @@ async function updateSubscriptionStatus(
     currentPodcastUrls: string[]
 ): Promise<{ active_count: number; inactive_count: number }> {
     const now: string = new Date().toISOString();
+    const showIds: string[] = [];
     
-    // Upsert/activate every current subscription.
+    // First, upsert shows into podcast_shows table and collect their IDs
     for (const podcastUrl of currentPodcastUrls) {
-        const upsertResult: any = await safeAwait(
-            getSupabaseAdmin()
-                .from('podcast_subscriptions')
-                .upsert([
-                    {
-                        user_id: userId,
-                        podcast_url: podcastUrl,
-                        status: 'active',
-                        updated_at: now
-                    }
-                ], { onConflict: 'user_id,podcast_url' })
-        );
+        const showId = podcastUrl.split('/').pop(); // Extract Spotify show ID from URL
+        const rssUrl = podcastUrl; // Using Spotify URL as identifier for now
+        
+        try {
+            // Upsert the show into podcast_shows table
+            const showUpsertResult = await safeAwait(
+                getSupabaseAdmin()
+                    .from('podcast_shows')
+                    .upsert([
+                        {
+                            rss_url: rssUrl,
+                            title: `Show ${showId}`, // Placeholder title - in production you'd fetch this from Spotify
+                            description: null,
+                            image_url: null,
+                            last_updated: now
+                        }
+                    ], { 
+                        onConflict: 'rss_url',
+                        ignoreDuplicates: false 
+                    })
+                    .select('id')
+            );
 
-        if (upsertResult?.error) {
-            console.error(`[SubscriptionRefresh] Error upserting podcast subscription for user ${userId}:`, upsertResult.error.message);
-            throw new Error(`Database upsert failed: ${upsertResult.error.message}`);
+            if (showUpsertResult?.error) {
+                console.error(`[SubscriptionRefresh] Error upserting podcast show for user ${userId}:`, showUpsertResult.error.message);
+                throw new Error(`Database show upsert failed: ${showUpsertResult.error.message}`);
+            }
+
+            // Get the show ID for the subscription
+            const actualShowId = showUpsertResult?.data?.[0]?.id;
+            if (!actualShowId) {
+                throw new Error('Failed to get show ID after upsert');
+            }
+            showIds.push(actualShowId);
+
+            // Now upsert the subscription into user_podcast_subscriptions table
+            const subscriptionUpsertResult = await safeAwait(
+                getSupabaseAdmin()
+                    .from('user_podcast_subscriptions')
+                    .upsert([
+                        {
+                            user_id: userId,
+                            show_id: actualShowId,
+                            status: 'active',
+                            updated_at: now
+                        }
+                    ], { onConflict: 'user_id,show_id' })
+            );
+
+            if (subscriptionUpsertResult?.error) {
+                console.error(`[SubscriptionRefresh] Error upserting podcast subscription for user ${userId}:`, subscriptionUpsertResult.error.message);
+                throw new Error(`Database subscription upsert failed: ${subscriptionUpsertResult.error.message}`);
+            }
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error(`[SubscriptionRefresh] Error processing show ${podcastUrl} for user ${userId}:`, err.message);
+            throw err;
         }
     }
     
     // Find subscriptions that need to be marked inactive
     const { data: allSubs, error: allSubsError } = await safeAwait(
         getSupabaseAdmin()
-            .from('podcast_subscriptions')
-            .select('id,podcast_url')
+            .from('user_podcast_subscriptions')
+            .select('id,show_id')
             .eq('user_id', userId)
     );
         
@@ -343,8 +386,8 @@ async function updateSubscriptionStatus(
         throw new Error(`Failed to fetch existing subscriptions: ${allSubsError.message}`);
     }
     
-    // Filter out subscriptions that are no longer current
-    const subsToInactivate = (allSubs || []).filter((s: any) => !currentPodcastUrls.includes(s.podcast_url));
+    // Filter out subscriptions that are no longer current (show_id not in showIds)
+    const subsToInactivate = (allSubs || []).filter((s: any) => !showIds.includes(s.show_id));
     const inactiveIds: string[] = subsToInactivate.map((s: any) => s.id);
     
     let inactiveCount: number = 0;
@@ -353,7 +396,7 @@ async function updateSubscriptionStatus(
         
         const updateResult: any = await safeAwait(
             getSupabaseAdmin()
-                .from('podcast_subscriptions')
+                .from('user_podcast_subscriptions')
                 .update({ status: 'inactive', updated_at: now })
                 .in('id', inactiveIds)
         );
@@ -366,7 +409,7 @@ async function updateSubscriptionStatus(
     }
     
     return {
-        active_count: currentPodcastUrls.length,
+        active_count: showIds.length,
         inactive_count: inactiveCount
     };
 }
@@ -412,14 +455,16 @@ export async function refreshUserSubscriptions(userId: string, jobId?: string): 
                 });
             } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
                 authErrorCategory = 'timeout';
-                log.error('spotify_api', `Network/timeout error during token refresh for user ${userId}`, {
+                const err = new Error(errorMessage);
+                log.error('spotify_api', `Network/timeout error during token refresh for user ${userId}`, err, {
                     user_id: userId,
                     error: errorMessage,
                     duration_ms: tokenDuration
                 });
             } else {
                 authErrorCategory = 'unknown';
-                log.error('auth', `Unknown token error for user ${userId}`, {
+                const err = new Error(errorMessage);
+                log.error('auth', `Unknown token error for user ${userId}`, err, {
                     user_id: userId,
                     error: errorMessage,
                     duration_ms: tokenDuration
@@ -485,7 +530,7 @@ export async function refreshUserSubscriptions(userId: string, jobId?: string): 
                 });
             } else if (err.message.includes('timeout') || err.message.includes('network') || err.message.includes('ENOTFOUND')) {
                 apiErrorCategory = 'timeout';
-                log.error('spotify_api', `Network/timeout error during API call for user ${userId}`, {
+                log.error('spotify_api', `Network/timeout error during API call for user ${userId}`, err, {
                     user_id: userId,
                     error: err.message,
                     duration_ms: apiDuration,
@@ -493,7 +538,7 @@ export async function refreshUserSubscriptions(userId: string, jobId?: string): 
                 });
             } else if (err.message.includes('500') || err.message.includes('502') || err.message.includes('503')) {
                 apiErrorCategory = 'api_error';
-                log.error('spotify_api', `Spotify server error for user ${userId}`, {
+                log.error('spotify_api', `Spotify server error for user ${userId}`, err, {
                     user_id: userId,
                     error: err.message,
                     duration_ms: apiDuration,
@@ -501,7 +546,7 @@ export async function refreshUserSubscriptions(userId: string, jobId?: string): 
                 });
             } else {
                 apiErrorCategory = 'unknown';
-                log.error('spotify_api', `Unknown Spotify API error for user ${userId}`, {
+                log.error('spotify_api', `Unknown Spotify API error for user ${userId}`, err, {
                     user_id: userId,
                     error: err.message,
                     duration_ms: apiDuration,
@@ -558,7 +603,7 @@ export async function refreshUserSubscriptions(userId: string, jobId?: string): 
             
             if (err.message.includes('timeout') || err.message.includes('connection')) {
                 dbErrorCategory = 'timeout';
-                log.error('database', `Database timeout for user ${userId}`, {
+                log.error('database', `Database timeout for user ${userId}`, err, {
                     user_id: userId,
                     error: err.message,
                     duration_ms: dbDuration,
@@ -566,7 +611,7 @@ export async function refreshUserSubscriptions(userId: string, jobId?: string): 
                 });
             } else if (err.message.includes('constraint') || err.message.includes('foreign key')) {
                 dbErrorCategory = 'database_error';
-                log.error('database', `Database constraint error for user ${userId}`, {
+                log.error('database', `Database constraint error for user ${userId}`, err, {
                     user_id: userId,
                     error: err.message,
                     duration_ms: dbDuration,
@@ -574,7 +619,7 @@ export async function refreshUserSubscriptions(userId: string, jobId?: string): 
                 });
             } else {
                 dbErrorCategory = 'unknown';
-                log.error('database', `Unknown database error for user ${userId}`, {
+                log.error('database', `Unknown database error for user ${userId}`, err, {
                     user_id: userId,
                     error: err.message,
                     duration_ms: dbDuration,

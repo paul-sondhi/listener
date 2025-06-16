@@ -199,11 +199,24 @@ function setupTestDataGenerators() {
     return {
       id: `test-sub-${counter}-${Date.now()}`,
       user_id: userId,
-      podcast_url: `https://open.spotify.com/show/test-show-${counter}`,
+      show_id: `test-show-id-${counter}`, // New schema uses show_id instead of podcast_url
       status: 'active',
-      podcast_title: `Test Podcast ${counter}`,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      ...overrides
+    };
+  };
+
+  // Generator for test shows (new schema)
+  (global as any).generateUniqueTestShow = (overrides: any = {}) => {
+    const counter = ++(global as any).testDataCounters.shows;
+    return {
+      id: `test-show-${counter}-${Date.now()}`,
+      rss_url: `https://open.spotify.com/show/test-show-${counter}`,
+      title: `Test Podcast ${counter}`,
+      description: `Test description for podcast ${counter}`,
+      image_url: null,
+      last_updated: new Date().toISOString(),
       ...overrides
     };
   };
@@ -353,7 +366,7 @@ async function cleanupTestDatabase() {
     if (supabase) {
       // Clean up test users and subscriptions with test prefixes
       await supabase
-        .from('podcast_subscriptions')
+                    .from('user_podcast_subscriptions')
         .delete()
         .like('user_id', 'test-%');
       

@@ -21,6 +21,8 @@
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run",
+    "test:quiet": "vitest run --reporter=basic --silent",
+    "test:summary": "vitest run --reporter=summary", 
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },

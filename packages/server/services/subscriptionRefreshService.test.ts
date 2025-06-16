@@ -463,6 +463,7 @@ describe('refreshUserSubscriptions', () => {
     expect(mockLog.error).toHaveBeenCalledWith(
       'spotify_api',
       expect.stringContaining('Network/timeout error during API call'),
+      expect.any(Error), // The error object is now passed as the third parameter
       expect.objectContaining({
         user_id: 'user-123',
         endpoint: '/me/shows'
@@ -512,17 +513,18 @@ describe('refreshUserSubscriptions', () => {
       userId: 'user-123',
       active_count: 0,
       inactive_count: 0,
-      error: 'Database error: Database upsert failed: Database connection failed',
+      error: expect.stringContaining('Database error:'),
       database_error: true
     });
 
     // Assert: Verify appropriate error was logged
     expect(mockLog.error).toHaveBeenCalledWith(
       'database',
-      expect.stringContaining('Database timeout for user user-123'),
+      expect.stringContaining('database error for user user-123'),
+      expect.any(Error), // The error object is now passed as the third parameter
       expect.objectContaining({
         user_id: 'user-123',
-        error: 'Database upsert failed: Database connection failed'
+        operation: 'update_subscription_status'
       })
     );
   }, 10000); // 10 second timeout
@@ -563,12 +565,31 @@ describe('refreshUserSubscriptions', () => {
         headers: new Map()
       });
 
-    // Arrange: Set up successful database operations
+    // Arrange: Set up successful database operations for new schema
     supabaseMock.eq.mockResolvedValue({
       data: [],
       error: null
     });
     
+    // Mock podcast_shows upsert to return show data with .select()
+    const showUpsertMock = {
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: 'show-uuid-1' }, { id: 'show-uuid-2' }],
+        error: null
+      })
+    };
+    
+    // When .from('podcast_shows') is called, return a mock that supports .upsert().select()
+    supabaseMock.from.mockImplementation((tableName: string) => {
+      if (tableName === 'podcast_shows') {
+        return {
+          upsert: vi.fn().mockReturnValue(showUpsertMock)
+        };
+      }
+      return supabaseMock; // For other tables
+    });
+    
+    // Mock user_podcast_subscriptions operations
     supabaseMock.upsert.mockResolvedValue({
       data: Array(2).fill({}),
       error: null

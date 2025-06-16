@@ -73,10 +73,14 @@ export default defineConfig({
     
     // Reporter configuration
     reporters: [
-      'default', // Standard console reporter
-      'json', // JSON output for CI/CD
-      'html' // HTML report for detailed analysis
+      'basic', // Less verbose console reporter (instead of 'default')
+      // Only generate JSON and HTML reports in CI or when explicitly requested
+      ...(process.env.CI ? ['json', 'html'] : [])
     ],
+    
+    // Reduce output noise
+    logHeapUsage: false, // Don't show memory usage
+    passWithNoTests: true, // Don't warn when no tests found
     
     // Coverage configuration
     coverage: {
