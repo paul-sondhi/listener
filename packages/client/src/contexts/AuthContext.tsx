@@ -39,9 +39,11 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     // Prevent multiple simultaneous reauth checks using ref
     if (reauthCheckInProgress.current) {
       logger.debug('Reauth check already in progress, skipping...')
+      console.log('REAUTH_CHECK: Already in progress, skipping');
       return
     }
 
+    console.log('REAUTH_CHECK: Starting reauth status check');
     reauthCheckInProgress.current = true
     setCheckingReauth(true)
     try {
@@ -49,6 +51,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       
       if (sessionError || !session?.user) {
         logger.error('Error getting session:', sessionError)
+        console.log('REAUTH_CHECK: No session or error, setting reauth to false');
         setRequiresReauth(false)
         return
       }
@@ -62,17 +65,21 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       
       if (userError) {
         logger.error('Error checking reauth status:', userError)
+        console.log('REAUTH_CHECK: Database error, setting reauth to false');
         setRequiresReauth(false)
         return
       }
       
+      console.log('REAUTH_CHECK: Database result:', userData?.spotify_reauth_required);
       setRequiresReauth(userData?.spotify_reauth_required === true)
     } catch (error) {
       logger.error('Error checking reauth status:', error)
+      console.log('REAUTH_CHECK: Exception, setting reauth to false');
       setRequiresReauth(false)
     } finally {
       reauthCheckInProgress.current = false
       setCheckingReauth(false)
+      console.log('REAUTH_CHECK: Completed');
     }
   }, []) // Remove checkingReauth dependency to prevent useEffect loop
 
@@ -166,9 +173,17 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     signIn: (credentials: SignInWithOAuthCredentials) => supabase.auth.signInWithOAuth(credentials),
     signOut: async () => {
       console.log('AUTH_CONTEXT: signOut called');
-      const result = await supabase.auth.signOut();
-      console.log('AUTH_CONTEXT: supabase.auth.signOut result:', result);
-      return result;
+      try {
+        const result = await supabase.auth.signOut();
+        console.log('AUTH_CONTEXT: supabase.auth.signOut result:', result);
+        if (result.error) {
+          console.error('AUTH_CONTEXT: signOut error:', result.error);
+        }
+        return result;
+      } catch (error) {
+        console.error('AUTH_CONTEXT: signOut exception:', error);
+        throw error;
+      }
     },
     checkReauthStatus: checkReauthStatus,
     clearReauthFlag: clearReauthFlag,
