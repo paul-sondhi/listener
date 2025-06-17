@@ -151,22 +151,37 @@ async function refreshSpotifyTokens(refreshToken: string): Promise<SpotifyTokens
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
   
-  if (!clientId || !clientSecret) {
-    throw new Error('Missing Spotify client credentials');
+  // Supabase uses PKCE, which does not send client_secret on refresh.
+  const usePkce: boolean = process.env.SPOTIFY_USE_PKCE === 'true';
+
+  if (!clientId) {
+    throw new Error('Missing Spotify client ID');
   }
-  
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  
+
+  if (!usePkce && !clientSecret) {
+    throw new Error('Missing Spotify client secret');
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded'
+  };
+
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken
+  });
+
+  if (usePkce) {
+    body.append('client_id', clientId);
+  } else {
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    headers['Authorization'] = `Basic ${credentials}`;
+  }
+
   const response = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
-    headers: {
-      'Authorization': `Basic ${credentials}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken
-    })
+    headers,
+    body
   });
   
   if (response.status === 429) {
