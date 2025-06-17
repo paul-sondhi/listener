@@ -188,7 +188,13 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: '2.23.4'  # Lock to match local CLI version to avoid version mismatches
+
+      - name: Install PostgreSQL client
+        run: |
+          echo "📦 Installing PostgreSQL client for connectivity testing..."
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
       - name: Link Supabase production project
         env:
@@ -203,14 +209,74 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
+          # Step 1: Add strict shell settings to catch failures
+          set -euo pipefail
+          
           echo "🔍 Checking if there are new migrations to deploy..."
+          
+          # Step 2: Check CLI version and confirm it's working
+          echo "📋 CLI version and environment check:"
+          echo "CLI version: $(supabase --version)"
+          echo "Working directory: $(pwd)"
+          echo "Migration files present:"
+          ls -la supabase/migrations/ | head -5
+          
+          # Step 3: Verify secrets are available (show masked lengths)
+          echo "🔐 Secret validation:"
+          PROJECT_REF="${{ secrets.SUPABASE_PROJECT_REF }}"
+          DB_PASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}"
+          ACCESS_TOKEN="${{ secrets.SUPABASE_ACCESS_TOKEN }}"
+          
+          echo "SUPABASE_PROJECT_REF length: ${#PROJECT_REF}"
+          echo "SUPABASE_DB_PASSWORD length: ${#DB_PASSWORD}"
+          echo "SUPABASE_ACCESS_TOKEN length: ${#ACCESS_TOKEN}"
+          
+          # Validate required secrets exist
+          if [ -z "$PROJECT_REF" ]; then
+            echo "❌ SUPABASE_PROJECT_REF is missing"
+            exit 1
+          fi
+          if [ -z "$DB_PASSWORD" ]; then
+            echo "❌ SUPABASE_DB_PASSWORD is missing"
+            exit 1
+          fi
+          
+          # Step 4: Test network connectivity with psql first
+          echo "🌐 Testing database connectivity with psql..."
+          DB_URL="postgresql://postgres:${{ secrets.SUPABASE_DB_PASSWORD }}@db.${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co:5432/postgres"
+          
+          # Test basic connection
+          PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}" \
+          psql "postgresql://postgres@db.${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co:5432/postgres" \
+                -c 'SELECT 1 as connection_test;' | cat || {
+            echo "❌ Direct psql connection failed - network or auth issue"
+            exit 1
+          }
+          echo "✅ Database connection successful"
+          
+          # Step 6: Test both migration list approaches with debug output
+          echo "🔍 Testing migration list commands..."
+          
+          # Test A: Using linked project (if link worked)
+          echo "Method A - Using linked project:"
+          SUPABASE_DEBUG=1 supabase --debug migration list 2>&1 || {
+            echo "⚠️ Linked project method failed (exit code: $?)"
+          }
+          
+          # Test B: Using direct DB URL with full debug output
+          echo "Method B - Using direct DB URL:"
+          SUPABASE_DEBUG=1 supabase --debug migration list --db-url "$DB_URL" 2>&1 || {
+            echo "❌ Direct DB URL method failed (exit code: $?)"
+            echo "This should not fail if psql worked above"
+            exit 1
+          }
           
           # Check staging migrations (if configured)
           STAGING_NEEDS_MIGRATION=false
           if [ -n "${{ env.STAGING_PROJECT_REF }}" ]; then
             echo "Checking staging environment for new migrations..."
             STAGING_OUTPUT=$(supabase migration list --project-ref ${{ env.STAGING_PROJECT_REF }} --password ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }} 2>/dev/null || echo "")
-            if echo "$STAGING_OUTPUT" | grep -q "^[[:space:]]*[0-9]\{14\}[[:space:]]*│[[:space:]]*│"; then
+            if echo "$STAGING_OUTPUT" | grep -q "^[[:space:]]*[0-9]\{14\}[[:space:]]*|[[:space:]]*|"; then
               echo "📋 Found migrations pending for staging"
               STAGING_NEEDS_MIGRATION=true
             else
@@ -220,15 +286,28 @@ jobs:
             echo "⏭️ Staging environment not configured, skipping check"
           fi
           
-          # Build a full DB URL for production and query directly (avoids linking issues)
-          DB_URL="postgresql://postgres:${{ secrets.SUPABASE_DB_PASSWORD }}@db.${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co:5432/postgres"
-          PRODUCTION_OUTPUT=$(supabase migration list --db-url "$DB_URL" 2>/dev/null || echo "")
+          # Build a full DB URL for production and query directly (with better error handling)
+          echo "🔍 Checking production migrations with enhanced debugging..."
+          PRODUCTION_OUTPUT=$(SUPABASE_DEBUG=1 supabase migration list --db-url "$DB_URL" 2>&1) || {
+            echo "❌ Migration list command failed with exit code: $?"
+            echo "Command output was:"
+            echo "$PRODUCTION_OUTPUT"
+            exit 1
+          }
+          
+          echo "📋 Raw migration list output:"
+          echo "$PRODUCTION_OUTPUT"
+          echo "--- End of raw output ---"
+          
           PRODUCTION_NEEDS_MIGRATION=false
-          if echo "$PRODUCTION_OUTPUT" | grep -q "^[[:space:]]*[0-9]\{14\}[[:space:]]*│[[:space:]]*│"; then
+          # Look for migrations with empty Remote column (indicating pending migrations)
+          if echo "$PRODUCTION_OUTPUT" | grep -q "^[[:space:]]*[0-9]\{14\}[[:space:]]*|[[:space:]]*|"; then
             echo "📋 Found migrations pending for production"
+            echo "Pending migrations:"
+            echo "$PRODUCTION_OUTPUT" | grep "^[[:space:]]*[0-9]\{14\}[[:space:]]*|[[:space:]]*|"
             PRODUCTION_NEEDS_MIGRATION=true
           else
-            echo "✅ Production is up to date"
+            echo "✅ Production is up to date (no pending migrations found)"
           fi
           
           # Set outputs for conditional steps
