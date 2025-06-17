@@ -14,8 +14,11 @@ interface ProtectedRouteProps {
 export const ProtectedRoute = ({ children }: ProtectedRouteProps): React.JSX.Element => {
   const { user, loading } = useAuth()
 
+  console.log('PROTECTED_ROUTE:', { user: !!user, loading, userEmail: user?.email });
+
   // Show loading spinner while authentication is being verified
   if (loading) {
+    console.log('PROTECTED_ROUTE: Showing loading spinner');
     return (
       <div className="loading-container">
         <div>Loading...</div>
@@ -25,9 +28,11 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps): React.JSX.Ele
 
   // Redirect to login if user is not authenticated
   if (!user) {
+    console.log('PROTECTED_ROUTE: No user, redirecting to /login');
     return <Navigate to="/login" replace />
   }
 
+  console.log('PROTECTED_ROUTE: User authenticated, rendering children');
   return <>{children}</>
 }
 
