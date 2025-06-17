@@ -200,8 +200,8 @@ jobs:
         run: |
           echo "🔗 Linking production Supabase project..."
           echo "📋 Using explicit credentials to avoid interactive prompts"
-          echo "🔍 Project ref length: ${#SUPABASE_PROJECT_REF:-0}"
-          echo "🔍 Password length: ${#SUPABASE_DB_PASSWORD:-0}"
+          echo "🔍 Project ref length: ${#SUPABASE_PROJECT_REF}"
+          echo "🔍 Password length: ${#SUPABASE_DB_PASSWORD}"
           
           # Test the link with error handling
           supabase link \
