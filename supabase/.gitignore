@@ -1,7 +1,9 @@
 # Supabase
 .branches
 .temp
-migrations/
+# Stop ignoring migrations so SQL files are version-controlled
+!migrations/
+!migrations/**
 
 # dotenvx
 .env.keys
