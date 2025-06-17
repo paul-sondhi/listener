@@ -230,11 +230,15 @@ const AppPage = (): React.JSX.Element => {
    */
   const handleLogout = async (): Promise<void> => {
     try {
+      console.log('LOGOUT: handleLogout called');
       await signOut()
+      console.log('LOGOUT: signOut completed successfully');
       // Reset sync status on logout
       hasSynced.current = false
+      console.log('LOGOUT: hasSynced reset to false');
     } catch (error: unknown) {
       const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
+      console.error('LOGOUT: signOut failed:', errorMessage);
       logger.error('Error during logout:', errorMessage)
     }
   }

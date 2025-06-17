@@ -132,17 +132,20 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     // Listen for changes on auth state (logged in, signed out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session: Session | null) => {
+        console.log('AUTH_STATE_CHANGE:', { event, userEmail: session?.user?.email || null });
         logger.debug('Auth state changed:', event, session?.user?.email)
         setUser(session?.user ?? null)
         setLoading(false)
         
         // Check reauth status when user signs in
         if (session?.user && event === 'SIGNED_IN') {
+          console.log('AUTH_STATE_CHANGE: User signed in, checking reauth status');
           await checkReauthStatus()
         }
         
         // Clear reauth flag when user signs out
         if (event === 'SIGNED_OUT') {
+          console.log('AUTH_STATE_CHANGE: User signed out, clearing reauth flag');
           setRequiresReauth(false)
         }
       }
@@ -161,7 +164,12 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     requiresReauth,
     checkingReauth,
     signIn: (credentials: SignInWithOAuthCredentials) => supabase.auth.signInWithOAuth(credentials),
-    signOut: () => supabase.auth.signOut(),
+    signOut: async () => {
+      console.log('AUTH_CONTEXT: signOut called');
+      const result = await supabase.auth.signOut();
+      console.log('AUTH_CONTEXT: supabase.auth.signOut result:', result);
+      return result;
+    },
     checkReauthStatus: checkReauthStatus,
     clearReauthFlag: clearReauthFlag,
   }
