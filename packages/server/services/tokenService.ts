@@ -178,11 +178,33 @@ async function refreshSpotifyTokens(refreshToken: string): Promise<SpotifyTokens
     headers['Authorization'] = `Basic ${credentials}`;
   }
 
+  // DEBUG LOG ① – Which flow are we using and do we have credentials?
+  if (process.env.NODE_ENV !== 'test') {
+    console.debug('TOKEN_REFRESH_FLOW', {
+      usePkce,
+      clientIdPresent: !!clientId,
+      clientSecretPresent: !!clientSecret
+    });
+  }
+
+  // DEBUG LOG ② – Outgoing request details (sanitised)
+  if (process.env.NODE_ENV !== 'test') {
+    console.debug('TOKEN_REFRESH_REQUEST', {
+      headers: Object.keys(headers),
+      body: body.toString().replace(/refresh_token=[^&]+/, 'refresh_token=****')
+    });
+  }
+
   const response = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers,
     body
   });
+  
+  // DEBUG LOG ③ – Response status code
+  if (process.env.NODE_ENV !== 'test') {
+    console.debug('TOKEN_REFRESH_RESPONSE_STATUS', response.status);
+  }
   
   if (response.status === 429) {
     // Handle rate limiting
@@ -192,8 +214,24 @@ async function refreshSpotifyTokens(refreshToken: string): Promise<SpotifyTokens
   }
   
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string; error_description?: string };
-    throw new Error(`Spotify refresh failed: ${response.status} - ${errorData.error_description || errorData.error}`);
+    const rawErrorText = await response.text();
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('TOKEN_REFRESH_FAILURE', {
+        status: response.status,
+        body: rawErrorText.slice(0, 500)
+      });
+    }
+
+    // Try to parse JSON if possible, otherwise fall back to raw text
+    let parsedError: { error?: string; error_description?: string } = {};
+    try {
+      parsedError = JSON.parse(rawErrorText);
+    } catch (_) {
+      // not JSON – leave parsedError empty
+    }
+
+    const msg = parsedError.error_description || parsedError.error || rawErrorText || 'Unknown error';
+    throw new Error(`Spotify refresh failed: ${response.status} - ${msg}`);
   }
   
   const tokenData = await response.json() as {
