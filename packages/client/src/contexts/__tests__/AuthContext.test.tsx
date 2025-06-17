@@ -127,6 +127,10 @@ describe('AuthContext', () => {
     mockSupabase.auth.signInWithOAuth.mockResolvedValue({ error: null })
     mockSupabase.auth.signOut.mockResolvedValue({ error: null })
 
+    // Add missing properties for the signOut connectivity test
+    mockSupabase.supabaseUrl = 'http://localhost:54321'
+    mockSupabase.supabaseKey = 'test-anon-key'
+
     // Set up default Supabase table mocks with proper chaining
     const mockSingle = vi.fn().mockResolvedValue({
       data: { spotify_reauth_required: false },
@@ -142,6 +146,13 @@ describe('AuthContext', () => {
     mockSupabase.from.mockReturnValue({
       select: mockSelect,
       update: mockUpdate
+    })
+
+    // Mock fetch for the connectivity test in signOut
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
     })
   })
 
@@ -250,6 +261,9 @@ describe('AuthContext', () => {
       error: null 
     })
     
+    // Make sure signOut mock returns a resolved promise
+    mockSupabase.auth.signOut.mockResolvedValue({ error: null })
+    
     render(
       <AuthProvider>
         <TestConsumerComponent />
@@ -264,12 +278,14 @@ describe('AuthContext', () => {
     const signOutButton: HTMLElement = screen.getByText('Sign Out')
 
     // Act
-    act(() => {
+    await act(async () => {
       signOutButton.click()
+      // Wait for the signOut to complete
+      await new Promise(resolve => setTimeout(resolve, 50))
     })
 
-    // Assert
-    expect(mockSupabase.auth.signOut).toHaveBeenCalled()
+    // Assert - Check that signOut was called with the scope parameter as used in the implementation
+    expect(mockSupabase.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
   })
 
   it('should unsubscribe from onAuthStateChange on unmount', async () => {
@@ -725,4 +741,53 @@ describe('AuthContext', () => {
       })
     })
   })
+
+  it('should handle Supabase signOut timeout and clear local session', async () => {
+    // Arrange - Set up initial authenticated state
+    mockSupabase.auth.getSession.mockResolvedValueOnce({ 
+      data: { session: mockSession }, 
+      error: null 
+    });
+    
+    // Mock a hanging signOut call that never resolves
+    const hangingPromise = new Promise(() => {
+      // This promise never resolves, simulating a hanging network call
+    });
+    mockSupabase.auth.signOut.mockReturnValue(hangingPromise);
+    
+    render(
+      <AuthProvider>
+        <TestConsumerComponent />
+      </AuthProvider>
+    )
+    
+    // Wait for initialization with authenticated user
+    await waitFor(() => {
+      const userElement: HTMLElement = screen.getByTestId('user')
+      expect(userElement.textContent).toBe(mockUser.email)
+    })
+
+    const signOutButton: HTMLElement = screen.getByText('Sign Out')
+
+    // Act - Click sign out and wait for timeout
+    const startTime = Date.now();
+    act(() => {
+      signOutButton.click()
+    })
+
+    // Assert - Should timeout after 5 seconds and clear local session
+    await waitFor(() => {
+      const userElement: HTMLElement = screen.getByTestId('user')
+      expect(userElement.textContent).toBe('No user')
+    }, { timeout: 6000 }) // Wait up to 6 seconds for timeout to complete
+
+    const duration = Date.now() - startTime;
+    
+    // Verify timeout occurred around 5 seconds
+    expect(duration).toBeGreaterThanOrEqual(4900); // Allow some timing variance
+    expect(duration).toBeLessThan(6000);
+    
+    // Verify signOut was called but the local user was still cleared
+    expect(mockSupabase.auth.signOut).toHaveBeenCalled()
+  }, 10000) // Increase test timeout to allow for the 5-second timeout
 }) 

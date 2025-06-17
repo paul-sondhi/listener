@@ -173,22 +173,83 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     signIn: (credentials: SignInWithOAuthCredentials) => supabase.auth.signInWithOAuth(credentials),
     signOut: async () => {
       console.log('AUTH_CONTEXT: signOut called');
+      const startTime = Date.now();
+      
+      // Pre-flight check: Test if we can reach auth endpoints
+      console.log('AUTH_CONTEXT: Testing auth endpoint connectivity...');
+      try {
+        const connectivityTest = fetch(`${supabase.supabaseUrl}/auth/v1/settings`, {
+          method: 'GET',
+          headers: { 'apikey': supabase.supabaseKey }
+        });
+        
+        const connectivityResult = await Promise.race([
+          connectivityTest,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Connectivity test timeout')), 2000))
+        ]);
+        
+        console.log('AUTH_CONTEXT: Auth endpoint reachable');
+      } catch (connectivityError) {
+        console.warn('AUTH_CONTEXT: Auth endpoint connectivity issue:', connectivityError.message);
+      }
+      
       try {
         // Add timeout to prevent hanging
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('SignOut timeout after 5 seconds')), 5000);
         });
         
-        const signOutPromise = supabase.auth.signOut();
+        console.log('AUTH_CONTEXT: Starting supabase.auth.signOut()...');
+        // Try local-only signOut first (faster, more reliable)
+        const signOutPromise = supabase.auth.signOut({ scope: 'local' });
+        
+        // FALLBACK: Full server signOut (if local-only doesn't work)
+        // const signOutPromise = supabase.auth.signOut();
         
         const result = await Promise.race([signOutPromise, timeoutPromise]) as any;
+        const duration = Date.now() - startTime;
+        
         console.log('AUTH_CONTEXT: supabase.auth.signOut result:', result);
+        console.log('AUTH_CONTEXT: signOut completed in', duration, 'ms');
+        
+        // Log success metrics with more context
+        logger.info('Supabase signOut successful', { 
+          duration,
+          resultHasError: !!result.error,
+          userWasAuthenticated: !!user
+        });
+        
         if (result.error) {
           console.error('AUTH_CONTEXT: signOut error:', result.error);
         }
         return result;
       } catch (error) {
+        const duration = Date.now() - startTime;
         console.error('AUTH_CONTEXT: signOut exception:', error);
+        console.log('AUTH_CONTEXT: signOut failed after', duration, 'ms');
+        
+        // Enhanced error categorization
+        const errorType = error instanceof Error && error.message.includes('timeout') ? 'timeout' : 'network_error';
+        const wasTimeout = duration >= 5000;
+        const wasConnectivityIssue = error instanceof Error && error.message.includes('Connectivity test timeout');
+        
+        logger.error('Supabase signOut failed', { 
+          error: error instanceof Error ? error.message : String(error),
+          duration,
+          errorType,
+          wasTimeout,
+          wasConnectivityIssue,
+          userWasAuthenticated: !!user,
+          supabaseUrl: supabase.supabaseUrl
+        });
+        
+        // Detailed diagnostic info
+        if (wasTimeout) {
+          console.log('🚨 AUTH_CONTEXT: DIAGNOSIS - SignOut hung for 5+ seconds');
+          console.log('   This indicates Supabase Auth service issues, not general network problems');
+          console.log('   Specific issue: supabase.auth.signOut() call to auth service');
+        }
+        
         // Even if signOut fails/times out, we should clear the local session
         console.log('AUTH_CONTEXT: Forcing local session clear due to error');
         setUser(null);
