@@ -214,23 +214,54 @@ async function refreshSpotifyTokens(refreshToken: string): Promise<SpotifyTokens
   }
   
   if (!response.ok) {
-    const rawErrorText = await response.text();
+    // --- Robust error parsing ---
+    // Some mocked Response objects (e.g. in unit tests) may only implement
+    // either text() or json(), but not both. We therefore try json() first
+    // (because the Spotify API returns JSON on error) and gracefully fall back
+    // to text() if json() is unavailable or fails.
+
+    let parsedBody: Record<string, any> | null = null;
+    let rawBody = '';
+
+    // Attempt to read JSON body if the helper is available
+    if (typeof (response as any).json === 'function') {
+      try {
+        parsedBody = await (response as any).json();
+      } catch {
+        // ignore – we will try text() next
+      }
+    }
+
+    // If JSON parsing failed or not available, try text()
+    if (!parsedBody && typeof (response as any).text === 'function') {
+      try {
+        rawBody = await (response as any).text();
+      } catch {
+        // ignore – we tried our best
+      }
+    }
+
+    // If we only got raw text, attempt JSON.parse on it – in many cases the
+    // Spotify error response is still JSON even if we used text().
+    if (!parsedBody && rawBody) {
+      try {
+        parsedBody = JSON.parse(rawBody);
+      } catch {
+        // not JSON – keep rawBody as plain text
+      }
+    }
+
+    // Derive a human-friendly error message
+    const msg = parsedBody?.error_description || parsedBody?.error || rawBody || 'Unknown error';
+
     if (process.env.NODE_ENV !== 'test') {
       console.error('TOKEN_REFRESH_FAILURE', {
         status: response.status,
-        body: rawErrorText.slice(0, 500)
+        body: typeof rawBody === 'string' ? rawBody.slice(0, 500) : rawBody,
+        parsedBody
       });
     }
 
-    // Try to parse JSON if possible, otherwise fall back to raw text
-    let parsedError: { error?: string; error_description?: string } = {};
-    try {
-      parsedError = JSON.parse(rawErrorText);
-    } catch (_) {
-      // not JSON – leave parsedError empty
-    }
-
-    const msg = parsedError.error_description || parsedError.error || rawErrorText || 'Unknown error';
     throw new Error(`Spotify refresh failed: ${response.status} - ${msg}`);
   }
   
