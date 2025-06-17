@@ -205,7 +205,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
           setTimeout(() => reject(new Error('SignOut timeout after 5 seconds')), 5000);
         });
         
-        const signOutPromise = supabase.auth.signOut();
+        const signOutPromise = supabase.auth.signOut({ scope: 'local' });
         const result = await Promise.race([signOutPromise, timeoutPromise]) as any;
         const duration = Date.now() - startTime;
         
@@ -229,6 +229,13 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         const duration = Date.now() - startTime;
         console.error('AUTH_CONTEXT: Standard signOut failed:', standardError);
         console.log('AUTH_CONTEXT: Step 1 failed after', duration, 'ms');
+        
+        // If this was a timeout error, clear the user immediately for better UX
+        const wasTimeout = duration >= 4900; // Allow some variance
+        if (wasTimeout) {
+          console.log('AUTH_CONTEXT: Timeout detected, clearing local session immediately');
+          setUser(null);
+        }
         
         // Step 2: Try global scope signOut (more aggressive)
         try {
