@@ -179,6 +179,27 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       console.log('AUTH_CONTEXT: signOut called');
       const startTime = Date.now();
       
+      // Step 0: Analyze current session state for diagnostics
+      console.log('AUTH_CONTEXT: Analyzing current session state...');
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (session) {
+          console.log('AUTH_CONTEXT: Current session details:');
+          console.log('  - User ID:', session.user.id);
+          console.log('  - Email:', session.user.email);
+          console.log('  - Token type:', session.token_type);
+          console.log('  - Expires at:', new Date(session.expires_at * 1000).toISOString());
+          console.log('  - Refresh token length:', session.refresh_token?.length || 0);
+          console.log('  - Access token length:', session.access_token?.length || 0);
+          console.log('  - Provider token present:', !!session.provider_token);
+          console.log('  - Provider refresh token present:', !!session.provider_refresh_token);
+        } else {
+          console.log('AUTH_CONTEXT: No session found');
+        }
+      } catch (sessionAnalysisError) {
+        console.error('AUTH_CONTEXT: Session analysis failed:', sessionAnalysisError);
+      }
+      
       // Pre-flight check: Test if we can reach auth endpoints
       console.log('AUTH_CONTEXT: Testing auth endpoint connectivity...');
       try {
@@ -198,77 +219,58 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         console.warn('AUTH_CONTEXT: Auth endpoint connectivity issue:', errorMessage);
       }
       
-      // Step 1: Try standard signOut
+      // IMMEDIATE FALLBACK: If session exists, clear it locally first for UX
+      const hasUser = !!user;
+      if (hasUser) {
+        console.log('AUTH_CONTEXT: Pre-emptively clearing user for immediate logout UX');
+        setUser(null);
+      }
+      
+      // Step 1: Try manual local cleanup (bypass Supabase entirely)
       try {
-        console.log('AUTH_CONTEXT: Step 1 - Attempting standard signOut...');
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('SignOut timeout after 5 seconds')), 5000);
+        console.log('AUTH_CONTEXT: Step 1 - Manual local cleanup...');
+        
+        // Clear all Supabase-related storage manually
+        const localStorageKeys = Object.keys(localStorage);
+        const sessionStorageKeys = Object.keys(sessionStorage);
+        
+        // Remove Supabase auth data from localStorage
+        localStorageKeys.forEach(key => {
+          if (key.includes('supabase') || key.includes('sb-')) {
+            localStorage.removeItem(key);
+            console.log('AUTH_CONTEXT: Removed localStorage:', key);
+          }
         });
         
-        const signOutPromise = supabase.auth.signOut({ scope: 'local' });
-        const result = await Promise.race([signOutPromise, timeoutPromise]) as any;
-        const duration = Date.now() - startTime;
-        
-        console.log('AUTH_CONTEXT: Standard signOut succeeded in', duration, 'ms');
-        console.log('AUTH_CONTEXT: signOut result:', result);
-        
-        // Log success metrics with more context
-        logger.info('Supabase signOut successful', { 
-          duration,
-          resultHasError: !!result.error,
-          userWasAuthenticated: !!user,
-          method: 'standard'
+        // Remove Supabase auth data from sessionStorage
+        sessionStorageKeys.forEach(key => {
+          if (key.includes('supabase') || key.includes('sb-')) {
+            sessionStorage.removeItem(key);
+            console.log('AUTH_CONTEXT: Removed sessionStorage:', key);
+          }
         });
         
-        if (result.error) {
-          console.error('AUTH_CONTEXT: signOut error:', result.error);
-        }
-        return result;
+        // Clear cookies manually
+        document.cookie.split(";").forEach(cookie => {
+          const eqPos = cookie.indexOf("=");
+          const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+          if (name.startsWith('sb-')) {
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+            console.log('AUTH_CONTEXT: Cleared cookie:', name);
+          }
+        });
         
-      } catch (standardError) {
-        const duration = Date.now() - startTime;
-        console.error('AUTH_CONTEXT: Standard signOut failed:', standardError);
-        console.log('AUTH_CONTEXT: Step 1 failed after', duration, 'ms');
+        console.log('AUTH_CONTEXT: Manual local cleanup completed');
         
-        // If this was a timeout error, clear the user immediately for better UX
-        const wasTimeout = duration >= 4900; // Allow some variance
-        if (wasTimeout) {
-          console.log('AUTH_CONTEXT: Timeout detected, clearing local session immediately');
-          setUser(null);
-        }
-        
-        // Step 2: Try global scope signOut (more aggressive)
-        try {
-          console.log('AUTH_CONTEXT: Step 2 - Attempting global scope signOut...');
-          const globalTimeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Global signOut timeout after 3 seconds')), 3000);
-          });
-          
-          const globalSignOutPromise = supabase.auth.signOut({ scope: 'global' });
-          const globalResult = await Promise.race([globalSignOutPromise, globalTimeoutPromise]) as any;
-          
-          console.log('AUTH_CONTEXT: Global signOut succeeded');
-          logger.info('Supabase signOut successful', { 
-            duration: Date.now() - startTime,
-            method: 'global_fallback',
-            userWasAuthenticated: !!user
-          });
-          
-          return globalResult;
-          
-        } catch (globalError) {
-          console.error('AUTH_CONTEXT: Global signOut also failed:', globalError);
-          
-          // Step 3: Manual token invalidation as last resort
+        // Try to invalidate tokens on server side in background (don't wait for it)
+        const backgroundInvalidation = async () => {
           try {
-            console.log('AUTH_CONTEXT: Step 3 - Manual session invalidation...');
-            
-            // Get current session to extract tokens
+            console.log('AUTH_CONTEXT: Background token invalidation...');
             const { data: { session } } = await supabase.auth.getSession();
             
             if (session?.access_token) {
-              // Try to manually invalidate via direct API call
-              const invalidateResponse = await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+              const response = await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${session.access_token}`,
@@ -278,63 +280,43 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
                 body: JSON.stringify({ scope: 'global' })
               });
               
-              console.log('AUTH_CONTEXT: Manual invalidation response:', invalidateResponse.status);
-              
-              if (invalidateResponse.ok || invalidateResponse.status === 401) {
-                console.log('AUTH_CONTEXT: Manual invalidation succeeded');
-              }
+              console.log('AUTH_CONTEXT: Background invalidation response:', response.status);
             }
-            
-          } catch (manualError) {
-            console.error('AUTH_CONTEXT: Manual invalidation failed:', manualError);
+          } catch (bgError) {
+            console.log('AUTH_CONTEXT: Background invalidation failed (non-critical):', bgError.message);
           }
-          
-          // Final step: Clear all local data and log comprehensive error
-          const finalDuration = Date.now() - startTime;
-          const wasTimeout = finalDuration >= 5000;
-          
-          logger.error('Supabase signOut completely failed', { 
-            standardError: standardError instanceof Error ? standardError.message : String(standardError),
-            globalError: globalError instanceof Error ? globalError.message : String(globalError),
-            duration: finalDuration,
-            errorType: wasTimeout ? 'timeout' : 'network_error',
-            wasTimeout,
-            userWasAuthenticated: !!user,
-            supabaseUrl: SUPABASE_URL
-          });
-          
-          // Detailed diagnostic info
-          console.log('🚨 AUTH_CONTEXT: COMPREHENSIVE SIGNOUT FAILURE');
-          console.log('   All signOut methods failed - this indicates serious Supabase Auth issues');
-          console.log('   Standard signOut: FAILED');
-          console.log('   Global scope signOut: FAILED'); 
-          console.log('   Manual token invalidation: ATTEMPTED');
-          console.log('   Forcing local session clear as final fallback');
-          
-          // Force local session clear
-          setUser(null);
-          
-          // Also clear any browser storage manually
-          try {
-            localStorage.removeItem('supabase.auth.token');
-            sessionStorage.removeItem('supabase.auth.token');
-            
-            // Clear cookies by setting them to expire
-            document.cookie.split(";").forEach(cookie => {
-              const eqPos = cookie.indexOf("=");
-              const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-              if (name.startsWith('sb-')) {
-                document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-              }
-            });
-            
-            console.log('AUTH_CONTEXT: Cleared local storage and cookies');
-          } catch (clearError) {
-            console.error('AUTH_CONTEXT: Error clearing local data:', clearError);
-          }
-          
-          return { error: null };
-        }
+        };
+        
+        // Start background invalidation but don't wait for it
+        backgroundInvalidation();
+        
+        const duration = Date.now() - startTime;
+        console.log('AUTH_CONTEXT: Logout completed via manual cleanup in', duration, 'ms');
+        
+        logger.info('Manual logout successful', { 
+          duration,
+          method: 'manual_cleanup',
+          userWasAuthenticated: hasUser
+        });
+        
+        return { error: null };
+        
+      } catch (manualError) {
+        console.error('AUTH_CONTEXT: Manual cleanup failed:', manualError);
+        
+        // Final fallback: just ensure user is cleared
+        setUser(null);
+        
+        const finalDuration = Date.now() - startTime;
+        logger.error('Logout failed but user cleared', { 
+          error: manualError instanceof Error ? manualError.message : String(manualError),
+          duration: finalDuration,
+          method: 'final_fallback',
+          userWasAuthenticated: hasUser
+        });
+        
+        console.log('AUTH_CONTEXT: Final fallback - user cleared locally');
+        return { error: null };
       }
     },
     checkReauthStatus: checkReauthStatus,
