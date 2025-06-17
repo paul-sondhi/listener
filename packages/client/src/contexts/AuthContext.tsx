@@ -4,6 +4,10 @@ import type { SignInWithOAuthCredentials } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
 import { logger } from '../lib/logger'
 
+// Get environment variables for direct access
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+
 // Interface for the authentication context value
 interface AuthContextType {
   user: User | null
@@ -178,19 +182,20 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       // Pre-flight check: Test if we can reach auth endpoints
       console.log('AUTH_CONTEXT: Testing auth endpoint connectivity...');
       try {
-        const connectivityTest = fetch(`${supabase.supabaseUrl}/auth/v1/settings`, {
+        const connectivityTest = fetch(`${SUPABASE_URL}/auth/v1/settings`, {
           method: 'GET',
-          headers: { 'apikey': supabase.supabaseKey }
+          headers: { 'apikey': SUPABASE_ANON_KEY }
         });
         
-        const connectivityResult = await Promise.race([
+        await Promise.race([
           connectivityTest,
           new Promise((_, reject) => setTimeout(() => reject(new Error('Connectivity test timeout')), 2000))
         ]);
         
         console.log('AUTH_CONTEXT: Auth endpoint reachable');
       } catch (connectivityError) {
-        console.warn('AUTH_CONTEXT: Auth endpoint connectivity issue:', connectivityError.message);
+        const errorMessage = connectivityError instanceof Error ? connectivityError.message : 'Unknown connectivity error';
+        console.warn('AUTH_CONTEXT: Auth endpoint connectivity issue:', errorMessage);
       }
       
       try {
@@ -240,7 +245,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
           wasTimeout,
           wasConnectivityIssue,
           userWasAuthenticated: !!user,
-          supabaseUrl: supabase.supabaseUrl
+          supabaseUrl: SUPABASE_URL
         });
         
         // Detailed diagnostic info

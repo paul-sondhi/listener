@@ -1015,41 +1015,66 @@ router3.post("/", async (req, res) => {
           console.log("Supabase client type:", typeof supabaseClient);
           console.log("Supabase client from method exists:", !!supabaseClient.from);
           if (supabaseClient.from) {
-            const fromResult = supabaseClient.from("podcast_subscriptions");
-            console.log("From result exists:", !!fromResult);
-            console.log("From result type:", typeof fromResult);
-            if (fromResult) {
-              console.log("Upsert method exists:", !!fromResult.upsert);
+            const fromShowsResult = supabaseClient.from("podcast_shows");
+            const fromSubsResult = supabaseClient.from("user_podcast_subscriptions");
+            console.log("podcast_shows table access exists:", !!fromShowsResult);
+            console.log("user_podcast_subscriptions table access exists:", !!fromSubsResult);
+            if (fromShowsResult && fromSubsResult) {
+              console.log("Upsert method exists on shows table:", !!fromShowsResult.upsert);
+              console.log("Upsert method exists on subscriptions table:", !!fromSubsResult.upsert);
             }
           }
         }
       }
       const now = (/* @__PURE__ */ new Date()).toISOString();
-      const podcastUrls = [];
+      const showIds = [];
       for (const showObj of shows) {
         const show = showObj.show;
-        const podcastUrl = `https://open.spotify.com/show/${show.id}`;
-        podcastUrls.push(podcastUrl);
+        const spotifyUrl = `https://open.spotify.com/show/${show.id}`;
+        const rssUrl = spotifyUrl;
         try {
-          const upsertRes = await safeAwait(
-            getSupabaseAdmin3().from("podcast_subscriptions").upsert([
+          const showUpsertRes = await safeAwait(
+            getSupabaseAdmin3().from("podcast_shows").upsert([
+              {
+                rss_url: rssUrl,
+                title: show.name || "Unknown Show",
+                description: show.description || null,
+                image_url: show.images?.[0]?.url || null,
+                last_updated: now
+              }
+            ], {
+              onConflict: "rss_url",
+              ignoreDuplicates: false
+            }).select("id")
+          );
+          if (showUpsertRes?.error) {
+            console.error("Error upserting podcast show:", showUpsertRes.error.message);
+            throw new Error(`Error saving show to database: ${showUpsertRes.error.message}`);
+          }
+          const showId = showUpsertRes?.data?.[0]?.id;
+          if (!showId) {
+            throw new Error("Failed to get show ID after upsert");
+          }
+          showIds.push(showId);
+          const subscriptionUpsertRes = await safeAwait(
+            getSupabaseAdmin3().from("user_podcast_subscriptions").upsert([
               {
                 user_id: userId,
-                podcast_url: podcastUrl,
+                show_id: showId,
                 status: "active",
                 updated_at: now
               }
-            ], { onConflict: "user_id,podcast_url" })
+            ], { onConflict: "user_id,show_id" })
           );
-          if (upsertRes?.error) {
-            console.error("Error upserting podcast subscription:", upsertRes.error.message);
-            throw new Error("Error saving shows to database: Upsert failed for one or more shows.");
+          if (subscriptionUpsertRes?.error) {
+            console.error("Error upserting podcast subscription:", subscriptionUpsertRes.error.message);
+            throw new Error(`Error saving subscription to database: ${subscriptionUpsertRes.error.message}`);
           }
         } catch (error2) {
           const err = error2;
           if (err.message.includes("Cannot read properties of undefined")) {
             console.error("Supabase client method undefined - likely mock issue:", err.message);
-            throw new Error("Error saving shows to database: Upsert failed for one or more shows.");
+            throw new Error("Error saving shows to database: Database client not properly initialized.");
           }
           throw err;
         }
@@ -1058,7 +1083,7 @@ router3.post("/", async (req, res) => {
       let allSubs;
       let allSubsError;
       try {
-        const fetchSubsBuilder = getSupabaseAdmin3().from("podcast_subscriptions").select("id,podcast_url").eq("user_id", userId);
+        const fetchSubsBuilder = getSupabaseAdmin3().from("user_podcast_subscriptions").select("id,show_id").eq("user_id", userId);
         subsResult = await safeAwait(fetchSubsBuilder);
         allSubs = subsResult?.data ?? (Array.isArray(subsResult) ? subsResult : void 0);
         allSubsError = subsResult?.error;
@@ -1074,14 +1099,14 @@ router3.post("/", async (req, res) => {
         console.error("Error fetching subscriptions:", allSubsError.message);
         throw new Error("Error saving shows to database: Failed to fetch existing subscriptions.");
       }
-      const subsToInactivate = (allSubs || []).filter((s) => !podcastUrls.includes(s.podcast_url));
+      const subsToInactivate = (allSubs || []).filter((s) => !showIds.includes(s.show_id));
       const inactiveIds = subsToInactivate.map((s) => s.id);
       console.log("Subscriptions to inactivate IDs:", inactiveIds);
       let inactiveCount = 0;
       if (inactiveIds.length > 0) {
         try {
           const updateRes = await safeAwait(
-            getSupabaseAdmin3().from("podcast_subscriptions").update({ status: "inactive", updated_at: now }).in("id", inactiveIds)
+            getSupabaseAdmin3().from("user_podcast_subscriptions").update({ status: "inactive", updated_at: now }).in("id", inactiveIds)
           );
           if (updateRes?.error) {
             console.error("Error marking subscriptions inactive:", updateRes.error.message);
@@ -1099,7 +1124,7 @@ router3.post("/", async (req, res) => {
       }
       const syncResponse = {
         success: true,
-        active_count: podcastUrls.length,
+        active_count: showIds.length,
         inactive_count: inactiveCount || 0
       };
       res.status(200).json(syncResponse);
@@ -1374,29 +1399,82 @@ function setRateLimit(retryAfterSeconds = CONFIG.rate_limit_pause_seconds) {
 async function refreshSpotifyTokens(refreshToken) {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error("Missing Spotify client credentials");
+  const usePkce = process.env.SPOTIFY_USE_PKCE === "true";
+  if (!clientId) {
+    throw new Error("Missing Spotify client ID");
   }
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  if (!usePkce && !clientSecret) {
+    throw new Error("Missing Spotify client secret");
+  }
+  const headers = {
+    "Content-Type": "application/x-www-form-urlencoded"
+  };
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken
+  });
+  if (usePkce) {
+    body.append("client_id", clientId);
+  } else {
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+    headers["Authorization"] = `Basic ${credentials}`;
+  }
+  if (process.env.NODE_ENV !== "test") {
+    console.debug("TOKEN_REFRESH_FLOW", {
+      usePkce,
+      clientIdPresent: !!clientId,
+      clientSecretPresent: !!clientSecret
+    });
+  }
+  if (process.env.NODE_ENV !== "test") {
+    console.debug("TOKEN_REFRESH_REQUEST", {
+      headers: Object.keys(headers),
+      body: body.toString().replace(/refresh_token=[^&]+/, "refresh_token=****")
+    });
+  }
   const response = await fetch("https://accounts.spotify.com/api/token", {
     method: "POST",
-    headers: {
-      "Authorization": `Basic ${credentials}`,
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken
-    })
+    headers,
+    body
   });
+  if (process.env.NODE_ENV !== "test") {
+    console.debug("TOKEN_REFRESH_RESPONSE_STATUS", response.status);
+  }
   if (response.status === 429) {
     const retryAfter = parseInt(response.headers.get("retry-after") || "30");
     setRateLimit(retryAfter);
     throw new Error(`Spotify rate limited: retry after ${retryAfter} seconds`);
   }
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(`Spotify refresh failed: ${response.status} - ${errorData.error_description || errorData.error}`);
+    let parsedBody = null;
+    let rawBody = "";
+    if (typeof response.json === "function") {
+      try {
+        parsedBody = await response.json();
+      } catch {
+      }
+    }
+    if (!parsedBody && typeof response.text === "function") {
+      try {
+        rawBody = await response.text();
+      } catch {
+      }
+    }
+    if (!parsedBody && rawBody) {
+      try {
+        parsedBody = JSON.parse(rawBody);
+      } catch {
+      }
+    }
+    const msg = parsedBody?.error_description || parsedBody?.error || rawBody || "Unknown error";
+    if (process.env.NODE_ENV !== "test") {
+      console.error("TOKEN_REFRESH_FAILURE", {
+        status: response.status,
+        body: typeof rawBody === "string" ? rawBody.slice(0, 500) : rawBody,
+        parsedBody
+      });
+    }
+    throw new Error(`Spotify refresh failed: ${response.status} - ${msg}`);
   }
   const tokenData = await response.json();
   return {
@@ -2143,36 +2221,69 @@ async function fetchUserSpotifySubscriptionsWithRateLimit(spotifyAccessToken, us
 }
 async function updateSubscriptionStatus(userId, currentPodcastUrls) {
   const now = (/* @__PURE__ */ new Date()).toISOString();
+  const showIds = [];
   for (const podcastUrl of currentPodcastUrls) {
-    const upsertResult = await safeAwait2(
-      getSupabaseAdmin5().from("podcast_subscriptions").upsert([
-        {
-          user_id: userId,
-          podcast_url: podcastUrl,
-          status: "active",
-          updated_at: now
-        }
-      ], { onConflict: "user_id,podcast_url" })
-    );
-    if (upsertResult?.error) {
-      console.error(`[SubscriptionRefresh] Error upserting podcast subscription for user ${userId}:`, upsertResult.error.message);
-      throw new Error(`Database upsert failed: ${upsertResult.error.message}`);
+    const showId = podcastUrl.split("/").pop();
+    const rssUrl = podcastUrl;
+    try {
+      const showUpsertResult = await safeAwait2(
+        getSupabaseAdmin5().from("podcast_shows").upsert([
+          {
+            rss_url: rssUrl,
+            title: `Show ${showId}`,
+            // Placeholder title - in production you'd fetch this from Spotify
+            description: null,
+            image_url: null,
+            last_updated: now
+          }
+        ], {
+          onConflict: "rss_url",
+          ignoreDuplicates: false
+        }).select("id")
+      );
+      if (showUpsertResult?.error) {
+        console.error(`[SubscriptionRefresh] Error upserting podcast show for user ${userId}:`, showUpsertResult.error.message);
+        throw new Error(`Database show upsert failed: ${showUpsertResult.error.message}`);
+      }
+      const actualShowId = showUpsertResult?.data?.[0]?.id;
+      if (!actualShowId) {
+        throw new Error("Failed to get show ID after upsert");
+      }
+      showIds.push(actualShowId);
+      const subscriptionUpsertResult = await safeAwait2(
+        getSupabaseAdmin5().from("user_podcast_subscriptions").upsert([
+          {
+            user_id: userId,
+            show_id: actualShowId,
+            status: "active",
+            updated_at: now
+          }
+        ], { onConflict: "user_id,show_id" })
+      );
+      if (subscriptionUpsertResult?.error) {
+        console.error(`[SubscriptionRefresh] Error upserting podcast subscription for user ${userId}:`, subscriptionUpsertResult.error.message);
+        throw new Error(`Database subscription upsert failed: ${subscriptionUpsertResult.error.message}`);
+      }
+    } catch (error) {
+      const err = error;
+      console.error(`[SubscriptionRefresh] Error processing show ${podcastUrl} for user ${userId}:`, err.message);
+      throw err;
     }
   }
   const { data: allSubs, error: allSubsError } = await safeAwait2(
-    getSupabaseAdmin5().from("podcast_subscriptions").select("id,podcast_url").eq("user_id", userId)
+    getSupabaseAdmin5().from("user_podcast_subscriptions").select("id,show_id").eq("user_id", userId)
   );
   if (allSubsError) {
     console.error(`[SubscriptionRefresh] Error fetching subscriptions for user ${userId}:`, allSubsError.message);
     throw new Error(`Failed to fetch existing subscriptions: ${allSubsError.message}`);
   }
-  const subsToInactivate = (allSubs || []).filter((s) => !currentPodcastUrls.includes(s.podcast_url));
+  const subsToInactivate = (allSubs || []).filter((s) => !showIds.includes(s.show_id));
   const inactiveIds = subsToInactivate.map((s) => s.id);
   let inactiveCount = 0;
   if (inactiveIds.length > 0) {
     console.log(`[SubscriptionRefresh] Marking ${inactiveIds.length} subscriptions as inactive for user ${userId}`);
     const updateResult = await safeAwait2(
-      getSupabaseAdmin5().from("podcast_subscriptions").update({ status: "inactive", updated_at: now }).in("id", inactiveIds)
+      getSupabaseAdmin5().from("user_podcast_subscriptions").update({ status: "inactive", updated_at: now }).in("id", inactiveIds)
     );
     if (updateResult?.error) {
       console.error(`[SubscriptionRefresh] Error marking subscriptions inactive for user ${userId}:`, updateResult.error.message);
@@ -2181,7 +2292,7 @@ async function updateSubscriptionStatus(userId, currentPodcastUrls) {
     inactiveCount = inactiveIds.length;
   }
   return {
-    active_count: currentPodcastUrls.length,
+    active_count: showIds.length,
     inactive_count: inactiveCount
   };
 }
@@ -2212,14 +2323,16 @@ async function refreshUserSubscriptions(userId, jobId) {
         });
       } else if (errorMessage.includes("network") || errorMessage.includes("timeout")) {
         authErrorCategory = "timeout";
-        log.error("spotify_api", `Network/timeout error during token refresh for user ${userId}`, {
+        const err = new Error(errorMessage);
+        log.error("spotify_api", `Network/timeout error during token refresh for user ${userId}`, err, {
           user_id: userId,
           error: errorMessage,
           duration_ms: tokenDuration
         });
       } else {
         authErrorCategory = "unknown";
-        log.error("auth", `Unknown token error for user ${userId}`, {
+        const err = new Error(errorMessage);
+        log.error("auth", `Unknown token error for user ${userId}`, err, {
           user_id: userId,
           error: errorMessage,
           duration_ms: tokenDuration
@@ -2274,7 +2387,7 @@ async function refreshUserSubscriptions(userId, jobId) {
         });
       } else if (err.message.includes("timeout") || err.message.includes("network") || err.message.includes("ENOTFOUND")) {
         apiErrorCategory = "timeout";
-        log.error("spotify_api", `Network/timeout error during API call for user ${userId}`, {
+        log.error("spotify_api", `Network/timeout error during API call for user ${userId}`, err, {
           user_id: userId,
           error: err.message,
           duration_ms: apiDuration,
@@ -2282,7 +2395,7 @@ async function refreshUserSubscriptions(userId, jobId) {
         });
       } else if (err.message.includes("500") || err.message.includes("502") || err.message.includes("503")) {
         apiErrorCategory = "api_error";
-        log.error("spotify_api", `Spotify server error for user ${userId}`, {
+        log.error("spotify_api", `Spotify server error for user ${userId}`, err, {
           user_id: userId,
           error: err.message,
           duration_ms: apiDuration,
@@ -2290,7 +2403,7 @@ async function refreshUserSubscriptions(userId, jobId) {
         });
       } else {
         apiErrorCategory = "unknown";
-        log.error("spotify_api", `Unknown Spotify API error for user ${userId}`, {
+        log.error("spotify_api", `Unknown Spotify API error for user ${userId}`, err, {
           user_id: userId,
           error: err.message,
           duration_ms: apiDuration,
@@ -2335,7 +2448,7 @@ async function refreshUserSubscriptions(userId, jobId) {
       let dbErrorCategory = "database_error";
       if (err.message.includes("timeout") || err.message.includes("connection")) {
         dbErrorCategory = "timeout";
-        log.error("database", `Database timeout for user ${userId}`, {
+        log.error("database", `Database timeout for user ${userId}`, err, {
           user_id: userId,
           error: err.message,
           duration_ms: dbDuration,
@@ -2343,7 +2456,7 @@ async function refreshUserSubscriptions(userId, jobId) {
         });
       } else if (err.message.includes("constraint") || err.message.includes("foreign key")) {
         dbErrorCategory = "database_error";
-        log.error("database", `Database constraint error for user ${userId}`, {
+        log.error("database", `Database constraint error for user ${userId}`, err, {
           user_id: userId,
           error: err.message,
           duration_ms: dbDuration,
@@ -2351,7 +2464,7 @@ async function refreshUserSubscriptions(userId, jobId) {
         });
       } else {
         dbErrorCategory = "unknown";
-        log.error("database", `Unknown database error for user ${userId}`, {
+        log.error("database", `Unknown database error for user ${userId}`, err, {
           user_id: userId,
           error: err.message,
           duration_ms: dbDuration,
