@@ -190,11 +190,7 @@ jobs:
         with:
           version: '2.23.4'  # Lock to match local CLI version to avoid version mismatches
 
-      - name: Install PostgreSQL client
-        run: |
-          echo "📦 Installing PostgreSQL client for connectivity testing..."
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
+
 
       - name: Link Supabase production project
         env:
@@ -241,35 +237,17 @@ jobs:
             exit 1
           fi
           
-          # Step 4: Test network connectivity with psql first
-          echo "🌐 Testing database connectivity with psql..."
-          DB_URL="postgresql://postgres:${{ secrets.SUPABASE_DB_PASSWORD }}@db.${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co:5432/postgres"
+          # Step 4: GitHub Actions IPv6 Compatibility Check
+          echo "🌐 GitHub Actions IPv6 Compatibility Info:"
+          echo "📋 GitHub Actions doesn't support IPv6 connections to Supabase databases"
+          echo "✅ Using Supabase CLI with linked project (routes via Supavisor - IPv4 compatible)"
+          echo "📖 Reference: https://supabase.com/docs/guides/troubleshooting/supabase--your-network-ipv4-and-ipv6-compatibility-cHe3BP"
           
-          # Test basic connection
-          PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}" \
-          psql "postgresql://postgres@db.${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co:5432/postgres" \
-                -c 'SELECT 1 as connection_test;' | cat || {
-            echo "❌ Direct psql connection failed - network or auth issue"
-            exit 1
-          }
-          echo "✅ Database connection successful"
+          # Step 5: Use Supabase CLI (IPv4-compatible via Supavisor after linking)
+          echo "🔍 Checking migrations using linked project (IPv4-compatible)..."
           
-          # Step 6: Test both migration list approaches with debug output
-          echo "🔍 Testing migration list commands..."
-          
-          # Test A: Using linked project (if link worked)
-          echo "Method A - Using linked project:"
-          SUPABASE_DEBUG=1 supabase --debug migration list 2>&1 || {
-            echo "⚠️ Linked project method failed (exit code: $?)"
-          }
-          
-          # Test B: Using direct DB URL with full debug output
-          echo "Method B - Using direct DB URL:"
-          SUPABASE_DEBUG=1 supabase --debug migration list --db-url "$DB_URL" 2>&1 || {
-            echo "❌ Direct DB URL method failed (exit code: $?)"
-            echo "This should not fail if psql worked above"
-            exit 1
-          }
+          # The CLI uses the linked project which routes through Supavisor (IPv4-compatible)
+          echo "📋 Getting migration status via Supabase CLI..."
           
           # Check staging migrations (if configured)
           STAGING_NEEDS_MIGRATION=false
@@ -286,12 +264,18 @@ jobs:
             echo "⏭️ Staging environment not configured, skipping check"
           fi
           
-          # Build a full DB URL for production and query directly (with better error handling)
-          echo "🔍 Checking production migrations with enhanced debugging..."
-          PRODUCTION_OUTPUT=$(SUPABASE_DEBUG=1 supabase migration list --db-url "$DB_URL" 2>&1) || {
-            echo "❌ Migration list command failed with exit code: $?"
-            echo "Command output was:"
+                    # Get production migration status using linked project (IPv4-compatible)
+          echo "🔍 Checking production migrations via linked project..."
+          
+          PRODUCTION_OUTPUT=$(supabase migration list 2>&1) || {
+            echo "❌ Migration list failed - this indicates a connectivity or authentication issue"
+            echo "🔍 Output was:"
             echo "$PRODUCTION_OUTPUT"
+            echo ""
+            echo "💡 Possible solutions:"
+            echo "1. Check SUPABASE_PROJECT_REF and SUPABASE_DB_PASSWORD secrets"
+            echo "2. Verify the project is properly linked"
+            echo "3. Check Supabase service status"
             exit 1
           }
           
@@ -343,8 +327,33 @@ jobs:
         if: ${{ steps.check-migrations.outputs.production-needs-migration == 'true' }}
         run: |
           echo "🚀 Deploying migrations to production environment..."
-          supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }}
-          echo "✅ Production migrations deployed successfully"
+          
+          # Try deployment with retry logic for connectivity issues
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }}; then
+              echo "✅ Production migrations deployed successfully"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️ Deployment attempt $RETRY_COUNT failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ All deployment attempts failed"
+                echo "🔍 This could be due to:"
+                echo "1. Temporary network connectivity issues"
+                echo "2. Supabase service outage"
+                echo "3. Invalid credentials"
+                echo ""
+                echo "💡 You can try running the deployment again, or apply the migration manually:"
+                echo "   supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}"
+                exit 1
+              fi
+            fi
+          done
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
