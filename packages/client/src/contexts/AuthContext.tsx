@@ -216,9 +216,9 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       // Pre-flight check: Test if we can reach auth endpoints
       console.log('AUTH_CONTEXT: Testing auth endpoint connectivity...');
       try {
-        const connectivityTest = fetch(`${supabase.supabaseUrl}/auth/v1/settings`, {
+        const connectivityTest = fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/settings`, {
           method: 'GET',
-          headers: { 'apikey': supabase.supabaseKey }
+          headers: { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY }
         });
         
         await Promise.race([
