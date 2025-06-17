@@ -198,68 +198,136 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         console.warn('AUTH_CONTEXT: Auth endpoint connectivity issue:', errorMessage);
       }
       
+      // Step 1: Try standard signOut
       try {
-        // Add timeout to prevent hanging
+        console.log('AUTH_CONTEXT: Step 1 - Attempting standard signOut...');
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('SignOut timeout after 5 seconds')), 5000);
         });
         
-        console.log('AUTH_CONTEXT: Starting supabase.auth.signOut()...');
-        // Try local-only signOut first (faster, more reliable)
-        const signOutPromise = supabase.auth.signOut({ scope: 'local' });
-        
-        // FALLBACK: Full server signOut (if local-only doesn't work)
-        // const signOutPromise = supabase.auth.signOut();
-        
+        const signOutPromise = supabase.auth.signOut();
         const result = await Promise.race([signOutPromise, timeoutPromise]) as any;
         const duration = Date.now() - startTime;
         
-        console.log('AUTH_CONTEXT: supabase.auth.signOut result:', result);
-        console.log('AUTH_CONTEXT: signOut completed in', duration, 'ms');
+        console.log('AUTH_CONTEXT: Standard signOut succeeded in', duration, 'ms');
+        console.log('AUTH_CONTEXT: signOut result:', result);
         
         // Log success metrics with more context
         logger.info('Supabase signOut successful', { 
           duration,
           resultHasError: !!result.error,
-          userWasAuthenticated: !!user
+          userWasAuthenticated: !!user,
+          method: 'standard'
         });
         
         if (result.error) {
           console.error('AUTH_CONTEXT: signOut error:', result.error);
         }
         return result;
-      } catch (error) {
+        
+      } catch (standardError) {
         const duration = Date.now() - startTime;
-        console.error('AUTH_CONTEXT: signOut exception:', error);
-        console.log('AUTH_CONTEXT: signOut failed after', duration, 'ms');
+        console.error('AUTH_CONTEXT: Standard signOut failed:', standardError);
+        console.log('AUTH_CONTEXT: Step 1 failed after', duration, 'ms');
         
-        // Enhanced error categorization
-        const errorType = error instanceof Error && error.message.includes('timeout') ? 'timeout' : 'network_error';
-        const wasTimeout = duration >= 5000;
-        const wasConnectivityIssue = error instanceof Error && error.message.includes('Connectivity test timeout');
-        
-        logger.error('Supabase signOut failed', { 
-          error: error instanceof Error ? error.message : String(error),
-          duration,
-          errorType,
-          wasTimeout,
-          wasConnectivityIssue,
-          userWasAuthenticated: !!user,
-          supabaseUrl: SUPABASE_URL
-        });
-        
-        // Detailed diagnostic info
-        if (wasTimeout) {
-          console.log('🚨 AUTH_CONTEXT: DIAGNOSIS - SignOut hung for 5+ seconds');
-          console.log('   This indicates Supabase Auth service issues, not general network problems');
-          console.log('   Specific issue: supabase.auth.signOut() call to auth service');
+        // Step 2: Try global scope signOut (more aggressive)
+        try {
+          console.log('AUTH_CONTEXT: Step 2 - Attempting global scope signOut...');
+          const globalTimeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Global signOut timeout after 3 seconds')), 3000);
+          });
+          
+          const globalSignOutPromise = supabase.auth.signOut({ scope: 'global' });
+          const globalResult = await Promise.race([globalSignOutPromise, globalTimeoutPromise]) as any;
+          
+          console.log('AUTH_CONTEXT: Global signOut succeeded');
+          logger.info('Supabase signOut successful', { 
+            duration: Date.now() - startTime,
+            method: 'global_fallback',
+            userWasAuthenticated: !!user
+          });
+          
+          return globalResult;
+          
+        } catch (globalError) {
+          console.error('AUTH_CONTEXT: Global signOut also failed:', globalError);
+          
+          // Step 3: Manual token invalidation as last resort
+          try {
+            console.log('AUTH_CONTEXT: Step 3 - Manual session invalidation...');
+            
+            // Get current session to extract tokens
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            if (session?.access_token) {
+              // Try to manually invalidate via direct API call
+              const invalidateResponse = await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${session.access_token}`,
+                  'apikey': SUPABASE_ANON_KEY,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ scope: 'global' })
+              });
+              
+              console.log('AUTH_CONTEXT: Manual invalidation response:', invalidateResponse.status);
+              
+              if (invalidateResponse.ok || invalidateResponse.status === 401) {
+                console.log('AUTH_CONTEXT: Manual invalidation succeeded');
+              }
+            }
+            
+          } catch (manualError) {
+            console.error('AUTH_CONTEXT: Manual invalidation failed:', manualError);
+          }
+          
+          // Final step: Clear all local data and log comprehensive error
+          const finalDuration = Date.now() - startTime;
+          const wasTimeout = finalDuration >= 5000;
+          
+          logger.error('Supabase signOut completely failed', { 
+            standardError: standardError instanceof Error ? standardError.message : String(standardError),
+            globalError: globalError instanceof Error ? globalError.message : String(globalError),
+            duration: finalDuration,
+            errorType: wasTimeout ? 'timeout' : 'network_error',
+            wasTimeout,
+            userWasAuthenticated: !!user,
+            supabaseUrl: SUPABASE_URL
+          });
+          
+          // Detailed diagnostic info
+          console.log('🚨 AUTH_CONTEXT: COMPREHENSIVE SIGNOUT FAILURE');
+          console.log('   All signOut methods failed - this indicates serious Supabase Auth issues');
+          console.log('   Standard signOut: FAILED');
+          console.log('   Global scope signOut: FAILED'); 
+          console.log('   Manual token invalidation: ATTEMPTED');
+          console.log('   Forcing local session clear as final fallback');
+          
+          // Force local session clear
+          setUser(null);
+          
+          // Also clear any browser storage manually
+          try {
+            localStorage.removeItem('supabase.auth.token');
+            sessionStorage.removeItem('supabase.auth.token');
+            
+            // Clear cookies by setting them to expire
+            document.cookie.split(";").forEach(cookie => {
+              const eqPos = cookie.indexOf("=");
+              const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+              if (name.startsWith('sb-')) {
+                document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+              }
+            });
+            
+            console.log('AUTH_CONTEXT: Cleared local storage and cookies');
+          } catch (clearError) {
+            console.error('AUTH_CONTEXT: Error clearing local data:', clearError);
+          }
+          
+          return { error: null };
         }
-        
-        // Even if signOut fails/times out, we should clear the local session
-        console.log('AUTH_CONTEXT: Forcing local session clear due to error');
-        setUser(null);
-        // Return a success-like response to allow logout flow to continue
-        return { error: null };
       }
     },
     checkReauthStatus: checkReauthStatus,
