@@ -183,12 +183,15 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       console.log('AUTH_CONTEXT: Analyzing current session state...');
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          console.error('AUTH_CONTEXT: Session retrieval error:', sessionError);
+        }
         if (session) {
           console.log('AUTH_CONTEXT: Current session details:');
           console.log('  - User ID:', session.user.id);
           console.log('  - Email:', session.user.email);
           console.log('  - Token type:', session.token_type);
-          console.log('  - Expires at:', new Date(session.expires_at * 1000).toISOString());
+          console.log('  - Expires at:', session.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'undefined');
           console.log('  - Refresh token length:', session.refresh_token?.length || 0);
           console.log('  - Access token length:', session.access_token?.length || 0);
           console.log('  - Provider token present:', !!session.provider_token);
@@ -283,7 +286,8 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
               console.log('AUTH_CONTEXT: Background invalidation response:', response.status);
             }
           } catch (bgError) {
-            console.log('AUTH_CONTEXT: Background invalidation failed (non-critical):', bgError.message);
+            const errorMessage = bgError instanceof Error ? bgError.message : String(bgError);
+            console.log('AUTH_CONTEXT: Background invalidation failed (non-critical):', errorMessage);
           }
         };
         
