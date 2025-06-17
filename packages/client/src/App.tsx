@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { ReactNode, memo, useRef, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './components/Login'
@@ -10,15 +10,29 @@ interface ProtectedRouteProps {
   children: ReactNode
 }
 
-// Protected route component with TypeScript
-export const ProtectedRoute = ({ children }: ProtectedRouteProps): React.JSX.Element => {
+// Protected route component with TypeScript - optimized to reduce re-renders
+export const ProtectedRoute = memo(({ children }: ProtectedRouteProps): React.JSX.Element => {
   const { user, loading } = useAuth()
-
-  console.log('PROTECTED_ROUTE:', { user: !!user, loading, userEmail: user?.email });
+  
+  // Use refs to track previous values and only log on changes
+  const prevState = useRef({ user: !!user, loading, userEmail: user?.email })
+  
+  useEffect(() => {
+    const currentState = { user: !!user, loading, userEmail: user?.email }
+    
+    // Only log if the state actually changed
+    if (
+      prevState.current.user !== currentState.user ||
+      prevState.current.loading !== currentState.loading ||
+      prevState.current.userEmail !== currentState.userEmail
+    ) {
+      console.log('PROTECTED_ROUTE:', currentState);
+      prevState.current = currentState
+    }
+  }, [user, loading])
 
   // Show loading spinner while authentication is being verified
   if (loading) {
-    console.log('PROTECTED_ROUTE: Showing loading spinner');
     return (
       <div className="loading-container">
         <div>Loading...</div>
@@ -28,13 +42,11 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps): React.JSX.Ele
 
   // Redirect to login if user is not authenticated
   if (!user) {
-    console.log('PROTECTED_ROUTE: No user, redirecting to /login');
     return <Navigate to="/login" replace />
   }
 
-  console.log('PROTECTED_ROUTE: User authenticated, rendering children');
   return <>{children}</>
-}
+})
 
 // Main App content component (contains Routes)
 function AppContent(): React.JSX.Element {

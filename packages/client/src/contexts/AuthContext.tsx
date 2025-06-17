@@ -36,6 +36,9 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   
   // Use ref to track reauth check status without causing useEffect loops
   const reauthCheckInProgress = useRef<boolean>(false)
+  
+  // Add ref to track current user to prevent duplicate reauth checks
+  const lastCheckedUserId = useRef<string | null>(null)
 
   // Define checkReauthStatus function with useCallback to prevent infinite loops
   const checkReauthStatus = useCallback(async (): Promise<void> => {
@@ -117,19 +120,27 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   // Separate useEffect to handle deferred reauth checks
   // This prevents the deadlock by moving Supabase calls outside the onAuthStateChange callback
   useEffect(() => {
-    if (!needsReauthCheck) return;
+    if (!needsReauthCheck || !user) return;
+    
+    // Skip if we've already checked for this user
+    if (lastCheckedUserId.current === user.id) {
+      console.log('DEFERRED_REAUTH: Already checked for this user, skipping');
+      setNeedsReauthCheck(false);
+      return;
+    }
     
     console.log('DEFERRED_REAUTH: Processing deferred reauth check');
     
     const runDeferredReauthCheck = async () => {
       await checkReauthStatus();
+      lastCheckedUserId.current = user.id; // Mark this user as checked
       setNeedsReauthCheck(false);
     };
     
     // Use queueMicrotask to defer the execution to the next tick
     // This ensures we're completely outside the auth callback's execution context
     queueMicrotask(runDeferredReauthCheck);
-  }, [needsReauthCheck, checkReauthStatus]);
+  }, [needsReauthCheck, user, checkReauthStatus]);
 
   useEffect(() => {
     // Check active sessions and sets the user
@@ -165,8 +176,8 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         setUser(session?.user ?? null)
         setLoading(false)
         
-        // FIXED: Instead of calling checkReauthStatus() directly (which causes deadlock),
-        // we set a flag to trigger the check in a separate useEffect
+        // FIXED: Only trigger reauth check for actual sign-in events, not INITIAL_SESSION
+        // This prevents duplicate reauth checks when the session is restored
         if (session?.user && event === 'SIGNED_IN') {
           console.log('AUTH_STATE_CHANGE: User signed in, scheduling reauth status check');
           setNeedsReauthCheck(true);
@@ -213,6 +224,9 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         // Clear local state
         setUser(null);
         setRequiresReauth(false);
+        
+        // Reset the reauth check tracking
+        lastCheckedUserId.current = null;
         
         const duration = Date.now() - startTime;
         console.log(`AUTH_CONTEXT: SignOut completed successfully in ${duration}ms`);
