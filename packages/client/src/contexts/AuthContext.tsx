@@ -174,7 +174,14 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     signOut: async () => {
       console.log('AUTH_CONTEXT: signOut called');
       try {
-        const result = await supabase.auth.signOut();
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('SignOut timeout after 5 seconds')), 5000);
+        });
+        
+        const signOutPromise = supabase.auth.signOut();
+        
+        const result = await Promise.race([signOutPromise, timeoutPromise]) as any;
         console.log('AUTH_CONTEXT: supabase.auth.signOut result:', result);
         if (result.error) {
           console.error('AUTH_CONTEXT: signOut error:', result.error);
@@ -182,7 +189,11 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         return result;
       } catch (error) {
         console.error('AUTH_CONTEXT: signOut exception:', error);
-        throw error;
+        // Even if signOut fails/times out, we should clear the local session
+        console.log('AUTH_CONTEXT: Forcing local session clear due to error');
+        setUser(null);
+        // Return a success-like response to allow logout flow to continue
+        return { error: null };
       }
     },
     checkReauthStatus: checkReauthStatus,
