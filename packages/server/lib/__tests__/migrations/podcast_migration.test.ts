@@ -98,7 +98,7 @@ describe('Podcast schema migration integration test', () => {
     await client.query(`
       CREATE TABLE ${testTablePrefix}podcast_shows (
         id uuid primary key default gen_random_uuid(),
-        rss_url text not null unique,
+        spotify_url text not null unique,
         title text,
         description text,
         image_url text,
@@ -150,16 +150,16 @@ describe('Podcast schema migration integration test', () => {
         ADD COLUMN show_id uuid references ${testTablePrefix}podcast_shows(id);
       
       -- Back-fill podcast_shows
-      INSERT INTO ${testTablePrefix}podcast_shows (rss_url)
+      INSERT INTO ${testTablePrefix}podcast_shows (spotify_url)
       SELECT DISTINCT podcast_url
       FROM ${testTablePrefix}podcast_subscriptions
-      ON CONFLICT (rss_url) DO NOTHING;
+      ON CONFLICT (spotify_url) DO NOTHING;
       
       -- Update subscriptions with show_id
       UPDATE ${testTablePrefix}podcast_subscriptions s
       SET show_id = p.id
       FROM ${testTablePrefix}podcast_shows p
-      WHERE s.podcast_url = p.rss_url;
+      WHERE s.podcast_url = p.spotify_url;
       
       -- Make show_id mandatory and drop old column
       ALTER TABLE ${testTablePrefix}podcast_subscriptions
@@ -188,19 +188,19 @@ describe('Podcast schema migration integration test', () => {
 
     // Check that podcast_shows table has the RSS URL
     const showResult = await client.query(`
-      SELECT p.id, p.rss_url, p.title, p.last_updated
+      SELECT p.id, p.spotify_url, p.title, p.last_updated
       FROM ${testTablePrefix}podcast_shows p
       WHERE p.id = $1
     `, [subscription.show_id]);
 
     expect(showResult.rows).toHaveLength(1);
     const show = showResult.rows[0];
-    expect(show.rss_url).toBe(testPodcastUrl);
+    expect(show.spotify_url).toBe(testPodcastUrl);
     expect(show.last_updated).toBeTruthy();
 
     // Check that the FK relationship works
     const joinResult = await client.query(`
-      SELECT s.id as subscription_id, s.user_id, p.rss_url, p.id as show_id
+      SELECT s.id as subscription_id, s.user_id, p.spotify_url, p.id as show_id
       FROM ${testTablePrefix}user_podcast_subscriptions s
       JOIN ${testTablePrefix}podcast_shows p ON p.id = s.show_id
       WHERE s.user_id = $1
@@ -209,7 +209,7 @@ describe('Podcast schema migration integration test', () => {
     expect(joinResult.rows).toHaveLength(1);
     const joinedData = joinResult.rows[0];
     expect(joinedData.user_id).toBe(testUserId);
-    expect(joinedData.rss_url).toBe(testPodcastUrl);
+    expect(joinedData.spotify_url).toBe(testPodcastUrl);
     expect(joinedData.show_id).toBe(subscription.show_id);
 
     // Clean up test tables
@@ -242,7 +242,7 @@ describe('Podcast schema migration integration test', () => {
     await client.query(`
       CREATE TABLE ${testTablePrefix}podcast_shows (
         id uuid primary key default gen_random_uuid(),
-        rss_url text not null unique,
+        spotify_url text not null unique,
         title text,
         description text,
         image_url text,
@@ -292,16 +292,16 @@ describe('Podcast schema migration integration test', () => {
         ADD COLUMN show_id uuid references ${testTablePrefix}podcast_shows(id);
       
       -- Back-fill podcast_shows
-      INSERT INTO ${testTablePrefix}podcast_shows (rss_url)
+      INSERT INTO ${testTablePrefix}podcast_shows (spotify_url)
       SELECT DISTINCT podcast_url
       FROM ${testTablePrefix}podcast_subscriptions
-      ON CONFLICT (rss_url) DO NOTHING;
+      ON CONFLICT (spotify_url) DO NOTHING;
       
       -- Update subscriptions with show_id
       UPDATE ${testTablePrefix}podcast_subscriptions s
       SET show_id = p.id
       FROM ${testTablePrefix}podcast_shows p
-      WHERE s.podcast_url = p.rss_url;
+      WHERE s.podcast_url = p.spotify_url;
       
       -- Make show_id mandatory and drop old column
       ALTER TABLE ${testTablePrefix}podcast_subscriptions
@@ -315,15 +315,15 @@ describe('Podcast schema migration integration test', () => {
 
     // Verify all subscriptions were migrated
     const result = await client.query(`
-      SELECT s.user_id, s.show_id, p.rss_url
+      SELECT s.user_id, s.show_id, p.spotify_url
       FROM ${testTablePrefix}user_podcast_subscriptions s
       JOIN ${testTablePrefix}podcast_shows p ON p.id = s.show_id
       WHERE s.user_id = $1
-      ORDER BY p.rss_url
+      ORDER BY p.spotify_url
     `, [testUserId]);
 
     expect(result.rows).toHaveLength(3);
-    expect(result.rows.map(r => r.rss_url)).toEqual(podcastUrls.sort());
+    expect(result.rows.map(r => r.spotify_url)).toEqual(podcastUrls.sort());
 
     // Verify each subscription has a unique show_id
     const showIds = result.rows.map(r => r.show_id);

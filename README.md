@@ -112,7 +112,7 @@ The application uses Supabase (PostgreSQL) with the following core tables:
 -- Master list of podcast shows
 CREATE TABLE podcast_shows (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  rss_url text NOT NULL UNIQUE,
+  spotify_url text NOT NULL UNIQUE,
   title text,
   description text,
   image_url text,

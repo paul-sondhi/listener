@@ -314,7 +314,7 @@ async function updateSubscriptionStatus(
     // First, upsert shows into podcast_shows table and collect their IDs
     for (const podcastUrl of currentPodcastUrls) {
         const showId = podcastUrl.split('/').pop(); // Extract Spotify show ID from URL
-        const rssUrl = podcastUrl; // Using Spotify URL as identifier for now
+        const spotifyUrl = podcastUrl; // Directly map Spotify URL to the spotify_url column
         
         try {
             // Upsert the show into podcast_shows table
@@ -323,14 +323,14 @@ async function updateSubscriptionStatus(
                     .from('podcast_shows')
                     .upsert([
                         {
-                            rss_url: rssUrl,
+                            spotify_url: spotifyUrl,
                             title: `Show ${showId}`, // Placeholder title - in production you'd fetch this from Spotify
                             description: null,
                             image_url: null,
                             last_updated: now
                         }
                     ], { 
-                        onConflict: 'rss_url',
+                        onConflict: 'spotify_url',
                         ignoreDuplicates: false 
                     })
                     .select('id')

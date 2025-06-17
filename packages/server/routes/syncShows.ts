@@ -275,11 +275,10 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
             for (const showObj of shows) {
                 const show: SpotifyShow = showObj.show;
                 
-                // For Spotify shows, we need to create an RSS URL from the Spotify URL
-                // This is a placeholder - in a real implementation, you'd want to find
-                // the actual RSS feed URL for the podcast
+                // Construct the canonical Spotify URL for the show. This now maps directly
+                // to the `spotify_url` column in the `podcast_shows` table (renamed from
+                // `rss_url` in the 2025-07 migration).
                 const spotifyUrl: string = `https://open.spotify.com/show/${show.id}`;
-                const rssUrl: string = spotifyUrl; // Using Spotify URL as identifier for now
 
                 try {
                     // Upsert the show into podcast_shows table
@@ -288,14 +287,14 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                             .from('podcast_shows')
                             .upsert([
                                 {
-                                    rss_url: rssUrl,
+                                    spotify_url: spotifyUrl,
                                     title: show.name || 'Unknown Show',
                                     description: show.description || null,
                                     image_url: show.images?.[0]?.url || null,
                                     last_updated: now
                                 }
                             ], { 
-                                onConflict: 'rss_url',
+                                onConflict: 'spotify_url',
                                 ignoreDuplicates: false 
                             })
                             .select('id')

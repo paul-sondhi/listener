@@ -133,7 +133,7 @@ vi.mock('node-cron', () => ({
 // Global test show factory (for new schema)
 (global as any).createTestShow = (overrides: Record<string, unknown> = {}) => ({
   id: `test-show-${Math.random().toString(36).substr(2, 9)}`,
-  rss_url: `https://open.spotify.com/show/test-${Math.random().toString(36).substr(2, 9)}`,
+  spotify_url: `https://open.spotify.com/show/test-${Math.random().toString(36).substr(2, 9)}`,
   title: `Test Podcast ${Math.random().toString(36).substr(2, 5)}`,
   description: 'Test show description',
   image_url: null,

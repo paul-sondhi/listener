@@ -17,12 +17,12 @@
 -- Uncomment and modify the lines below to add test data after setting up test auth users
 
 -- Example with new schema (podcast_shows + user_podcast_subscriptions):
--- INSERT INTO public.podcast_shows (rss_url, title, description) VALUES
+-- INSERT INTO public.podcast_shows (spotify_url, title, description) VALUES
 --   ('https://example-podcast-feed.xml', 'Example Podcast', 'A test podcast')
--- ON CONFLICT (rss_url) DO NOTHING;
+-- ON CONFLICT (spotify_url) DO NOTHING;
 -- 
 -- INSERT INTO public.user_podcast_subscriptions (user_id, show_id, status) VALUES
---   ('example-user-uuid-1', (SELECT id FROM podcast_shows WHERE rss_url = 'https://example-podcast-feed.xml'), 'active')
+--   ('example-user-uuid-1', (SELECT id FROM podcast_shows WHERE spotify_url = 'https://example-podcast-feed.xml'), 'active')
 -- ON CONFLICT (user_id, show_id) DO NOTHING;
 
 -- You can add more seed data here as your schema grows

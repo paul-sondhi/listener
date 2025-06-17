@@ -142,7 +142,7 @@ describe('Sync Shows Database Schema Integration', () => {
   /**
    * Test 2: Ensure correct column structure for podcast_shows
    */
-  it('should use correct columns for podcast_shows table: rss_url, title, description, image_url', async () => {
+  it('should use correct columns for podcast_shows table: spotify_url, title, description, image_url', async () => {
     let showUpsertData: any = null
 
     const mockAuthGetUser = vi.fn().mockResolvedValue({
@@ -187,13 +187,14 @@ describe('Sync Shows Database Schema Integration', () => {
       .set('Cookie', 'sb-access-token=test-token')
 
     // Verify the correct columns are being used for podcast_shows
-    expect(showUpsertData).toHaveProperty('rss_url')
+    expect(showUpsertData).toHaveProperty('spotify_url')
     expect(showUpsertData).toHaveProperty('title', 'Test Podcast')
     expect(showUpsertData).toHaveProperty('description', 'A test podcast')
     expect(showUpsertData).toHaveProperty('image_url', 'https://example.com/image.jpg')
     expect(showUpsertData).toHaveProperty('last_updated')
 
     // Verify old/incorrect columns are NOT used
+    expect(showUpsertData).not.toHaveProperty('rss_url')
     expect(showUpsertData).not.toHaveProperty('podcast_url')
     expect(showUpsertData).not.toHaveProperty('name')
   })

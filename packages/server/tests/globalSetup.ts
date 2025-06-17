@@ -212,7 +212,7 @@ function setupTestDataGenerators() {
     const counter = ++(global as any).testDataCounters.shows;
     return {
       id: `test-show-${counter}-${Date.now()}`,
-      rss_url: `https://open.spotify.com/show/test-show-${counter}`,
+      spotify_url: `https://open.spotify.com/show/test-show-${counter}`,
       title: `Test Podcast ${counter}`,
       description: `Test description for podcast ${counter}`,
       image_url: null,
