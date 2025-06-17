@@ -24,7 +24,7 @@ A podcast transcription service that integrates with Spotify.
 │   └── podcastService.js # Podcast-related services
 └── public/             # Static files
     ├── login.html
-    └── app.html
+    └── app.html 
 ```
 
 ## Setup
