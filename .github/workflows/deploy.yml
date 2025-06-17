@@ -190,6 +190,15 @@ jobs:
         with:
           version: latest
 
+      - name: Link Supabase production project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "🔗 Linking production Supabase project..."
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
+            --password ${{ secrets.SUPABASE_DB_PASSWORD }} \
+            --non-interactive
+
       - name: Check for new migrations
         id: check-migrations
         env:
@@ -214,7 +223,8 @@ jobs:
           
           # Check production migrations
           echo "Checking production environment for new migrations..."
-          PRODUCTION_OUTPUT=$(supabase migration list --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }} 2>/dev/null || echo "")
+          # Use the linked production project (no --project-ref flag needed)
+          PRODUCTION_OUTPUT=$(supabase migration list 2>/dev/null || echo "")
           PRODUCTION_NEEDS_MIGRATION=false
           if echo "$PRODUCTION_OUTPUT" | grep -q "^[[:space:]]*[0-9]\{14\}[[:space:]]*│[[:space:]]*│"; then
             echo "📋 Found migrations pending for production"
