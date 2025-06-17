@@ -346,7 +346,7 @@ jobs:
           RETRY_COUNT=0
           
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            if supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }}; then
+            if supabase db push --linked; then
               echo "✅ Production migrations deployed successfully"
               break
             else
@@ -357,12 +357,12 @@ jobs:
               else
                 echo "❌ All deployment attempts failed"
                 echo "🔍 This could be due to:"
-                echo "1. Temporary network connectivity issues"
-                echo "2. Supabase service outage"
-                echo "3. Invalid credentials"
+                echo "1. Project linking failed in previous step"
+                echo "2. Temporary network connectivity issues"
+                echo "3. Supabase service outage"
+                echo "4. Invalid credentials during linking"
                 echo ""
-                echo "💡 You can try running the deployment again, or apply the migration manually:"
-                echo "   supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}"
+                echo "💡 You can try running the deployment again, or check the linking step"
                 exit 1
               fi
             fi
