@@ -220,10 +220,9 @@ jobs:
             echo "⏭️ Staging environment not configured, skipping check"
           fi
           
-          # Check production migrations
-          echo "Checking production environment for new migrations..."
-          # Use the linked production project (no --project-ref flag needed)
-          PRODUCTION_OUTPUT=$(supabase migration list 2>/dev/null || echo "")
+          # Build a full DB URL for production and query directly (avoids linking issues)
+          DB_URL="postgresql://postgres:${{ secrets.SUPABASE_DB_PASSWORD }}@db.${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co:5432/postgres"
+          PRODUCTION_OUTPUT=$(supabase migration list --db-url "$DB_URL" 2>/dev/null || echo "")
           PRODUCTION_NEEDS_MIGRATION=false
           if echo "$PRODUCTION_OUTPUT" | grep -q "^[[:space:]]*[0-9]\{14\}[[:space:]]*│[[:space:]]*│"; then
             echo "📋 Found migrations pending for production"
