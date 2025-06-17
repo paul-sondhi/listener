@@ -196,8 +196,7 @@ jobs:
         run: |
           echo "🔗 Linking production Supabase project..."
           supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
-            --password ${{ secrets.SUPABASE_DB_PASSWORD }} \
-            --non-interactive
+            --password ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Check for new migrations
         id: check-migrations
