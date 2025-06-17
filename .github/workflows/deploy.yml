@@ -195,15 +195,33 @@ jobs:
       - name: Link Supabase production project
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "🔗 Linking production Supabase project..."
-          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
-            --password ${{ secrets.SUPABASE_DB_PASSWORD }}
+          echo "📋 Using explicit credentials to avoid interactive prompts"
+          echo "🔍 Project ref length: ${#SUPABASE_PROJECT_REF:-0}"
+          echo "🔍 Password length: ${#SUPABASE_DB_PASSWORD:-0}"
+          
+          # Test the link with error handling
+          supabase link \
+            --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}" \
+            --password "${{ secrets.SUPABASE_DB_PASSWORD }}" || {
+            echo "❌ Project linking failed"
+            echo "💡 This could indicate:"
+            echo "1. Invalid SUPABASE_PROJECT_REF (should be 20 characters)"
+            echo "2. Invalid SUPABASE_DB_PASSWORD"
+            echo "3. Network connectivity issues"
+            echo "4. Project doesn't exist or access token is invalid"
+            exit 1
+          }
 
       - name: Check for new migrations
         id: check-migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           # Step 1: Add strict shell settings to catch failures
           set -euo pipefail
@@ -219,20 +237,16 @@ jobs:
           
           # Step 3: Verify secrets are available (show masked lengths)
           echo "🔐 Secret validation:"
-          PROJECT_REF="${{ secrets.SUPABASE_PROJECT_REF }}"
-          DB_PASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}"
-          ACCESS_TOKEN="${{ secrets.SUPABASE_ACCESS_TOKEN }}"
-          
-          echo "SUPABASE_PROJECT_REF length: ${#PROJECT_REF}"
-          echo "SUPABASE_DB_PASSWORD length: ${#DB_PASSWORD}"
-          echo "SUPABASE_ACCESS_TOKEN length: ${#ACCESS_TOKEN}"
+          echo "SUPABASE_PROJECT_REF length: ${#SUPABASE_PROJECT_REF}"
+          echo "SUPABASE_DB_PASSWORD length: ${#SUPABASE_DB_PASSWORD}"
+          echo "SUPABASE_ACCESS_TOKEN length: ${#SUPABASE_ACCESS_TOKEN}"
           
           # Validate required secrets exist
-          if [ -z "$PROJECT_REF" ]; then
+          if [ -z "$SUPABASE_PROJECT_REF" ]; then
             echo "❌ SUPABASE_PROJECT_REF is missing"
             exit 1
           fi
-          if [ -z "$DB_PASSWORD" ]; then
+          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
             echo "❌ SUPABASE_DB_PASSWORD is missing"
             exit 1
           fi
@@ -253,7 +267,12 @@ jobs:
           STAGING_NEEDS_MIGRATION=false
           if [ -n "${{ env.STAGING_PROJECT_REF }}" ]; then
             echo "Checking staging environment for new migrations..."
-            STAGING_OUTPUT=$(supabase migration list --project-ref ${{ env.STAGING_PROJECT_REF }} --password ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }} 2>/dev/null || echo "")
+            STAGING_OUTPUT=$(supabase migration list \
+              --project-ref "${{ env.STAGING_PROJECT_REF }}" \
+              --password "${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}" 2>&1) || {
+              echo "⚠️ Staging migration check failed, but continuing with production"
+              STAGING_OUTPUT=""
+            }
             if echo "$STAGING_OUTPUT" | grep -q "^[[:space:]]*[0-9]\{14\}[[:space:]]*|[[:space:]]*|"; then
               echo "📋 Found migrations pending for staging"
               STAGING_NEEDS_MIGRATION=true
@@ -264,18 +283,22 @@ jobs:
             echo "⏭️ Staging environment not configured, skipping check"
           fi
           
-                    # Get production migration status using linked project (IPv4-compatible)
-          echo "🔍 Checking production migrations via linked project..."
+                    # Get production migration status using explicit credentials
+          echo "🔍 Checking production migrations with explicit authentication..."
           
-          PRODUCTION_OUTPUT=$(supabase migration list 2>&1) || {
-            echo "❌ Migration list failed - this indicates a connectivity or authentication issue"
+          # Use explicit project-ref and password to avoid interactive prompts
+          PRODUCTION_OUTPUT=$(supabase migration list \
+            --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}" \
+            --password "${{ secrets.SUPABASE_DB_PASSWORD }}" 2>&1) || {
+            echo "❌ Migration list failed - authentication or connectivity issue"
             echo "🔍 Output was:"
             echo "$PRODUCTION_OUTPUT"
             echo ""
             echo "💡 Possible solutions:"
-            echo "1. Check SUPABASE_PROJECT_REF and SUPABASE_DB_PASSWORD secrets"
-            echo "2. Verify the project is properly linked"
-            echo "3. Check Supabase service status"
+            echo "1. Verify SUPABASE_PROJECT_REF secret is correct (length: ${#SUPABASE_PROJECT_REF})"
+            echo "2. Verify SUPABASE_DB_PASSWORD secret is correct (length: ${#SUPABASE_DB_PASSWORD})"
+            echo "3. Check if database password was recently changed in Supabase dashboard"
+            echo "4. Verify project exists and is accessible"
             exit 1
           }
           
