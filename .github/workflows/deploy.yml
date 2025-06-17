@@ -267,38 +267,28 @@ jobs:
           STAGING_NEEDS_MIGRATION=false
           if [ -n "${{ env.STAGING_PROJECT_REF }}" ]; then
             echo "Checking staging environment for new migrations..."
-            STAGING_OUTPUT=$(supabase migration list \
-              --project-ref "${{ env.STAGING_PROJECT_REF }}" \
-              --password "${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}" 2>&1) || {
-              echo "⚠️ Staging migration check failed, but continuing with production"
-              STAGING_OUTPUT=""
-            }
-            if echo "$STAGING_OUTPUT" | grep -q "^[[:space:]]*[0-9]\{14\}[[:space:]]*|[[:space:]]*|"; then
-              echo "📋 Found migrations pending for staging"
-              STAGING_NEEDS_MIGRATION=true
-            else
-              echo "✅ Staging is up to date"
-            fi
+            echo "⚠️ Staging check requires separate linking - skipping for now"
+            echo "💡 To enable staging checks, implement separate staging project linking"
+            STAGING_NEEDS_MIGRATION=false
           else
             echo "⏭️ Staging environment not configured, skipping check"
           fi
           
-                    # Get production migration status using explicit credentials
-          echo "🔍 Checking production migrations with explicit authentication..."
+                    # Get production migration status using linked project
+          echo "🔍 Checking production migrations via linked project..."
           
-          # Use explicit project-ref and password to avoid interactive prompts
-          PRODUCTION_OUTPUT=$(supabase migration list \
-            --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}" \
-            --password "${{ secrets.SUPABASE_DB_PASSWORD }}" 2>&1) || {
-            echo "❌ Migration list failed - authentication or connectivity issue"
+          # Use --linked flag to check the linked project (this should work after linking)
+          PRODUCTION_OUTPUT=$(supabase migration list --linked 2>&1) || {
+            echo "❌ Migration list failed - this indicates a linking or connectivity issue"
             echo "🔍 Output was:"
             echo "$PRODUCTION_OUTPUT"
             echo ""
             echo "💡 Possible solutions:"
-            echo "1. Verify SUPABASE_PROJECT_REF secret is correct (length: ${#SUPABASE_PROJECT_REF})"
-            echo "2. Verify SUPABASE_DB_PASSWORD secret is correct (length: ${#SUPABASE_DB_PASSWORD})"
-            echo "3. Check if database password was recently changed in Supabase dashboard"
-            echo "4. Verify project exists and is accessible"
+            echo "1. Project linking may have failed in the previous step"
+            echo "2. Verify SUPABASE_PROJECT_REF secret is correct (length: ${#SUPABASE_PROJECT_REF})"
+            echo "3. Verify SUPABASE_DB_PASSWORD secret is correct (length: ${#SUPABASE_DB_PASSWORD})"
+            echo "4. Check if database password was recently changed in Supabase dashboard"
+            echo "5. Verify project exists and is accessible with the access token"
             exit 1
           }
           
