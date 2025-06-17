@@ -179,10 +179,16 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       console.log('AUTH_CONTEXT: signOut called');
       const startTime = Date.now();
       
-      // Step 0: Analyze current session state for diagnostics
-      console.log('AUTH_CONTEXT: Analyzing current session state...');
+      // Step 0: Analyze current session state with timeout (since getSession might hang)
+      console.log('AUTH_CONTEXT: Analyzing current session state with timeout...');
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        const sessionTimeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Session analysis timeout after 1 second')), 1000);
+        });
+        
+        const sessionPromise = supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await Promise.race([sessionPromise, sessionTimeout]) as any;
+        
         if (sessionError) {
           console.error('AUTH_CONTEXT: Session retrieval error:', sessionError);
         }
@@ -200,15 +206,23 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
           console.log('AUTH_CONTEXT: No session found');
         }
       } catch (sessionAnalysisError) {
-        console.error('AUTH_CONTEXT: Session analysis failed:', sessionAnalysisError);
+        const errorMessage = sessionAnalysisError instanceof Error ? sessionAnalysisError.message : String(sessionAnalysisError);
+        console.error('AUTH_CONTEXT: Session analysis failed/timed out:', errorMessage);
+        
+        if (errorMessage.includes('timeout')) {
+          console.log('🚨 AUTH_CONTEXT: CRITICAL - getSession() is hanging!');
+          console.log('   This explains why signOut operations hang');
+          console.log('   Supabase Auth client is in a bad state');
+          console.log('   Proceeding with aggressive manual cleanup...');
+        }
       }
       
       // Pre-flight check: Test if we can reach auth endpoints
       console.log('AUTH_CONTEXT: Testing auth endpoint connectivity...');
       try {
-        const connectivityTest = fetch(`${SUPABASE_URL}/auth/v1/settings`, {
+        const connectivityTest = fetch(`${supabase.supabaseUrl}/auth/v1/settings`, {
           method: 'GET',
-          headers: { 'apikey': SUPABASE_ANON_KEY }
+          headers: { 'apikey': supabase.supabaseKey }
         });
         
         await Promise.race([
@@ -266,33 +280,9 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         
         console.log('AUTH_CONTEXT: Manual local cleanup completed');
         
-        // Try to invalidate tokens on server side in background (don't wait for it)
-        const backgroundInvalidation = async () => {
-          try {
-            console.log('AUTH_CONTEXT: Background token invalidation...');
-            const { data: { session } } = await supabase.auth.getSession();
-            
-            if (session?.access_token) {
-              const response = await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${session.access_token}`,
-                  'apikey': SUPABASE_ANON_KEY,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ scope: 'global' })
-              });
-              
-              console.log('AUTH_CONTEXT: Background invalidation response:', response.status);
-            }
-          } catch (bgError) {
-            const errorMessage = bgError instanceof Error ? bgError.message : String(bgError);
-            console.log('AUTH_CONTEXT: Background invalidation failed (non-critical):', errorMessage);
-          }
-        };
-        
-        // Start background invalidation but don't wait for it
-        backgroundInvalidation();
+                 // Skip background invalidation since getSession() is hanging
+         console.log('AUTH_CONTEXT: Skipping background token invalidation (getSession is hanging)');
+         console.log('AUTH_CONTEXT: Tokens will expire naturally or can be invalidated later');
         
         const duration = Date.now() - startTime;
         console.log('AUTH_CONTEXT: Logout completed via manual cleanup in', duration, 'ms');
