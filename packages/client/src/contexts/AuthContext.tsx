@@ -31,6 +31,9 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   const [requiresReauth, setRequiresReauth] = useState<boolean>(false)
   const [checkingReauth, setCheckingReauth] = useState<boolean>(false)
   
+  // Add state to defer reauth check outside of onAuthStateChange callback
+  const [needsReauthCheck, setNeedsReauthCheck] = useState<boolean>(false)
+  
   // Use ref to track reauth check status without causing useEffect loops
   const reauthCheckInProgress = useRef<boolean>(false)
 
@@ -111,6 +114,23 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     }
   }, [])
 
+  // Separate useEffect to handle deferred reauth checks
+  // This prevents the deadlock by moving Supabase calls outside the onAuthStateChange callback
+  useEffect(() => {
+    if (!needsReauthCheck) return;
+    
+    console.log('DEFERRED_REAUTH: Processing deferred reauth check');
+    
+    const runDeferredReauthCheck = async () => {
+      await checkReauthStatus();
+      setNeedsReauthCheck(false);
+    };
+    
+    // Use queueMicrotask to defer the execution to the next tick
+    // This ensures we're completely outside the auth callback's execution context
+    queueMicrotask(runDeferredReauthCheck);
+  }, [needsReauthCheck, checkReauthStatus]);
+
   useEffect(() => {
     // Check active sessions and sets the user
     const initializeAuth = async (): Promise<void> => {
@@ -137,23 +157,27 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     initializeAuth()
 
     // Listen for changes on auth state (logged in, signed out, etc.)
+    // CRITICAL FIX: Remove all Supabase calls from this callback to prevent deadlock
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session: Session | null) => {
+      (event, session: Session | null) => {
         console.log('AUTH_STATE_CHANGE:', { event, userEmail: session?.user?.email || null });
         logger.debug('Auth state changed:', event, session?.user?.email)
         setUser(session?.user ?? null)
         setLoading(false)
         
-        // Check reauth status when user signs in
+        // FIXED: Instead of calling checkReauthStatus() directly (which causes deadlock),
+        // we set a flag to trigger the check in a separate useEffect
         if (session?.user && event === 'SIGNED_IN') {
-          console.log('AUTH_STATE_CHANGE: User signed in, checking reauth status');
-          await checkReauthStatus()
+          console.log('AUTH_STATE_CHANGE: User signed in, scheduling reauth status check');
+          setNeedsReauthCheck(true);
         }
         
-        // Clear reauth flag when user signs out
+        // FIXED: Only clear local state, no Supabase calls in the callback
         if (event === 'SIGNED_OUT') {
-          console.log('AUTH_STATE_CHANGE: User signed out, clearing reauth flag');
-          setRequiresReauth(false)
+          console.log('AUTH_STATE_CHANGE: User signed out, clearing reauth flag locally');
+          setRequiresReauth(false);
+          // Note: Any additional cleanup (like clearing DB flags) should be handled
+          // in the signOut method itself, not in this callback
         }
       }
     )
@@ -162,7 +186,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     return () => {
       subscription.unsubscribe()
     }
-  }, []) // Remove checkReauthStatus dependency to prevent infinite loop
+  }, [checkReauthStatus]) // Keep checkReauthStatus dependency for initial auth
 
   // Authentication context value with proper typing
   const value: AuthContextType = {
@@ -175,138 +199,39 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       console.log('AUTH_CONTEXT: signOut called');
       const startTime = Date.now();
       
-      // Step 0: Analyze current session state with timeout (since getSession might hang)
-      console.log('AUTH_CONTEXT: Analyzing current session state with timeout...');
       try {
-        const sessionTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Session analysis timeout after 1 second')), 1000);
-        });
+        // With the deadlock fix in place, getSession() should now work reliably
+        console.log('AUTH_CONTEXT: Calling supabase.auth.signOut()...');
+        const { error } = await supabase.auth.signOut();
         
-        const sessionPromise = supabase.auth.getSession();
-        const { data: { session }, error: sessionError } = await Promise.race([sessionPromise, sessionTimeout]) as any;
-        
-        if (sessionError) {
-          console.error('AUTH_CONTEXT: Session retrieval error:', sessionError);
+        if (error) {
+          console.error('AUTH_CONTEXT: SignOut error:', error);
+          logger.error('SignOut failed:', error);
+          return { error };
         }
-        if (session) {
-          console.log('AUTH_CONTEXT: Current session details:');
-          console.log('  - User ID:', session.user.id);
-          console.log('  - Email:', session.user.email);
-          console.log('  - Token type:', session.token_type);
-          console.log('  - Expires at:', session.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'undefined');
-          console.log('  - Refresh token length:', session.refresh_token?.length || 0);
-          console.log('  - Access token length:', session.access_token?.length || 0);
-          console.log('  - Provider token present:', !!session.provider_token);
-          console.log('  - Provider refresh token present:', !!session.provider_refresh_token);
-        } else {
-          console.log('AUTH_CONTEXT: No session found');
-        }
-      } catch (sessionAnalysisError) {
-        const errorMessage = sessionAnalysisError instanceof Error ? sessionAnalysisError.message : String(sessionAnalysisError);
-        console.error('AUTH_CONTEXT: Session analysis failed/timed out:', errorMessage);
         
-        if (errorMessage.includes('timeout')) {
-          console.log('🚨 AUTH_CONTEXT: CRITICAL - getSession() is hanging!');
-          console.log('   This explains why signOut operations hang');
-          console.log('   Supabase Auth client is in a bad state');
-          console.log('   Proceeding with aggressive manual cleanup...');
-        }
-      }
-      
-      // Pre-flight check: Test if we can reach auth endpoints
-      console.log('AUTH_CONTEXT: Testing auth endpoint connectivity...');
-      try {
-        const connectivityTest = fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/settings`, {
-          method: 'GET',
-          headers: { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY }
-        });
-        
-        await Promise.race([
-          connectivityTest,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Connectivity test timeout')), 2000))
-        ]);
-        
-        console.log('AUTH_CONTEXT: Auth endpoint reachable');
-      } catch (connectivityError) {
-        const errorMessage = connectivityError instanceof Error ? connectivityError.message : 'Unknown connectivity error';
-        console.warn('AUTH_CONTEXT: Auth endpoint connectivity issue:', errorMessage);
-      }
-      
-      // IMMEDIATE FALLBACK: If session exists, clear it locally first for UX
-      const hasUser = !!user;
-      if (hasUser) {
-        console.log('AUTH_CONTEXT: Pre-emptively clearing user for immediate logout UX');
+        // Clear local state
         setUser(null);
-      }
-      
-      // Step 1: Try manual local cleanup (bypass Supabase entirely)
-      try {
-        console.log('AUTH_CONTEXT: Step 1 - Manual local cleanup...');
-        
-        // Clear all Supabase-related storage manually
-        const localStorageKeys = Object.keys(localStorage);
-        const sessionStorageKeys = Object.keys(sessionStorage);
-        
-        // Remove Supabase auth data from localStorage
-        localStorageKeys.forEach(key => {
-          if (key.includes('supabase') || key.includes('sb-')) {
-            localStorage.removeItem(key);
-            console.log('AUTH_CONTEXT: Removed localStorage:', key);
-          }
-        });
-        
-        // Remove Supabase auth data from sessionStorage
-        sessionStorageKeys.forEach(key => {
-          if (key.includes('supabase') || key.includes('sb-')) {
-            sessionStorage.removeItem(key);
-            console.log('AUTH_CONTEXT: Removed sessionStorage:', key);
-          }
-        });
-        
-        // Clear cookies manually
-        document.cookie.split(";").forEach(cookie => {
-          const eqPos = cookie.indexOf("=");
-          const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-          if (name.startsWith('sb-')) {
-            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
-            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-            console.log('AUTH_CONTEXT: Cleared cookie:', name);
-          }
-        });
-        
-        console.log('AUTH_CONTEXT: Manual local cleanup completed');
-        
-                 // Skip background invalidation since getSession() is hanging
-         console.log('AUTH_CONTEXT: Skipping background token invalidation (getSession is hanging)');
-         console.log('AUTH_CONTEXT: Tokens will expire naturally or can be invalidated later');
+        setRequiresReauth(false);
         
         const duration = Date.now() - startTime;
-        console.log('AUTH_CONTEXT: Logout completed via manual cleanup in', duration, 'ms');
-        
-        logger.info('Manual logout successful', { 
-          duration,
-          method: 'manual_cleanup',
-          userWasAuthenticated: hasUser
-        });
+        console.log(`AUTH_CONTEXT: SignOut completed successfully in ${duration}ms`);
+        logger.info('SignOut successful', { duration });
         
         return { error: null };
         
-      } catch (manualError) {
-        console.error('AUTH_CONTEXT: Manual cleanup failed:', manualError);
+      } catch (error) {
+        console.error('AUTH_CONTEXT: SignOut exception:', error);
+        logger.error('SignOut exception:', error);
         
-        // Final fallback: just ensure user is cleared
+        // Fallback: clear local state even if signOut fails
         setUser(null);
+        setRequiresReauth(false);
         
-        const finalDuration = Date.now() - startTime;
-        logger.error('Logout failed but user cleared', { 
-          error: manualError instanceof Error ? manualError.message : String(manualError),
-          duration: finalDuration,
-          method: 'final_fallback',
-          userWasAuthenticated: hasUser
-        });
+        const duration = Date.now() - startTime;
+        console.log(`AUTH_CONTEXT: SignOut fallback completed in ${duration}ms`);
         
-        console.log('AUTH_CONTEXT: Final fallback - user cleared locally');
-        return { error: null };
+        return { error: error instanceof Error ? error : new Error(String(error)) };
       }
     },
     checkReauthStatus: checkReauthStatus,
