@@ -4,16 +4,16 @@ import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import cors, { CorsOptions } from 'cors';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import dotenvFlow from 'dotenv-flow';
+import dotenv from 'dotenv';
 
 // Get __dirname equivalent in ES modules
 const __filename: string = fileURLToPath(import.meta.url);
 const __dirname: string = path.dirname(__filename);
 
 // Load environment variables from the root directory
-dotenvFlow.config({
-    path: path.join(__dirname, '../../'), // Point to root directory where .env files are located
-    silent: false // Show debug info
+// In production, Render will provide env vars directly, so we only need basic dotenv
+dotenv.config({
+    path: path.join(__dirname, '../../.env') // Point to root directory where .env file is located
 });
 
 // Import routes

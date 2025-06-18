@@ -130,7 +130,7 @@ import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import { createProxyMiddleware } from "http-proxy-middleware";
-import dotenvFlow from "dotenv-flow";
+import dotenv from "dotenv";
 
 // routes/index.ts
 import express5 from "express";
@@ -3779,11 +3779,9 @@ var routes_default = router6;
 // server.ts
 var __filename = fileURLToPath(import.meta.url);
 var __dirname2 = path3.dirname(__filename);
-dotenvFlow.config({
-  path: path3.join(__dirname2, "../../"),
-  // Point to root directory where .env files are located
-  silent: false
-  // Show debug info
+dotenv.config({
+  path: path3.join(__dirname2, "../../.env")
+  // Point to root directory where .env file is located
 });
 var app = express6();
 app.use(cookieParser());
