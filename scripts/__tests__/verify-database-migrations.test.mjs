@@ -11,7 +11,6 @@ const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {})
 
 // Mock console functions to capture output
 const mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {})
-const mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
 // Store original environment variables to restore after tests
 const originalEnv = { ...process.env }

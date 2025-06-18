@@ -164,11 +164,11 @@ async function checkDatabaseSchema(supabase) {
       success: !error,
       error: error?.message
     })
-  } catch (err) {
+  } catch (_err) {
     checks.push({
       name: 'podcast_shows table schema',
       success: false,
-      error: err.message
+      error: _err.message
     })
   }
   
@@ -184,11 +184,11 @@ async function checkDatabaseSchema(supabase) {
       success: !error,
       error: error?.message
     })
-  } catch (err) {
+  } catch (_err) {
     checks.push({
       name: 'users table schema',
       success: false,
-      error: err.message
+      error: _err.message
     })
   }
   
@@ -206,7 +206,7 @@ async function checkDatabaseSchema(supabase) {
       success: true,
       error: null
     })
-  } catch (err) {
+  } catch (_err) {
     // If vault function fails, that's still acceptable for schema check
     checks.push({
       name: 'vault.secrets table access',
@@ -241,8 +241,8 @@ async function verifyDatabaseMigrations() {
         }
       }
     )
-  } catch (err) {
-    error(`Failed to initialize Supabase client: ${err.message}`)
+  } catch (_err) {
+    error(`Failed to initialize Supabase client: ${_err.message}`)
     process.exit(2)
   }
   
@@ -317,8 +317,8 @@ async function verifyDatabaseMigrations() {
       success('Database schema validation passed')
     }
     
-  } catch (err) {
-    log(`❌ Verification failed with error: ${err.message}`, colors.red)
+  } catch (_err) {
+    log(`❌ Verification failed with error: ${_err.message}`, colors.red)
     hasErrors = true
   }
   
@@ -339,8 +339,8 @@ async function verifyDatabaseMigrations() {
 
 // Run the verification if this script is called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  verifyDatabaseMigrations().catch(err => {
-    log(`❌ Unexpected error: ${err.message}`, colors.red)
+  verifyDatabaseMigrations().catch(_err => {
+    log(`❌ Unexpected error: ${_err.message}`, colors.red)
     process.exit(1)
   })
 }
