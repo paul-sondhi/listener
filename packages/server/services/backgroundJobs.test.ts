@@ -19,7 +19,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 const { 
   mockRefreshAllUserSubscriptionsEnhanced,
   mockLog,
-  mockCronSchedule 
+  mockCronSchedule,
+  mockEpisodeSyncService,
+  mockEpisodeSyncServiceConstructor
 } = vi.hoisted(() => ({
   mockRefreshAllUserSubscriptionsEnhanced: vi.fn(),
   mockLog: {
@@ -27,12 +29,20 @@ const {
     warn: vi.fn(),
     error: vi.fn()
   },
-  mockCronSchedule: vi.fn()
+  mockCronSchedule: vi.fn(),
+  mockEpisodeSyncService: {
+    syncAllShows: vi.fn()
+  },
+  mockEpisodeSyncServiceConstructor: vi.fn()
 }));
 
 // Mock external dependencies - use factory functions with hoisted mocks
 vi.mock('./subscriptionRefreshService.js', () => ({
   refreshAllUserSubscriptionsEnhanced: mockRefreshAllUserSubscriptionsEnhanced
+}));
+
+vi.mock('./episodeSyncService.js', () => ({
+  EpisodeSyncService: mockEpisodeSyncServiceConstructor.mockImplementation(() => mockEpisodeSyncService)
 }));
 
 vi.mock('../lib/logger.js', () => ({
@@ -47,6 +57,7 @@ vi.mock('node-cron', () => ({
 
 import { 
   dailySubscriptionRefreshJob,
+  episodeSyncJob,
   initializeBackgroundJobs,
   runJob
 } from './backgroundJobs.js';
@@ -187,6 +198,62 @@ class JobTestDataFactory {
           count: 5,
           sample_errors: ['Error 11', 'Error 12', 'Error 13']
         }
+      ]
+    };
+  }
+
+  /**
+   * Create a successful episode sync result
+   * @param overrides - Properties to override in the default result
+   * @returns Mock successful episode sync result
+   */
+  static createSuccessfulEpisodeSyncResult(overrides: any = {}) {
+    return {
+      success: true,
+      totalShows: 5,
+      successfulShows: 5,
+      failedShows: 0,
+      totalEpisodesUpserted: 15,
+      errors: [],
+      ...overrides
+    };
+  }
+
+  /**
+   * Create a failed episode sync result
+   * @param overrides - Properties to override in the default result
+   * @returns Mock failed episode sync result
+   */
+  static createFailedEpisodeSyncResult(overrides: any = {}) {
+    return {
+      success: false,
+      totalShows: 3,
+      successfulShows: 1,
+      failedShows: 2,
+      totalEpisodesUpserted: 5,
+      errors: [
+        'Failed to fetch RSS feed for show-2: Network error',
+        'Failed to parse RSS feed for show-3: Invalid XML'
+      ],
+      ...overrides
+    };
+  }
+
+  /**
+   * Create a mixed episode sync result
+   * @returns Mock episode sync result with both successes and failures
+   */
+  static createMixedEpisodeSyncResult() {
+    return {
+      success: false, // Overall failure due to some failed shows
+      totalShows: 10,
+      successfulShows: 7,
+      failedShows: 3,
+      totalEpisodesUpserted: 21,
+      errors: [
+        'Failed to fetch RSS feed for show-8: 404 Not Found',
+        'Failed to parse RSS feed for show-9: Timeout',
+        'Failed to update show-10: Database connection error'
       ]
     };
   }
@@ -458,6 +525,238 @@ describe('dailySubscriptionRefreshJob', () => {
 });
 
 /**
+ * Test Suite: Episode Sync Job
+ * Tests the nightly episode sync job functionality
+ */
+describe('episodeSyncJob', () => {
+  beforeEach(() => {
+    // Reset all mocks before each test
+    vi.clearAllMocks();
+    
+    // Reset console spy to track console.log calls
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    // Setup environment variables
+    process.env.SUPABASE_URL = 'https://test.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+    
+    // Reset mock implementations
+    mockEpisodeSyncServiceConstructor.mockImplementation(() => mockEpisodeSyncService);
+  });
+
+  afterEach(() => {
+    // Restore console methods
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * Test successful episode sync job execution
+   * Verifies that a complete successful episode sync job works end-to-end
+   */
+  it('should execute episode sync job successfully with comprehensive logging', async () => {
+    // Arrange: Set up successful episode sync result
+    const successfulResult = JobTestDataFactory.createSuccessfulEpisodeSyncResult();
+    mockEpisodeSyncService.syncAllShows.mockResolvedValue(successfulResult);
+
+    // Act: Execute the episode sync job
+    await episodeSyncJob();
+
+    // Assert: Verify constructor was called
+    expect(mockEpisodeSyncServiceConstructor).toHaveBeenCalledTimes(1);
+    expect(mockEpisodeSyncServiceConstructor).toHaveBeenCalledWith(
+      'https://test.supabase.co',
+      'test-service-role-key',
+      expect.any(Object)
+    );
+
+    // Assert: Verify episode sync service was called
+    expect(mockEpisodeSyncService.syncAllShows).toHaveBeenCalledTimes(1);
+    expect(mockEpisodeSyncService.syncAllShows).toHaveBeenCalledWith();
+
+    // Assert: Verify successful completion logging
+    expect(mockLog.info).toHaveBeenCalledWith(
+      'scheduler',
+      expect.stringContaining('Starting episode_sync job'),
+      expect.objectContaining({
+        component: 'background_jobs'
+      })
+    );
+
+    expect(mockLog.info).toHaveBeenCalledWith(
+      'episode_sync',
+      expect.stringContaining('Episode sync processed 5 shows'),
+      expect.objectContaining({
+        total_shows: 5,
+        successful_shows: 5,
+        failed_shows: 0,
+        success_rate: '100.0',
+        episodes: {
+          total_upserted: 15,
+          avg_per_show: '3.0'
+        }
+      })
+    );
+
+    expect(mockLog.info).toHaveBeenCalledWith(
+      'scheduler',
+      expect.stringContaining('Episode sync completed successfully'),
+      expect.objectContaining({
+        component: 'background_jobs',
+        shows_processed: 5,
+        episodes_upserted: 15,
+        success_rate: '100.0'
+      })
+    );
+
+    // Assert: Verify no error logging occurred
+    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(mockLog.warn).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Test episode sync job with partial failures
+   * Verifies proper handling and logging when some shows fail
+   */
+  it('should handle partial failures with detailed error logging', async () => {
+    // Arrange: Set up episode sync result with mixed outcomes
+    const mixedResult = JobTestDataFactory.createMixedEpisodeSyncResult();
+    mockEpisodeSyncService.syncAllShows.mockResolvedValue(mixedResult);
+
+    // Act: Execute the episode sync job
+    await episodeSyncJob();
+
+    // Assert: Verify episode sync service was called
+    expect(mockEpisodeSyncService.syncAllShows).toHaveBeenCalledTimes(1);
+
+    // Assert: Verify detailed progress logging
+    expect(mockLog.info).toHaveBeenCalledWith(
+      'episode_sync',
+      expect.stringContaining('Episode sync processed 10 shows'),
+      expect.objectContaining({
+        total_shows: 10,
+        successful_shows: 7,
+        failed_shows: 3,
+        success_rate: '70.0', // 70% success rate
+        episodes: {
+          total_upserted: 21,
+          avg_per_show: '3.0'
+        }
+      })
+    );
+
+    // Assert: Verify error logging
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      'episode_sync',
+      expect.stringContaining('Episode sync completed with some failures'),
+      expect.objectContaining({
+        failed_shows: 3,
+        error_details: [
+          'Failed to fetch RSS feed for show-8: 404 Not Found',
+          'Failed to parse RSS feed for show-9: Timeout',
+          'Failed to update show-10: Database connection error'
+        ],
+        percentage: '30.0'
+      })
+    );
+
+    // Assert: Verify completion with issues logging
+    expect(mockLog.error).toHaveBeenCalledWith(
+      'scheduler',
+      expect.stringContaining('Episode sync completed with issues'),
+      expect.objectContaining({
+        component: 'background_jobs',
+        shows_processed: 10,
+        failed_shows: 3,
+        errors: [
+          'Failed to fetch RSS feed for show-8: 404 Not Found',
+          'Failed to parse RSS feed for show-9: Timeout',
+          'Failed to update show-10: Database connection error'
+        ]
+      })
+    );
+  });
+
+  /**
+   * Test episode sync job complete failure
+   * Verifies proper error handling when the entire sync operation fails
+   */
+  it('should handle complete job failure gracefully', async () => {
+    // Arrange: Set up complete failure result
+    const failedResult = JobTestDataFactory.createFailedEpisodeSyncResult();
+    mockEpisodeSyncService.syncAllShows.mockResolvedValue(failedResult);
+
+    // Act: Execute the episode sync job
+    await episodeSyncJob();
+
+    // Assert: Verify episode sync service was called
+    expect(mockEpisodeSyncService.syncAllShows).toHaveBeenCalledTimes(1);
+
+    // Assert: Verify failure logging
+    expect(mockLog.info).toHaveBeenCalledWith(
+      'episode_sync',
+      expect.stringContaining('Episode sync processed 3 shows'),
+      expect.objectContaining({
+        total_shows: 3,
+        successful_shows: 1,
+        failed_shows: 2,
+        success_rate: '33.3' // 33.3% success rate
+      })
+    );
+
+    // Assert: Verify error completion logging
+    expect(mockLog.error).toHaveBeenCalledWith(
+      'scheduler',
+      expect.stringContaining('Episode sync completed with issues'),
+      expect.objectContaining({
+        component: 'background_jobs',
+        failed_shows: 2,
+        errors: [
+          'Failed to fetch RSS feed for show-2: Network error',
+          'Failed to parse RSS feed for show-3: Invalid XML'
+        ]
+      })
+    );
+  });
+
+  /**
+   * Test episode sync job exception handling
+   * Verifies proper error handling when the sync service throws an exception
+   */
+  it('should handle sync service exceptions gracefully', async () => {
+    // Arrange: Set up service to throw an exception
+    const testError = new Error('Service initialization failed');
+    mockEpisodeSyncService.syncAllShows.mockRejectedValue(testError);
+
+    // Act: Execute the episode sync job
+    await episodeSyncJob();
+
+    // Assert: Verify episode sync service was called
+    expect(mockEpisodeSyncService.syncAllShows).toHaveBeenCalledTimes(1);
+
+    // Assert: Verify exception logging
+    expect(mockLog.error).toHaveBeenCalledWith(
+      'scheduler',
+      expect.stringContaining('Episode sync job failed with exception'),
+      testError,
+      expect.objectContaining({
+        component: 'background_jobs',
+        shows_processed: 0,
+        stack_trace: expect.stringContaining('Service initialization failed'),
+        job_name: 'episode_sync'
+      })
+    );
+
+    // Assert: Verify no success logging occurred
+    expect(mockLog.info).not.toHaveBeenCalledWith(
+      'scheduler',
+      expect.stringContaining('Episode sync completed successfully'),
+      expect.any(Object)
+    );
+  });
+});
+
+/**
  * Test Suite: Manual Job Execution
  * Tests the manual job triggering functionality
  */
@@ -466,6 +765,13 @@ describe('runJob', () => {
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    // Setup environment variables for episode sync
+    process.env.SUPABASE_URL = 'https://test.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+    
+    // Reset mock implementations
+    mockEpisodeSyncServiceConstructor.mockImplementation(() => mockEpisodeSyncService);
   });
 
   afterEach(() => {
@@ -515,6 +821,27 @@ describe('runJob', () => {
   });
 
   /**
+   * Test manual triggering of episode sync job
+   * Verifies that the episode sync job can be triggered manually for testing/admin purposes
+   */
+  it('should execute episode sync job when triggered manually', async () => {
+    // Arrange: Set up successful episode sync result
+    const successfulResult = JobTestDataFactory.createSuccessfulEpisodeSyncResult();
+    mockEpisodeSyncService.syncAllShows.mockResolvedValue(successfulResult);
+
+    // Act: Manually trigger the episode sync job
+    await runJob('episode_sync');
+
+    // Assert: Verify episode sync service was called
+    expect(mockEpisodeSyncService.syncAllShows).toHaveBeenCalledTimes(1);
+
+    // Assert: Verify manual job execution logging
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('BACKGROUND_JOBS: Manually running job: episode_sync')
+    );
+  });
+
+  /**
    * Test error handling for unknown job names
    * Verifies proper error handling when an invalid job name is provided
    */
@@ -546,6 +873,9 @@ describe('initializeBackgroundJobs', () => {
     delete process.env.DAILY_REFRESH_ENABLED;
     delete process.env.DAILY_REFRESH_CRON;
     delete process.env.DAILY_REFRESH_TIMEZONE;
+    delete process.env.EPISODE_SYNC_ENABLED;
+    delete process.env.EPISODE_SYNC_CRON;
+    delete process.env.EPISODE_SYNC_TIMEZONE;
   });
 
   afterEach(() => {
@@ -573,6 +903,16 @@ describe('initializeBackgroundJobs', () => {
     initializeBackgroundJobs();
 
     // Assert: Verify daily subscription refresh job was scheduled
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '0 0 * * *', // Default midnight PT cron expression
+      expect.any(Function),
+      expect.objectContaining({
+        scheduled: true,
+        timezone: 'America/Los_Angeles' // Default Pacific timezone
+      })
+    );
+
+    // Assert: Verify episode sync job was scheduled
     expect(mockCronSchedule).toHaveBeenCalledWith(
       '0 0 * * *', // Default midnight PT cron expression
       expect.any(Function),
@@ -684,6 +1024,85 @@ describe('initializeBackgroundJobs', () => {
     );
 
     // Assert: Verify other jobs were still scheduled
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '0 2 * * *', // Vault cleanup should still be scheduled
+      expect.any(Function),
+      expect.any(Object)
+    );
+  });
+
+  /**
+   * Test episode sync configuration
+   * Verifies that episode sync job respects environment configuration
+   */
+  it('should respect episode sync environment variable configuration', () => {
+    // Arrange: Set custom episode sync environment variables
+    process.env.EPISODE_SYNC_ENABLED = 'true';
+    process.env.EPISODE_SYNC_CRON = '0 1 * * *'; // 1 AM instead of midnight
+    process.env.EPISODE_SYNC_TIMEZONE = 'America/Chicago'; // Central time
+
+    // Mock cron schedule function
+    const mockScheduleTask = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      getStatus: vi.fn().mockReturnValue('scheduled')
+    };
+    mockCronSchedule.mockReturnValue(mockScheduleTask);
+
+    // Act: Initialize background jobs
+    initializeBackgroundJobs();
+
+    // Assert: Verify custom episode sync configuration was used
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '0 1 * * *', // Custom 1 AM cron expression
+      expect.any(Function),
+      expect.objectContaining({
+        scheduled: true,
+        timezone: 'America/Chicago' // Custom Central timezone
+      })
+    );
+
+    // Assert: Verify custom configuration logging
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('0 1 * * * America/Chicago')
+    );
+  });
+
+  /**
+   * Test episode sync disabling
+   * Verifies that episode sync can be disabled via environment variable
+   */
+  it('should disable episode sync when EPISODE_SYNC_ENABLED is false', () => {
+    // Arrange: Disable episode sync
+    process.env.EPISODE_SYNC_ENABLED = 'false';
+
+    // Mock cron schedule function
+    const mockScheduleTask = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      getStatus: vi.fn().mockReturnValue('scheduled')
+    };
+    mockCronSchedule.mockReturnValue(mockScheduleTask);
+
+    // Act: Initialize background jobs
+    initializeBackgroundJobs();
+
+    // Assert: Verify episode sync was not scheduled
+    const episodeSyncCalls = mockCronSchedule.mock.calls.filter(call => {
+      // Check if any call matches episode sync patterns
+      const callStr = JSON.stringify(call);
+      return callStr.includes('episode sync') || callStr.includes('Episode sync');
+    });
+    expect(episodeSyncCalls).toHaveLength(0);
+
+    // Assert: Verify disabled logging
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('- Episode sync: DISABLED')
+    );
+
+    // Assert: Verify other jobs were still scheduled (vault cleanup)
     expect(mockCronSchedule).toHaveBeenCalledWith(
       '0 2 * * *', // Vault cleanup should still be scheduled
       expect.any(Function),

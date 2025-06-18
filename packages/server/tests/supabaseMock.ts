@@ -25,6 +25,61 @@ const db: Record<string, any[]> = {
       prorows: 1000
     }
     // Add more database functions here as needed
+  ],
+
+  // Core tables for integration tests
+  users: [],
+  podcast_shows: [],
+  user_podcast_subscriptions: [],
+  podcast_episodes: [],
+
+  // Information schema tables for debugging
+  'information_schema.tables': [
+    { table_name: 'users' },
+    { table_name: 'podcast_shows' },
+    { table_name: 'user_podcast_subscriptions' },
+    { table_name: 'podcast_episodes' }
+  ],
+  'information_schema.columns': [
+    // users table columns
+    { table_name: 'users', column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
+    { table_name: 'users', column_name: 'email', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'users', column_name: 'spotify_vault_secret_id', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'users', column_name: 'spotify_reauth_required', data_type: 'boolean', is_nullable: 'YES' },
+    { table_name: 'users', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    
+    // podcast_shows table columns
+    { table_name: 'podcast_shows', column_name: 'id', data_type: 'text', is_nullable: 'NO' },
+    { table_name: 'podcast_shows', column_name: 'spotify_url', data_type: 'text', is_nullable: 'NO' },
+    { table_name: 'podcast_shows', column_name: 'title', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'podcast_shows', column_name: 'description', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'podcast_shows', column_name: 'image_url', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'podcast_shows', column_name: 'rss_url', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'podcast_shows', column_name: 'etag', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'podcast_shows', column_name: 'last_modified', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'podcast_shows', column_name: 'last_checked_episodes', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'podcast_shows', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'podcast_shows', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    
+    // user_podcast_subscriptions table columns
+    { table_name: 'user_podcast_subscriptions', column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
+    { table_name: 'user_podcast_subscriptions', column_name: 'user_id', data_type: 'uuid', is_nullable: 'NO' },
+    { table_name: 'user_podcast_subscriptions', column_name: 'show_id', data_type: 'text', is_nullable: 'NO' },
+    { table_name: 'user_podcast_subscriptions', column_name: 'status', data_type: 'text', is_nullable: 'NO' },
+    { table_name: 'user_podcast_subscriptions', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'user_podcast_subscriptions', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    
+    // podcast_episodes table columns
+    { table_name: 'podcast_episodes', column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
+    { table_name: 'podcast_episodes', column_name: 'show_id', data_type: 'text', is_nullable: 'NO' },
+    { table_name: 'podcast_episodes', column_name: 'guid', data_type: 'text', is_nullable: 'NO' },
+    { table_name: 'podcast_episodes', column_name: 'episode_url', data_type: 'text', is_nullable: 'NO' },
+    { table_name: 'podcast_episodes', column_name: 'title', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'podcast_episodes', column_name: 'description', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'podcast_episodes', column_name: 'pub_date', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'podcast_episodes', column_name: 'duration_sec', data_type: 'integer', is_nullable: 'YES' },
+    { table_name: 'podcast_episodes', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'podcast_episodes', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' }
   ]
 };
 
@@ -51,18 +106,45 @@ function buildQuery(table?: string) {
   // ------------------------------
   const applyFilters = (rows: any[]): any[] => {
     let out = rows;
+    
+    // Handle joins - if we're querying podcast_shows with user_podcast_subscriptions join
+    if (state.table === 'podcast_shows' && state.selectColumns && 
+        typeof state.selectColumns === 'string' && 
+        state.selectColumns.includes('user_podcast_subscriptions!inner')) {
+      
+      // For podcast_shows with inner join on user_podcast_subscriptions,
+      // only return shows that have active subscriptions
+      const subscriptions = db['user_podcast_subscriptions'] || [];
+      const activeSubscriptions = subscriptions.filter(sub => sub.status === 'active');
+      const showIdsWithActiveSubscriptions = [...new Set(activeSubscriptions.map(sub => sub.show_id))];
+      
+      out = out.filter(show => showIdsWithActiveSubscriptions.includes(show.id));
+    }
+    
     // eq filters
     state.whereEq.forEach(([col, val]: [string, any]) => {
-      out = out.filter(r => r[col] === val);
+      // Handle joined table filters like 'user_podcast_subscriptions.status'
+      if (col.includes('.')) {
+        const [tableName, _columnName] = col.split('.');
+        if (tableName === 'user_podcast_subscriptions' && state.table === 'podcast_shows') {
+          // Already handled above in the join logic
+          return;
+        }
+      } else {
+        out = out.filter(r => r[col] === val);
+      }
     });
+    
     // in filters
     state.whereIn.forEach(([col, list]: [string, any[]]) => {
       out = out.filter(r => list.includes(r[col]));
     });
+    
     // not-null filters
     state.whereNotNull.forEach((col: string) => {
       out = out.filter(r => r[col] !== null && r[col] !== undefined);
     });
+    
     return out;
   };
 
@@ -79,9 +161,38 @@ function buildQuery(table?: string) {
   qb.upsert = vi.fn((payload: any[], _options?: any) => {
     if (!db[state.table!]) db[state.table!] = [];
     payload.forEach(row => {
-      const idx = db[state.table!].findIndex(r => r.id === row.id);
-      if (idx !== -1) db[state.table!][idx] = { ...db[state.table!][idx], ...row };
-      else db[state.table!].push(row);
+      let idx = -1;
+      
+      // Handle different table types with their unique constraints
+      if (state.table === 'podcast_episodes') {
+        // Episodes are unique by show_id + guid combination
+        idx = db[state.table!].findIndex(r => 
+          r.show_id === row.show_id && r.guid === row.guid
+        );
+      } else if (state.table === 'user_podcast_subscriptions') {
+        // Subscriptions are unique by user_id + show_id combination
+        idx = db[state.table!].findIndex(r => 
+          r.user_id === row.user_id && r.show_id === row.show_id
+        );
+      } else {
+        // Default: use id field for other tables
+        idx = db[state.table!].findIndex(r => r.id === row.id);
+      }
+      
+      if (idx !== -1) {
+        // Update existing record
+        db[state.table!][idx] = { ...db[state.table!][idx], ...row };
+      } else {
+        // Insert new record, adding auto-generated id if needed
+        const newRow = { ...row };
+        if (!newRow.id && state.table !== 'podcast_episodes') {
+          newRow.id = `${state.table}-${Date.now()}-${Math.random()}`;
+        }
+        if (state.table === 'podcast_episodes' && !newRow.id) {
+          newRow.id = `episode-${Date.now()}-${Math.random()}`;
+        }
+        db[state.table!].push(newRow);
+      }
     });
     state.pendingUpsert = payload;
     return qb;

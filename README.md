@@ -39,6 +39,11 @@ A podcast transcription service that integrates with Spotify.
    SUPABASE_URL=your_supabase_url
    SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
    PORT=3000
+   
+   # Episode Sync Configuration (optional)
+   EPISODE_SYNC_ENABLED=true
+   EPISODE_SYNC_CRON=0 0 * * *
+   EPISODE_SYNC_TIMEZONE=America/Los_Angeles
    ```
 
 3. Start the development environment:
@@ -94,6 +99,31 @@ supabase db push
 
 # Reset database with fresh migrations
 supabase db reset
+```
+
+### Background Jobs
+
+```bash
+# Manually trigger episode sync job
+cd packages/server
+npx tsx -e "
+import { runJob } from './services/backgroundJobs.js';
+await runJob('episode_sync');
+"
+
+# Manually trigger daily subscription refresh
+cd packages/server
+npx tsx -e "
+import { runJob } from './services/backgroundJobs.js';
+await runJob('daily_subscription_refresh');
+"
+
+# Check what jobs are available
+cd packages/server
+npx tsx -e "
+import { runJob } from './services/backgroundJobs.js';
+console.log('Available jobs: episode_sync, daily_subscription_refresh, vault_cleanup, key_rotation');
+"
 ```
 
 ## API Endpoints
@@ -170,6 +200,110 @@ podcast_episodes
 
 - `20250616190040_create_podcast_core.sql` - Creates core podcast tables and episodes
 - `20250616192002_migrate_subscriptions.sql` - Migrates legacy subscriptions to normalized schema
+
+## Deployment
+
+### Episode Sync Feature Deployment
+
+The episode sync feature requires a specific deployment sequence to safely add RSS URL tracking:
+
+#### 1. Deploy Schema Changes
+```bash
+# Deploy the column addition migration first
+supabase db push --linked
+
+# This applies:
+# - 20250618002222_add_rss_url_and_last_checked_episodes.sql (adds nullable columns)
+# - 20250618002721_add_last_checked_episodes_index.sql (adds index)
+```
+
+#### 2. Run RSS URL Backfill
+```bash
+# Run the one-time backfill script to populate rss_url for existing shows
+cd scripts
+npx tsx backfillRssUrl.ts
+
+# This script:
+# - Finds all podcast_shows where rss_url IS NULL
+# - Uses Spotify API + PodcastIndex to find RSS URLs
+# - Updates the database with found RSS URLs
+# - Provides detailed logging and error reporting
+```
+
+#### 3. Deploy Constraints (ONLY after successful backfill)
+```bash
+# Deploy the constraint migration ONLY after verifying backfill success
+supabase db push --linked
+
+# This applies:
+# - 20250618002310_add_rss_url_constraints.sql (adds NOT NULL and UNIQUE constraints)
+```
+
+#### 4. Deploy Application Code
+```bash
+# Deploy the episode sync service and background job scheduling
+# This includes the nightly cron job for checking new episodes
+```
+
+#### 5. Configure Episode Sync Background Job
+
+The episode sync feature includes a nightly background job that automatically checks for new episodes. Configure the job using environment variables:
+
+```bash
+# Enable/disable the episode sync job (default: enabled)
+EPISODE_SYNC_ENABLED=true
+
+# Configure the schedule (default: midnight Pacific Time)
+EPISODE_SYNC_CRON=0 0 * * *
+EPISODE_SYNC_TIMEZONE=America/Los_Angeles
+```
+
+**Job Schedule Examples:**
+```bash
+# Every night at midnight PT (default)
+EPISODE_SYNC_CRON=0 0 * * *
+EPISODE_SYNC_TIMEZONE=America/Los_Angeles
+
+# Every night at 2 AM ET  
+EPISODE_SYNC_CRON=0 2 * * *
+EPISODE_SYNC_TIMEZONE=America/New_York
+
+# Every 6 hours
+EPISODE_SYNC_CRON=0 */6 * * *
+
+# Disable the job entirely
+EPISODE_SYNC_ENABLED=false
+```
+
+**Manual Job Execution:**
+```bash
+# Trigger episode sync manually (for testing or one-time runs)
+cd packages/server
+npx tsx -e "
+import { runJob } from './services/backgroundJobs.js';
+await runJob('episode_sync');
+"
+```
+
+**Monitoring:**
+- Job execution logs include structured metadata for monitoring
+- Check application logs for `BACKGROUND_JOB` and `episode_sync` entries
+- Failed syncs are logged with detailed error information
+- Metrics are emitted for job duration and success/failure rates
+
+### Post-Deployment Cleanup
+
+After successful deployment, the backfill script should be disabled to prevent accidental re-runs:
+
+```bash
+# Option 1: Move script to archive
+mv scripts/backfillRssUrl.ts scripts/archive/backfillRssUrl.ts.completed
+
+# Option 2: Add to .gitignore (if keeping for reference)
+echo "scripts/backfillRssUrl.ts" >> .gitignore
+```
+
+**⚠️ Important**: Never run the backfill script in production after the initial deployment. It's designed for one-time use only.
 
 ## Authentication
 

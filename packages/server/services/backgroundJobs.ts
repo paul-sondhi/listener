@@ -10,6 +10,9 @@ import {
   BatchRefreshResult 
 } from './subscriptionRefreshService.js';
 
+// Import episode sync service
+import { EpisodeSyncService } from './episodeSyncService.js';
+
 // Import enhanced logging
 import { log } from '../lib/logger.js';
 
@@ -446,6 +449,139 @@ export async function dailySubscriptionRefreshJob(): Promise<void> {
 }
 
 /**
+ * Nightly episode sync job
+ * Syncs new podcast episodes for all shows with active subscriptions
+ * Runs at midnight PT (Pacific Time) daily
+ */
+export async function episodeSyncJob(): Promise<void> {
+  const startTime = Date.now();
+  const jobName = 'episode_sync';
+  const jobId = `episode-sync-${new Date().toISOString()}`;
+  let recordsProcessed = 0;
+  
+  log.info('scheduler', `Starting ${jobName} job`, {
+    job_id: jobId,
+    component: 'background_jobs'
+  });
+  
+  try {
+    // Initialize episode sync service with default logger
+    const episodeSyncService = new EpisodeSyncService(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        info: (message: string, meta?: Record<string, unknown>) => {
+          log.info('episode_sync', message, { job_id: jobId, ...meta });
+        },
+        warn: (message: string, meta?: Record<string, unknown>) => {
+          log.warn('episode_sync', message, { job_id: jobId, ...meta });
+        },
+        error: (message: string, error?: Error, meta?: Record<string, unknown>) => {
+          log.error('episode_sync', message, error, { job_id: jobId, ...meta });
+        }
+      }
+    );
+    
+    // Execute the episode sync for all shows with active subscriptions
+    log.info('episode_sync', 'Executing nightly episode sync for all shows with active subscriptions', {
+      job_id: jobId,
+      component: 'episode_sync_service'
+    });
+    
+    const result = await episodeSyncService.syncAllShows();
+    
+    const elapsedMs = Date.now() - startTime;
+    recordsProcessed = result.totalShows;
+    
+    // Enhanced logging with structured data
+    log.info('episode_sync', `Episode sync processed ${result.totalShows} shows`, {
+      job_id: jobId,
+      total_shows: result.totalShows,
+      successful_shows: result.successfulShows,
+      failed_shows: result.failedShows,
+      success_rate: result.totalShows > 0 ? (result.successfulShows / result.totalShows * 100).toFixed(1) : '0',
+      duration_ms: elapsedMs,
+      episodes: {
+        total_upserted: result.totalEpisodesUpserted,
+        avg_per_show: result.successfulShows > 0 ? (result.totalEpisodesUpserted / result.successfulShows).toFixed(1) : '0'
+      }
+    });
+    
+    if (result.failedShows > 0) {
+      log.warn('episode_sync', 'Episode sync completed with some failures', {
+        job_id: jobId,
+        failed_shows: result.failedShows,
+        error_details: result.errors,
+        percentage: result.totalShows > 0 ? (result.failedShows / result.totalShows * 100).toFixed(1) : '0'
+      });
+    }
+    
+    // Log successful execution
+    const execution: JobExecution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: result.success,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs,
+      ...((!result.success || result.failedShows > 0) && { 
+        error: result.failedShows > 0 ? `${result.failedShows} shows failed to sync` : 'Episode sync failed'
+      })
+    };
+    
+    logJobExecution(execution);
+    emitJobMetric(jobName, result.success, recordsProcessed, elapsedMs);
+    
+    if (result.success) {
+      log.info('scheduler', `Episode sync completed successfully`, {
+        job_id: jobId,
+        component: 'background_jobs',
+        duration_ms: elapsedMs,
+        shows_processed: recordsProcessed,
+        episodes_upserted: result.totalEpisodesUpserted,
+        success_rate: result.totalShows > 0 ? (result.successfulShows / result.totalShows * 100).toFixed(1) : '100'
+      });
+    } else {
+      log.error('scheduler', `Episode sync completed with issues`, {
+        job_id: jobId,
+        component: 'background_jobs', 
+        duration_ms: elapsedMs,
+        shows_processed: recordsProcessed,
+        failed_shows: result.failedShows,
+        errors: result.errors
+      });
+    }
+    
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const err = error as Error;
+    
+    log.error('scheduler', `Episode sync job failed with exception`, err, {
+      component: 'background_jobs',
+      duration_ms: elapsedMs,
+      shows_processed: recordsProcessed,
+      stack_trace: err?.stack,
+      job_name: jobName
+    });
+    
+    // Log failed execution
+    const execution: JobExecution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: false,
+      error: errorMessage,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs
+    };
+    
+    logJobExecution(execution);
+    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
+  }
+}
+
+/**
  * Initialize background job scheduling
  * Sets up cron jobs for vault cleanup and key rotation
  */
@@ -476,6 +612,26 @@ export function initializeBackgroundJobs(): void {
     console.log(`  - Daily subscription refresh: ${dailyRefreshCron} ${dailyRefreshTimezone}`);
   } else {
     console.log('  - Daily subscription refresh: DISABLED');
+  }
+  
+  // Episode sync job configuration
+  const episodeSyncEnabled = process.env.EPISODE_SYNC_ENABLED !== 'false';
+  const episodeSyncCron = process.env.EPISODE_SYNC_CRON || '0 0 * * *'; // Default: midnight PT
+  const episodeSyncTimezone = process.env.EPISODE_SYNC_TIMEZONE || 'America/Los_Angeles';
+  
+  if (episodeSyncEnabled) {
+    // Nightly episode sync at configured time and timezone
+    // Cron format: minute hour day-of-month month day-of-week
+    cron.schedule(episodeSyncCron, async () => {
+      console.log('BACKGROUND_JOBS: Starting scheduled episode sync job');
+      await episodeSyncJob();
+    }, {
+      scheduled: true,
+      timezone: episodeSyncTimezone
+    });
+    console.log(`  - Episode sync: ${episodeSyncCron} ${episodeSyncTimezone}`);
+  } else {
+    console.log('  - Episode sync: DISABLED');
   }
   
   // Nightly vault cleanup at 2 AM UTC
@@ -514,6 +670,9 @@ export async function runJob(jobName: string): Promise<void> {
     case 'daily_subscription_refresh':
     case 'subscription_refresh':
       await dailySubscriptionRefreshJob();
+      break;
+    case 'episode_sync':
+      await episodeSyncJob();
       break;
     case 'vault_cleanup':
       await vaultCleanupJob();

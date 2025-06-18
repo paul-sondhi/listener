@@ -11,7 +11,7 @@
     "start": "cd packages/server && npm run start",
     "test": "npm run test -ws --if-present",
     "test:quiet": "npm run test:quiet -ws --if-present",
-    "test:summary": "npm run test:summary -ws --if-present", 
+    "test:summary": "npm run test:summary -ws --if-present",
     "test:coverage": "npm run test:coverage -ws --if-present",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
