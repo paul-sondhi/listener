@@ -594,9 +594,19 @@ export function initializeBackgroundJobs(): void {
     return;
   }
   
+  // Vault cleanup job configuration - runs first at midnight PT
+  // Cron format: minute hour day-of-month month day-of-week
+  cron.schedule('0 0 * * *', async () => {
+    console.log('BACKGROUND_JOBS: Starting scheduled vault cleanup job');
+    await vaultCleanupJob();
+  }, {
+    scheduled: true,
+    timezone: 'America/Los_Angeles'
+  });
+  
   // Daily subscription refresh job configuration
   const dailyRefreshEnabled = process.env.DAILY_REFRESH_ENABLED !== 'false';
-  const dailyRefreshCron = process.env.DAILY_REFRESH_CRON || '0 0 * * *'; // Default: midnight PT
+  const dailyRefreshCron = process.env.DAILY_REFRESH_CRON || '30 0 * * *'; // Default: 12:30 AM PT
   const dailyRefreshTimezone = process.env.DAILY_REFRESH_TIMEZONE || 'America/Los_Angeles';
   
   if (dailyRefreshEnabled) {
@@ -616,7 +626,7 @@ export function initializeBackgroundJobs(): void {
   
   // Episode sync job configuration
   const episodeSyncEnabled = process.env.EPISODE_SYNC_ENABLED !== 'false';
-  const episodeSyncCron = process.env.EPISODE_SYNC_CRON || '0 0 * * *'; // Default: midnight PT
+  const episodeSyncCron = process.env.EPISODE_SYNC_CRON || '0 1 * * *'; // Default: 1:00 AM PT
   const episodeSyncTimezone = process.env.EPISODE_SYNC_TIMEZONE || 'America/Los_Angeles';
   
   if (episodeSyncEnabled) {
@@ -634,29 +644,19 @@ export function initializeBackgroundJobs(): void {
     console.log('  - Episode sync: DISABLED');
   }
   
-  // Nightly vault cleanup at 2 AM UTC
-  // Cron format: minute hour day-of-month month day-of-week
-  cron.schedule('0 2 * * *', async () => {
-    console.log('BACKGROUND_JOBS: Starting scheduled vault cleanup job');
-    await vaultCleanupJob();
-  }, {
-    scheduled: true,
-    timezone: 'UTC'
-  });
-  
-  // Quarterly key rotation on 1st day of quarter at 3 AM UTC
+  // Quarterly key rotation on 1st day of quarter at 2:00 AM PT
   // Runs on January 1st, April 1st, July 1st, October 1st
-  cron.schedule('0 3 1 1,4,7,10 *', async () => {
+  cron.schedule('0 2 1 1,4,7,10 *', async () => {
     console.log('BACKGROUND_JOBS: Starting scheduled key rotation job');
     await keyRotationJob();
   }, {
     scheduled: true,
-    timezone: 'UTC'
+    timezone: 'America/Los_Angeles'
   });
   
   console.log('BACKGROUND_JOBS: Background jobs scheduled successfully');
-  console.log('  - Vault cleanup: Daily at 2:00 AM UTC');
-  console.log('  - Key rotation: Quarterly on 1st at 3:00 AM UTC');
+  console.log('  - Vault cleanup: Daily at 12:00 AM PT');
+  console.log('  - Key rotation: Quarterly on 1st at 2:00 AM PT');
 }
 
 /**

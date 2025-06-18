@@ -11,10 +11,11 @@ echo "🔄 Starting RSS URL backfill for PRODUCTION database..."
 echo "⚠️  Make sure you've updated the credentials below!"
 
 # Set production environment variables
-export SUPABASE_URL="https://pgsdmvubrqgingyyteef.supabase.co"
-export SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnc2RtdnVicnFnaW5neXl0ZWVmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0Nzc3Nzk3MCwiZXhwIjoyMDYzMzUzOTcwfQ.zLHYwEHlI9lfNc4BpWilNkSe4xXs5ggwG1hXgfW7cqo"
-export PODCASTINDEX_KEY="ARJSFP78QT2LHREW8ZPF"
-export PODCASTINDEX_SECRET="2AHkcNM7r^sgJ4NveYES7V2SkCA2$6jzx3GDKpWB"
+export SUPABASE_URL="https://<your-project-ref>.supabase.co"
+# IMPORTANT: Store and retrieve these secrets from a secure location (e.g. 1Password, Vault, or CI secrets)
+export SUPABASE_SERVICE_ROLE_KEY="<your_production_service_role_key>"
+export PODCASTINDEX_KEY="<your_podcastindex_key>"
+export PODCASTINDEX_SECRET="<your_podcastindex_secret>"
 export NODE_ENV="production"
 
 # Validate that credentials are set

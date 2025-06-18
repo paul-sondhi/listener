@@ -902,9 +902,19 @@ describe('initializeBackgroundJobs', () => {
     // Act: Initialize background jobs
     initializeBackgroundJobs();
 
+    // Assert: Verify vault cleanup job was scheduled first
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '0 0 * * *', // 12:00 AM PT
+      expect.any(Function),
+      expect.objectContaining({
+        scheduled: true,
+        timezone: 'America/Los_Angeles'
+      })
+    );
+
     // Assert: Verify daily subscription refresh job was scheduled
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 0 * * *', // Default midnight PT cron expression
+      '30 0 * * *', // Default 12:30 AM PT cron expression
       expect.any(Function),
       expect.objectContaining({
         scheduled: true,
@@ -914,7 +924,7 @@ describe('initializeBackgroundJobs', () => {
 
     // Assert: Verify episode sync job was scheduled
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 0 * * *', // Default midnight PT cron expression
+      '0 1 * * *', // Default 1:00 AM PT cron expression
       expect.any(Function),
       expect.objectContaining({
         scheduled: true,
@@ -922,23 +932,13 @@ describe('initializeBackgroundJobs', () => {
       })
     );
 
-    // Assert: Verify vault cleanup job was scheduled
-    expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 2 * * *', // 2 AM UTC
-      expect.any(Function),
-      expect.objectContaining({
-        scheduled: true,
-        timezone: 'UTC'
-      })
-    );
-
     // Assert: Verify key rotation job was scheduled
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 3 1 1,4,7,10 *', // Quarterly
+      '0 2 1 1,4,7,10 *', // Quarterly at 2:00 AM PT
       expect.any(Function),
       expect.objectContaining({
         scheduled: true,
-        timezone: 'UTC'
+        timezone: 'America/Los_Angeles'
       })
     );
 
@@ -947,10 +947,10 @@ describe('initializeBackgroundJobs', () => {
       expect.stringContaining('BACKGROUND_JOBS: Background jobs scheduled successfully')
     );
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('- Vault cleanup: Daily at 2:00 AM UTC')
+      expect.stringContaining('- Vault cleanup: Daily at 12:00 AM PT')
     );
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('- Key rotation: Quarterly on 1st at 3:00 AM UTC')
+      expect.stringContaining('- Key rotation: Quarterly on 1st at 2:00 AM PT')
     );
   });
 
@@ -1014,7 +1014,7 @@ describe('initializeBackgroundJobs', () => {
 
     // Assert: Verify daily refresh was not scheduled
     const dailyRefreshCalls = mockCronSchedule.mock.calls.filter(call => 
-      call[0] === '50 10 * * *' || call[0] === process.env.DAILY_REFRESH_CRON
+      call[0] === '30 0 * * *' || call[0] === process.env.DAILY_REFRESH_CRON
     );
     expect(dailyRefreshCalls).toHaveLength(0);
 
@@ -1025,7 +1025,7 @@ describe('initializeBackgroundJobs', () => {
 
     // Assert: Verify other jobs were still scheduled
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 2 * * *', // Vault cleanup should still be scheduled
+      '0 0 * * *', // Vault cleanup should still be scheduled at 12:00 AM PT
       expect.any(Function),
       expect.any(Object)
     );
@@ -1104,7 +1104,7 @@ describe('initializeBackgroundJobs', () => {
 
     // Assert: Verify other jobs were still scheduled (vault cleanup)
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 2 * * *', // Vault cleanup should still be scheduled
+      '0 0 * * *', // Vault cleanup should still be scheduled at 12:00 AM PT
       expect.any(Function),
       expect.any(Object)
     );

@@ -123,7 +123,7 @@ router.get('/subscription-refresh/status', async (_req: Request, res: Response):
       },
       configuration: {
         enabled: process.env.DAILY_REFRESH_ENABLED !== 'false',
-        cron_schedule: process.env.DAILY_REFRESH_CRON || '0 0 * * *',
+        cron_schedule: process.env.DAILY_REFRESH_CRON || '30 0 * * *',
         timezone: process.env.DAILY_REFRESH_TIMEZONE || 'America/Los_Angeles',
         batch_size: parseInt(process.env.DAILY_REFRESH_BATCH_SIZE || '5'),
         batch_delay: parseInt(process.env.DAILY_REFRESH_BATCH_DELAY || '2000')
@@ -194,24 +194,31 @@ router.get('/jobs/history', (_req: Request, res: Response): void => {
     const jobInfo = {
       available_jobs: [
         {
+          name: 'vault_cleanup',
+          description: 'Clean up expired vault secrets',
+          schedule: '0 0 * * *',
+          timezone: 'America/Los_Angeles',
+          enabled: true
+        },
+        {
           name: 'daily_subscription_refresh',
           description: 'Daily refresh of all user Spotify subscriptions',
-          schedule: process.env.DAILY_REFRESH_CRON || '0 0 * * *',
+          schedule: process.env.DAILY_REFRESH_CRON || '30 0 * * *',
           timezone: process.env.DAILY_REFRESH_TIMEZONE || 'America/Los_Angeles',
           enabled: process.env.DAILY_REFRESH_ENABLED !== 'false'
         },
         {
-          name: 'vault_cleanup',
-          description: 'Clean up expired vault secrets',
-          schedule: '0 2 * * *',
-          timezone: 'UTC',
-          enabled: true
+          name: 'episode_sync',
+          description: 'Nightly sync of new podcast episodes',
+          schedule: process.env.EPISODE_SYNC_CRON || '0 1 * * *',
+          timezone: process.env.EPISODE_SYNC_TIMEZONE || 'America/Los_Angeles',
+          enabled: process.env.EPISODE_SYNC_ENABLED !== 'false'
         },
         {
           name: 'key_rotation',
           description: 'Quarterly key rotation for security',
-          schedule: '0 3 1 1,4,7,10 *',
-          timezone: 'UTC',
+          schedule: '0 2 1 1,4,7,10 *',
+          timezone: 'America/Los_Angeles',
           enabled: true
         }
       ],
