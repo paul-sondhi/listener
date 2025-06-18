@@ -14,12 +14,12 @@ __export(auth_exports, {
   default: () => auth_default
 });
 import path2 from "path";
-import { createClient as createClient8 } from "@supabase/supabase-js";
+import { createClient as createClient9 } from "@supabase/supabase-js";
 var supabaseAdmin7, authMiddleware, auth_default;
 var init_auth = __esm({
   "middleware/auth.ts"() {
     "use strict";
-    supabaseAdmin7 = createClient8(
+    supabaseAdmin7 = createClient9(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
@@ -1031,19 +1031,18 @@ router3.post("/", async (req, res) => {
       for (const showObj of shows) {
         const show = showObj.show;
         const spotifyUrl = `https://open.spotify.com/show/${show.id}`;
-        const rssUrl = spotifyUrl;
         try {
           const showUpsertRes = await safeAwait(
             getSupabaseAdmin3().from("podcast_shows").upsert([
               {
-                rss_url: rssUrl,
+                spotify_url: spotifyUrl,
                 title: show.name || "Unknown Show",
                 description: show.description || null,
                 image_url: show.images?.[0]?.url || null,
                 last_updated: now
               }
             ], {
-              onConflict: "rss_url",
+              onConflict: "spotify_url",
               ignoreDuplicates: false
             }).select("id")
           );
@@ -1179,7 +1178,7 @@ var health_default = router4;
 import { Router as Router5 } from "express";
 
 // services/backgroundJobs.ts
-import { createClient as createClient7 } from "@supabase/supabase-js";
+import { createClient as createClient8 } from "@supabase/supabase-js";
 import cron from "node-cron";
 
 // services/subscriptionRefreshService.ts
@@ -2224,12 +2223,12 @@ async function updateSubscriptionStatus(userId, currentPodcastUrls) {
   const showIds = [];
   for (const podcastUrl of currentPodcastUrls) {
     const showId = podcastUrl.split("/").pop();
-    const rssUrl = podcastUrl;
+    const spotifyUrl = podcastUrl;
     try {
       const showUpsertResult = await safeAwait2(
         getSupabaseAdmin5().from("podcast_shows").upsert([
           {
-            rss_url: rssUrl,
+            spotify_url: spotifyUrl,
             title: `Show ${showId}`,
             // Placeholder title - in production you'd fetch this from Spotify
             description: null,
@@ -2237,7 +2236,7 @@ async function updateSubscriptionStatus(userId, currentPodcastUrls) {
             last_updated: now
           }
         ], {
-          onConflict: "rss_url",
+          onConflict: "spotify_url",
           ignoreDuplicates: false
         }).select("id")
       );
@@ -2708,6 +2707,390 @@ async function safeAwait2(maybeBuilder) {
   return maybeBuilder;
 }
 
+// services/episodeSyncService.ts
+import { createClient as createClient7 } from "@supabase/supabase-js";
+import { XMLParser as XMLParser2 } from "fast-xml-parser";
+var EPISODE_CUTOFF_DATE = /* @__PURE__ */ new Date("2025-06-15T00:00:00Z");
+var defaultLogger = {
+  info: (message, meta) => {
+    console.log(`[EpisodeSync] ${message}`, meta ? JSON.stringify(meta, null, 2) : "");
+  },
+  warn: (message, meta) => {
+    console.warn(`[EpisodeSync] ${message}`, meta ? JSON.stringify(meta, null, 2) : "");
+  },
+  error: (message, error, meta) => {
+    console.error(`[EpisodeSync] ${message}`, error?.message || "", meta ? JSON.stringify(meta, null, 2) : "");
+    if (error?.stack) console.error(error.stack);
+  }
+};
+var EpisodeSyncService = class {
+  constructor(supabaseUrl, supabaseKey, logger) {
+    const url = supabaseUrl || process.env.SUPABASE_URL;
+    const key = supabaseKey || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+      throw new Error("Supabase URL and service role key are required");
+    }
+    this.supabase = createClient7(url, key);
+    this.logger = logger || defaultLogger;
+  }
+  /**
+   * Sync episodes for all shows that have active subscriptions
+   * @returns Promise<SyncAllResult> - Result summary
+   */
+  async syncAllShows() {
+    const startTime = Date.now();
+    this.logger.info("Starting episode sync for all shows with active subscriptions");
+    const result = {
+      success: false,
+      totalShows: 0,
+      successfulShows: 0,
+      failedShows: 0,
+      totalEpisodesUpserted: 0,
+      errors: [],
+      duration: 0
+    };
+    try {
+      const shows = await this.getShowsWithActiveSubscriptions();
+      result.totalShows = shows.length;
+      this.logger.info(`Found ${shows.length} shows with active subscriptions`);
+      if (shows.length === 0) {
+        result.success = true;
+        result.duration = Date.now() - startTime;
+        this.logger.info("No shows to sync");
+        return result;
+      }
+      for (const show of shows) {
+        try {
+          const showResult = await this.syncShow(show);
+          if (showResult.success) {
+            result.successfulShows++;
+            result.totalEpisodesUpserted += showResult.episodesUpserted;
+            this.logger.info(`Successfully synced show: ${show.title}`, {
+              showId: show.id,
+              episodesUpserted: showResult.episodesUpserted
+            });
+          } else {
+            result.failedShows++;
+            result.errors.push({
+              showId: show.id,
+              showTitle: show.title,
+              error: showResult.error || "Unknown error"
+            });
+            this.logger.error(`Failed to sync show: ${show.title}`, void 0, {
+              showId: show.id,
+              error: showResult.error
+            });
+          }
+        } catch (error) {
+          result.failedShows++;
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          result.errors.push({
+            showId: show.id,
+            showTitle: show.title,
+            error: errorMessage
+          });
+          this.logger.error(`Exception syncing show: ${show.title}`, error, {
+            showId: show.id
+          });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      result.success = result.failedShows === 0;
+      result.duration = Date.now() - startTime;
+      this.logger.info("Episode sync completed", {
+        totalShows: result.totalShows,
+        successfulShows: result.successfulShows,
+        failedShows: result.failedShows,
+        totalEpisodesUpserted: result.totalEpisodesUpserted,
+        duration: result.duration
+      });
+    } catch (error) {
+      result.duration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      this.logger.error("Episode sync failed with exception", error);
+      throw new Error(`Episode sync failed: ${errorMessage}`);
+    }
+    return result;
+  }
+  /**
+   * Sync episodes for a single show
+   * @param show - The podcast show to sync
+   * @returns Promise<ShowSyncResult> - Result for this show
+   */
+  async syncShow(show) {
+    const result = {
+      success: false,
+      showId: show.id,
+      showTitle: show.title,
+      episodesFound: 0,
+      episodesUpserted: 0
+    };
+    try {
+      this.logger.info(`Syncing show: ${show.title}`, { showId: show.id, rssUrl: show.rss_url });
+      const { rssText, etag, lastModified, notModified } = await this.fetchRssFeed(show);
+      if (notModified) {
+        this.logger.info(`Show not modified since last check: ${show.title}`, { showId: show.id });
+        await this.updateShowCheckTimestamp(show.id);
+        result.success = true;
+        return result;
+      }
+      const episodes = await this.parseEpisodes(rssText, show.id);
+      result.episodesFound = episodes.length;
+      this.logger.info(`Found ${episodes.length} episodes for show: ${show.title}`, { showId: show.id });
+      if (episodes.length > 0) {
+        const upsertedCount = await this.upsertEpisodes(episodes);
+        result.episodesUpserted = upsertedCount;
+      }
+      await this.updateShowMetadata(show.id, etag, lastModified);
+      result.success = true;
+      this.logger.info(`Successfully synced show: ${show.title}`, {
+        showId: show.id,
+        episodesFound: result.episodesFound,
+        episodesUpserted: result.episodesUpserted
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      result.error = errorMessage;
+      this.logger.error(`Failed to sync show: ${show.title}`, error, { showId: show.id });
+      try {
+        await this.updateShowCheckTimestamp(show.id);
+      } catch (_updateError) {
+        this.logger.warn(`Failed to update check timestamp for show: ${show.title}`, { showId: show.id });
+      }
+    }
+    return result;
+  }
+  /**
+   * Get all shows that have at least one active subscription
+   * @returns Promise<PodcastShow[]> - Array of shows to sync
+   */
+  async getShowsWithActiveSubscriptions() {
+    const { data, error } = await this.supabase.from("podcast_shows").select(`
+        id,
+        spotify_url,
+        title,
+        rss_url,
+        etag,
+        last_modified,
+        last_checked_episodes,
+        user_podcast_subscriptions!inner(status)
+      `).not("rss_url", "is", null).eq("user_podcast_subscriptions.status", "active");
+    if (error) {
+      throw new Error(`Failed to query shows with subscriptions: ${error.message}`);
+    }
+    return (data || []).map((show) => ({
+      id: show.id,
+      spotify_url: show.spotify_url,
+      title: show.title,
+      rss_url: show.rss_url,
+      etag: show.etag,
+      last_modified: show.last_modified,
+      last_checked_episodes: show.last_checked_episodes
+    }));
+  }
+  /**
+   * Fetch RSS feed with conditional headers and retry logic
+   * @param show - The podcast show
+   * @returns Promise with RSS text and metadata
+   */
+  async fetchRssFeed(show) {
+    const headers = {
+      "User-Agent": process.env.USER_AGENT || "Listener-App/1.0"
+    };
+    if (show.etag) {
+      headers["If-None-Match"] = show.etag;
+    }
+    if (show.last_modified) {
+      headers["If-Modified-Since"] = show.last_modified;
+    }
+    let lastError = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await fetch(show.rss_url, { headers });
+        if (response.status === 304) {
+          return {
+            rssText: "",
+            etag: show.etag,
+            lastModified: show.last_modified,
+            notModified: true
+          };
+        }
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const rssText = await response.text();
+        const etag = response.headers.get("etag");
+        const lastModified = response.headers.get("last-modified");
+        return {
+          rssText,
+          etag,
+          lastModified,
+          notModified: false
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        this.logger.warn(`Fetch attempt ${attempt} failed for show: ${show.title}`, {
+          showId: show.id,
+          error: lastError.message
+        });
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 1e3));
+        }
+      }
+    }
+    throw new Error(`Failed to fetch RSS feed after 2 attempts: ${lastError?.message}`);
+  }
+  /**
+   * Parse RSS feed and extract episodes published >= cutoff date
+   * @param rssText - Raw RSS XML content
+   * @param showId - The show ID for the episodes
+   * @returns Promise<EpisodeData[]> - Array of episode data
+   */
+  async parseEpisodes(rssText, showId) {
+    try {
+      const parser = new XMLParser2({ ignoreAttributes: false });
+      const rssData = parser.parse(rssText);
+      if (!rssData.rss?.channel) {
+        throw new Error("Invalid RSS feed structure");
+      }
+      const items = rssData.rss.channel.item;
+      if (!items) {
+        return [];
+      }
+      const itemArray = Array.isArray(items) ? items : [items];
+      const episodes = [];
+      for (const item of itemArray) {
+        try {
+          const episodeData = this.parseEpisodeItem(item, showId);
+          if (episodeData) {
+            episodes.push(episodeData);
+          }
+        } catch (_error) {
+          this.logger.warn("Failed to parse episode item", { error: _error.message, item });
+        }
+      }
+      return episodes;
+    } catch (error) {
+      throw new Error(`Failed to parse RSS feed: ${error.message}`);
+    }
+  }
+  /**
+   * Parse a single RSS episode item
+   * @param item - RSS episode item
+   * @param showId - The show ID
+   * @returns EpisodeData | null - Parsed episode data or null if invalid/too old
+   */
+  parseEpisodeItem(item, showId) {
+    let guid;
+    if (typeof item.guid === "string") {
+      guid = item.guid;
+    } else if (item.guid && typeof item.guid === "object" && "#text" in item.guid) {
+      guid = item.guid["#text"];
+    } else {
+      guid = item.title || `episode-${Date.now()}`;
+    }
+    const pubDateStr = item.pubDate;
+    let pubDate = null;
+    if (pubDateStr) {
+      pubDate = new Date(pubDateStr);
+      if (isNaN(pubDate.getTime())) {
+        pubDate = null;
+      }
+    }
+    if (pubDate && pubDate < EPISODE_CUTOFF_DATE) {
+      return null;
+    }
+    const episodeUrl = item.enclosure?.["@_url"];
+    if (!episodeUrl) {
+      throw new Error("No episode URL found in enclosure");
+    }
+    let durationSec = null;
+    if (item["itunes:duration"]) {
+      durationSec = this.parseDuration(item["itunes:duration"]);
+    }
+    return {
+      show_id: showId,
+      guid,
+      episode_url: episodeUrl,
+      title: item.title || null,
+      description: item.description || null,
+      pub_date: pubDate?.toISOString() || null,
+      duration_sec: durationSec
+    };
+  }
+  /**
+   * Parse duration string to seconds
+   * @param duration - Duration string (e.g., "1:23:45" or "3600")
+   * @returns number | null - Duration in seconds or null if invalid
+   */
+  parseDuration(duration) {
+    try {
+      if (duration.includes(":")) {
+        const parts = duration.split(":").map((p) => parseInt(p, 10));
+        if (parts.length === 3) {
+          return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        } else if (parts.length === 2) {
+          return parts[0] * 60 + parts[1];
+        }
+      } else {
+        const seconds = parseInt(duration, 10);
+        if (!isNaN(seconds)) {
+          return seconds;
+        }
+      }
+    } catch (_error) {
+    }
+    return null;
+  }
+  /**
+   * Upsert episodes to the database
+   * @param episodes - Array of episode data to upsert
+   * @returns Promise<number> - Number of episodes upserted
+   */
+  async upsertEpisodes(episodes) {
+    if (episodes.length === 0) {
+      return 0;
+    }
+    const { error } = await this.supabase.from("podcast_episodes").upsert(episodes, {
+      onConflict: "show_id,guid",
+      ignoreDuplicates: false
+      // Update existing records if metadata changed
+    });
+    if (error) {
+      throw new Error(`Failed to upsert episodes: ${error.message}`);
+    }
+    return episodes.length;
+  }
+  /**
+   * Update show metadata after successful sync
+   * @param showId - The show ID
+   * @param etag - New ETag value
+   * @param lastModified - New Last-Modified value
+   */
+  async updateShowMetadata(showId, etag, lastModified) {
+    const updateData = {
+      last_checked_episodes: (/* @__PURE__ */ new Date()).toISOString(),
+      last_fetched: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    if (etag) updateData.etag = etag;
+    if (lastModified) updateData.last_modified = lastModified;
+    const { error } = await this.supabase.from("podcast_shows").update(updateData).eq("id", showId);
+    if (error) {
+      throw new Error(`Failed to update show metadata: ${error.message}`);
+    }
+  }
+  /**
+   * Update only the last_checked_episodes timestamp
+   * @param showId - The show ID
+   */
+  async updateShowCheckTimestamp(showId) {
+    const { error } = await this.supabase.from("podcast_shows").update({ last_checked_episodes: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", showId);
+    if (error) {
+      throw new Error(`Failed to update show check timestamp: ${error.message}`);
+    }
+  }
+};
+
 // services/backgroundJobs.ts
 var supabaseAdmin6 = null;
 function getSupabaseAdmin6() {
@@ -2715,7 +3098,7 @@ function getSupabaseAdmin6() {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error("Missing required Supabase environment variables");
     }
-    supabaseAdmin6 = createClient7(
+    supabaseAdmin6 = createClient8(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
@@ -2985,6 +3368,114 @@ async function dailySubscriptionRefreshJob() {
     emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
   }
 }
+async function episodeSyncJob() {
+  const startTime = Date.now();
+  const jobName = "episode_sync";
+  const jobId = `episode-sync-${(/* @__PURE__ */ new Date()).toISOString()}`;
+  let recordsProcessed = 0;
+  log.info("scheduler", `Starting ${jobName} job`, {
+    job_id: jobId,
+    component: "background_jobs"
+  });
+  try {
+    const episodeSyncService = new EpisodeSyncService(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        info: (message, meta) => {
+          log.info("episode_sync", message, { job_id: jobId, ...meta });
+        },
+        warn: (message, meta) => {
+          log.warn("episode_sync", message, { job_id: jobId, ...meta });
+        },
+        error: (message, error, meta) => {
+          log.error("episode_sync", message, error, { job_id: jobId, ...meta });
+        }
+      }
+    );
+    log.info("episode_sync", "Executing nightly episode sync for all shows with active subscriptions", {
+      job_id: jobId,
+      component: "episode_sync_service"
+    });
+    const result = await episodeSyncService.syncAllShows();
+    const elapsedMs = Date.now() - startTime;
+    recordsProcessed = result.totalShows;
+    log.info("episode_sync", `Episode sync processed ${result.totalShows} shows`, {
+      job_id: jobId,
+      total_shows: result.totalShows,
+      successful_shows: result.successfulShows,
+      failed_shows: result.failedShows,
+      success_rate: result.totalShows > 0 ? (result.successfulShows / result.totalShows * 100).toFixed(1) : "0",
+      duration_ms: elapsedMs,
+      episodes: {
+        total_upserted: result.totalEpisodesUpserted,
+        avg_per_show: result.successfulShows > 0 ? (result.totalEpisodesUpserted / result.successfulShows).toFixed(1) : "0"
+      }
+    });
+    if (result.failedShows > 0) {
+      log.warn("episode_sync", "Episode sync completed with some failures", {
+        job_id: jobId,
+        failed_shows: result.failedShows,
+        error_details: result.errors,
+        percentage: result.totalShows > 0 ? (result.failedShows / result.totalShows * 100).toFixed(1) : "0"
+      });
+    }
+    const execution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: result.success,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs,
+      ...(!result.success || result.failedShows > 0) && {
+        error: result.failedShows > 0 ? `${result.failedShows} shows failed to sync` : "Episode sync failed"
+      }
+    };
+    logJobExecution(execution);
+    emitJobMetric(jobName, result.success, recordsProcessed, elapsedMs);
+    if (result.success) {
+      log.info("scheduler", `Episode sync completed successfully`, {
+        job_id: jobId,
+        component: "background_jobs",
+        duration_ms: elapsedMs,
+        shows_processed: recordsProcessed,
+        episodes_upserted: result.totalEpisodesUpserted,
+        success_rate: result.totalShows > 0 ? (result.successfulShows / result.totalShows * 100).toFixed(1) : "100"
+      });
+    } else {
+      log.error("scheduler", `Episode sync completed with issues`, {
+        job_id: jobId,
+        component: "background_jobs",
+        duration_ms: elapsedMs,
+        shows_processed: recordsProcessed,
+        failed_shows: result.failedShows,
+        errors: result.errors
+      });
+    }
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const err = error;
+    log.error("scheduler", `Episode sync job failed with exception`, err, {
+      component: "background_jobs",
+      duration_ms: elapsedMs,
+      shows_processed: recordsProcessed,
+      stack_trace: err?.stack,
+      job_name: jobName
+    });
+    const execution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: false,
+      error: errorMessage,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs
+    };
+    logJobExecution(execution);
+    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
+  }
+}
 function initializeBackgroundJobs() {
   console.log("BACKGROUND_JOBS: Initializing scheduled jobs");
   if (process.env.NODE_ENV === "test") {
@@ -3005,6 +3496,21 @@ function initializeBackgroundJobs() {
     console.log(`  - Daily subscription refresh: ${dailyRefreshCron} ${dailyRefreshTimezone}`);
   } else {
     console.log("  - Daily subscription refresh: DISABLED");
+  }
+  const episodeSyncEnabled = process.env.EPISODE_SYNC_ENABLED !== "false";
+  const episodeSyncCron = process.env.EPISODE_SYNC_CRON || "0 0 * * *";
+  const episodeSyncTimezone = process.env.EPISODE_SYNC_TIMEZONE || "America/Los_Angeles";
+  if (episodeSyncEnabled) {
+    cron.schedule(episodeSyncCron, async () => {
+      console.log("BACKGROUND_JOBS: Starting scheduled episode sync job");
+      await episodeSyncJob();
+    }, {
+      scheduled: true,
+      timezone: episodeSyncTimezone
+    });
+    console.log(`  - Episode sync: ${episodeSyncCron} ${episodeSyncTimezone}`);
+  } else {
+    console.log("  - Episode sync: DISABLED");
   }
   cron.schedule("0 2 * * *", async () => {
     console.log("BACKGROUND_JOBS: Starting scheduled vault cleanup job");
@@ -3030,6 +3536,9 @@ async function runJob(jobName) {
     case "daily_subscription_refresh":
     case "subscription_refresh":
       await dailySubscriptionRefreshJob();
+      break;
+    case "episode_sync":
+      await episodeSyncJob();
       break;
     case "vault_cleanup":
       await vaultCleanupJob();

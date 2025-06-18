@@ -230,15 +230,21 @@ async function verifyDatabaseMigrations() {
   }
   
   // Step 2: Initialize Supabase client
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-      db: {
-        schema: 'public'
+  let supabase
+  try {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        db: {
+          schema: 'public'
+        }
       }
-    }
-  )
+    )
+  } catch (err) {
+    error(`Failed to initialize Supabase client: ${err.message}`)
+    process.exit(2)
+  }
   
   let hasErrors = false
   
