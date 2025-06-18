@@ -876,6 +876,12 @@ describe('initializeBackgroundJobs', () => {
     delete process.env.EPISODE_SYNC_ENABLED;
     delete process.env.EPISODE_SYNC_CRON;
     delete process.env.EPISODE_SYNC_TIMEZONE;
+    // Reset vault cleanup variables
+    delete process.env.VAULT_CLEANUP_ENABLED;
+    delete process.env.VAULT_CLEANUP_CRON;
+    // Reset key rotation variables
+    delete process.env.KEY_ROTATION_ENABLED;
+    delete process.env.KEY_ROTATION_CRON;
   });
 
   afterEach(() => {
@@ -922,8 +928,8 @@ describe('initializeBackgroundJobs', () => {
       })
     );
 
-    // Assert: Verify only 2 jobs were scheduled (matching current implementation)
-    expect(mockCronSchedule).toHaveBeenCalledTimes(2);
+    // Assert: Verify total number of scheduled jobs (daily refresh, episode sync, vault cleanup, key rotation)
+    expect(mockCronSchedule).toHaveBeenCalledTimes(4);
 
     // Assert: Verify success logging
     expect(console.log).toHaveBeenCalledWith(
@@ -1015,8 +1021,8 @@ describe('initializeBackgroundJobs', () => {
       expect.any(Object)
     );
 
-    // Assert: Verify only 1 job was scheduled (episode sync, since daily refresh is disabled)
-    expect(mockCronSchedule).toHaveBeenCalledTimes(1);
+    // Assert: Verify total number of scheduled jobs (vault cleanup, episode sync, key rotation) when daily refresh is disabled
+    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
   });
 
   /**
@@ -1102,8 +1108,8 @@ describe('initializeBackgroundJobs', () => {
       expect.any(Object)
     );
 
-    // Assert: Verify only 1 job was scheduled (daily refresh, since episode sync is disabled)
-    expect(mockCronSchedule).toHaveBeenCalledTimes(1);
+    // Assert: Verify total number of scheduled jobs (vault cleanup, daily refresh, key rotation) when episode sync is disabled
+    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
   });
 
   /**
