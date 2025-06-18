@@ -160,14 +160,11 @@ async function refreshSpotifyTokens(refreshToken: string): Promise<SpotifyTokens
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
   
-  // Supabase uses PKCE, which does not send client_secret on refresh.
-  const usePkce: boolean = process.env.SPOTIFY_USE_PKCE === 'true';
-
   if (!clientId) {
     throw new Error('Missing Spotify client ID');
   }
 
-  if (!usePkce && !clientSecret) {
+  if (!clientSecret) {
     throw new Error('Missing Spotify client secret');
   }
 
@@ -180,17 +177,12 @@ async function refreshSpotifyTokens(refreshToken: string): Promise<SpotifyTokens
     refresh_token: refreshToken
   });
 
-  if (usePkce) {
-    body.append('client_id', clientId);
-  } else {
-    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    headers['Authorization'] = `Basic ${credentials}`;
-  }
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  headers['Authorization'] = `Basic ${credentials}`;
 
   // DEBUG LOG ① – Which flow are we using and do we have credentials?
   if (process.env.NODE_ENV !== 'test') {
     console.debug('TOKEN_REFRESH_FLOW', {
-      usePkce,
       clientIdPresent: !!clientId,
       clientSecretPresent: !!clientSecret
     });
