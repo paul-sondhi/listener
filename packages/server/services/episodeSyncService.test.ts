@@ -756,7 +756,7 @@ describe('EpisodeSyncService', () => {
       // Assert: Verify error was logged
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to sync show'),
-        undefined,
+        expect.any(Error),
         expect.objectContaining({
           showId: 'show-123'
         })
@@ -892,7 +892,7 @@ describe('EpisodeSyncService', () => {
       // Assert: Verify error was logged
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to sync show'),
-        undefined,
+        expect.any(Error),
         expect.objectContaining({
           showId: 'show-123'
         })
@@ -1014,7 +1014,7 @@ describe('EpisodeSyncService', () => {
       // Assert: Verify error was logged
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to sync show'),
-        undefined,
+        expect.any(Error),
         expect.objectContaining({
           showId: 'show-123'
         })

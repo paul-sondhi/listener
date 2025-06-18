@@ -471,19 +471,19 @@ export async function episodeSyncJob(): Promise<void> {
       process.env.SUPABASE_SERVICE_ROLE_KEY,
       {
         info: (message: string, meta?: Record<string, unknown>) => {
-          log.info('episode_sync', message, { job_id: jobId, ...meta });
+          log.info('scheduler', message, { job_id: jobId, ...meta });
         },
         warn: (message: string, meta?: Record<string, unknown>) => {
-          log.warn('episode_sync', message, { job_id: jobId, ...meta });
+          log.warn('scheduler', message, { job_id: jobId, ...meta });
         },
         error: (message: string, error?: Error, meta?: Record<string, unknown>) => {
-          log.error('episode_sync', message, error, { job_id: jobId, ...meta });
+          log.error('scheduler', message, error, { job_id: jobId, ...meta });
         }
       }
     );
     
     // Execute the episode sync for all shows with active subscriptions
-    log.info('episode_sync', 'Executing nightly episode sync for all shows with active subscriptions', {
+    log.info('scheduler', 'Executing nightly episode sync for all shows with active subscriptions', {
       job_id: jobId,
       component: 'episode_sync_service'
     });
@@ -494,7 +494,7 @@ export async function episodeSyncJob(): Promise<void> {
     recordsProcessed = result.totalShows;
     
     // Enhanced logging with structured data
-    log.info('episode_sync', `Episode sync processed ${result.totalShows} shows`, {
+    log.info('scheduler', `Episode sync processed ${result.totalShows} shows`, {
       job_id: jobId,
       total_shows: result.totalShows,
       successful_shows: result.successfulShows,
@@ -508,7 +508,7 @@ export async function episodeSyncJob(): Promise<void> {
     });
     
     if (result.failedShows > 0) {
-      log.warn('episode_sync', 'Episode sync completed with some failures', {
+      log.warn('scheduler', 'Episode sync completed with some failures', {
         job_id: jobId,
         failed_shows: result.failedShows,
         error_details: result.errors,
@@ -594,20 +594,31 @@ export function initializeBackgroundJobs(): void {
     return;
   }
   
-  // Vault cleanup job configuration - runs first at midnight PT
-  // Cron format: minute hour day-of-month month day-of-week
-  cron.schedule('0 0 * * *', async () => {
-    console.log('BACKGROUND_JOBS: Starting scheduled vault cleanup job');
-    await vaultCleanupJob();
-  }, {
-    scheduled: true,
-    timezone: 'America/Los_Angeles'
-  });
+  // Shared timezone configuration for all cron jobs
+  const cronTimezone = process.env.CRON_TIMEZONE || 'America/Los_Angeles';
+  
+  // Vault cleanup job configuration
+  const vaultCleanupEnabled = process.env.VAULT_CLEANUP_ENABLED !== 'false';
+  const vaultCleanupCron = process.env.VAULT_CLEANUP_CRON || '0 0 * * *'; // Default: midnight PT
+  
+  if (vaultCleanupEnabled) {
+    // Daily vault cleanup at configured time and timezone
+    // Cron format: minute hour day-of-month month day-of-week
+    cron.schedule(vaultCleanupCron, async () => {
+      console.log('BACKGROUND_JOBS: Starting scheduled vault cleanup job');
+      await vaultCleanupJob();
+    }, {
+      scheduled: true,
+      timezone: cronTimezone
+    });
+    console.log(`  - Vault cleanup: ${vaultCleanupCron} ${cronTimezone}`);
+  } else {
+    console.log('  - Vault cleanup: DISABLED');
+  }
   
   // Daily subscription refresh job configuration
   const dailyRefreshEnabled = process.env.DAILY_REFRESH_ENABLED !== 'false';
   const dailyRefreshCron = process.env.DAILY_REFRESH_CRON || '30 0 * * *'; // Default: 12:30 AM PT
-  const dailyRefreshTimezone = process.env.DAILY_REFRESH_TIMEZONE || 'America/Los_Angeles';
   
   if (dailyRefreshEnabled) {
     // Daily subscription refresh at configured time and timezone
@@ -617,9 +628,9 @@ export function initializeBackgroundJobs(): void {
       await dailySubscriptionRefreshJob();
     }, {
       scheduled: true,
-      timezone: dailyRefreshTimezone
+      timezone: cronTimezone
     });
-    console.log(`  - Daily subscription refresh: ${dailyRefreshCron} ${dailyRefreshTimezone}`);
+    console.log(`  - Daily subscription refresh: ${dailyRefreshCron} ${cronTimezone}`);
   } else {
     console.log('  - Daily subscription refresh: DISABLED');
   }
@@ -627,7 +638,6 @@ export function initializeBackgroundJobs(): void {
   // Episode sync job configuration
   const episodeSyncEnabled = process.env.EPISODE_SYNC_ENABLED !== 'false';
   const episodeSyncCron = process.env.EPISODE_SYNC_CRON || '0 1 * * *'; // Default: 1:00 AM PT
-  const episodeSyncTimezone = process.env.EPISODE_SYNC_TIMEZONE || 'America/Los_Angeles';
   
   if (episodeSyncEnabled) {
     // Nightly episode sync at configured time and timezone
@@ -637,26 +647,34 @@ export function initializeBackgroundJobs(): void {
       await episodeSyncJob();
     }, {
       scheduled: true,
-      timezone: episodeSyncTimezone
+      timezone: cronTimezone
     });
-    console.log(`  - Episode sync: ${episodeSyncCron} ${episodeSyncTimezone}`);
+    console.log(`  - Episode sync: ${episodeSyncCron} ${cronTimezone}`);
   } else {
     console.log('  - Episode sync: DISABLED');
   }
   
-  // Quarterly key rotation on 1st day of quarter at 2:00 AM PT
-  // Runs on January 1st, April 1st, July 1st, October 1st
-  cron.schedule('0 2 1 1,4,7,10 *', async () => {
-    console.log('BACKGROUND_JOBS: Starting scheduled key rotation job');
-    await keyRotationJob();
-  }, {
-    scheduled: true,
-    timezone: 'America/Los_Angeles'
-  });
+  // Key rotation job configuration
+  const keyRotationEnabled = process.env.KEY_ROTATION_ENABLED !== 'false';
+  const keyRotationCron = process.env.KEY_ROTATION_CRON || '0 2 1 1,4,7,10 *'; // Default: quarterly at 2:00 AM PT
+  
+  if (keyRotationEnabled) {
+    // Quarterly key rotation on 1st day of quarter at configured time and timezone
+    // Runs on January 1st, April 1st, July 1st, October 1st (default schedule)
+    // Cron format: minute hour day-of-month month day-of-week
+    cron.schedule(keyRotationCron, async () => {
+      console.log('BACKGROUND_JOBS: Starting scheduled key rotation job');
+      await keyRotationJob();
+    }, {
+      scheduled: true,
+      timezone: cronTimezone
+    });
+    console.log(`  - Key rotation: ${keyRotationCron} ${cronTimezone}`);
+  } else {
+    console.log('  - Key rotation: DISABLED');
+  }
   
   console.log('BACKGROUND_JOBS: Background jobs scheduled successfully');
-  console.log('  - Vault cleanup: Daily at 12:00 AM PT');
-  console.log('  - Key rotation: Quarterly on 1st at 2:00 AM PT');
 }
 
 /**

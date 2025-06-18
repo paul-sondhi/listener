@@ -40,7 +40,7 @@ let spotifyRateLimit: SpotifyRateLimit = {
 // Service configuration with defaults
 const CONFIG: TokenServiceConfig = {
   refresh_threshold_minutes: parseInt(process.env.TOKEN_REFRESH_THRESHOLD_MINUTES || '5'),
-  max_refresh_retries: parseInt(process.env.MAX_REFRESH_RETRIES || '1'),
+  max_refresh_retries: parseInt(process.env.MAX_REFRESH_RETRIES || '3'),
   cache_ttl_seconds: parseInt(process.env.TOKEN_CACHE_TTL_SECONDS || '60'),
   rate_limit_pause_seconds: parseInt(process.env.RATE_LIMIT_PAUSE_SECONDS || '30')
 };
@@ -124,6 +124,15 @@ function isRateLimited(): boolean {
   }
   
   return true;
+}
+
+/**
+ * Clear rate limit state (for testing)
+ */
+export function clearRateLimit(): void {
+  spotifyRateLimit = {
+    is_limited: false
+  };
 }
 
 /**
@@ -405,6 +414,35 @@ export async function refreshTokens(userId: string, refreshToken: string): Promi
             success: false,
             requires_reauth: true,
             error: 'Invalid refresh token - user must re-authenticate',
+            elapsed_ms: Date.now() - startTime
+          };
+        }
+        
+        // Handle 400 invalid_request errors - often means refresh token is expired/invalid
+        if (errorMessage.includes('400') && errorMessage.includes('invalid_request')) {
+          console.error(`TOKEN_REFRESH: Invalid request (400) for user ${userId}, likely expired refresh token, setting reauth required`);
+          
+          // Set reauth required flag
+          await supabase
+            .from('users')
+            .update({ spotify_reauth_required: true })
+            .eq('id', userId);
+          
+          // Clear cached tokens
+          const cache = getTokenCache();
+          await cache.delete(userId);
+          
+          // Emit failure metric
+          emitMetric('spotify_token_refresh_failed_total', 1, { 
+            user_id: userId, 
+            reason: 'invalid_request_400' 
+          });
+          metrics.spotify_token_refresh_failed_total++;
+          
+          return {
+            success: false,
+            requires_reauth: true,
+            error: 'Invalid refresh token (400 invalid_request) - user must re-authenticate',
             elapsed_ms: Date.now() - startTime
           };
         }

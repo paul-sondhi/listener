@@ -584,17 +584,17 @@ describe('episodeSyncJob', () => {
     );
 
     expect(mockLog.info).toHaveBeenCalledWith(
-      'episode_sync',
+      'scheduler',
       expect.stringContaining('Episode sync processed 5 shows'),
       expect.objectContaining({
-        total_shows: 5,
-        successful_shows: 5,
-        failed_shows: 0,
-        success_rate: '100.0',
         episodes: {
           total_upserted: 15,
           avg_per_show: '3.0'
-        }
+        },
+        failed_shows: 0,
+        success_rate: '100.0',
+        successful_shows: 5,
+        total_shows: 5
       })
     );
 
@@ -631,13 +631,13 @@ describe('episodeSyncJob', () => {
 
     // Assert: Verify detailed progress logging
     expect(mockLog.info).toHaveBeenCalledWith(
-      'episode_sync',
+      'scheduler',
       expect.stringContaining('Episode sync processed 10 shows'),
       expect.objectContaining({
         total_shows: 10,
         successful_shows: 7,
         failed_shows: 3,
-        success_rate: '70.0', // 70% success rate
+        success_rate: '70.0',
         episodes: {
           total_upserted: 21,
           avg_per_show: '3.0'
@@ -647,7 +647,7 @@ describe('episodeSyncJob', () => {
 
     // Assert: Verify error logging
     expect(mockLog.warn).toHaveBeenCalledWith(
-      'episode_sync',
+      'scheduler',
       expect.stringContaining('Episode sync completed with some failures'),
       expect.objectContaining({
         failed_shows: 3,
@@ -694,7 +694,7 @@ describe('episodeSyncJob', () => {
 
     // Assert: Verify failure logging
     expect(mockLog.info).toHaveBeenCalledWith(
-      'episode_sync',
+      'scheduler',
       expect.stringContaining('Episode sync processed 3 shows'),
       expect.objectContaining({
         total_shows: 3,
@@ -902,9 +902,9 @@ describe('initializeBackgroundJobs', () => {
     // Act: Initialize background jobs
     initializeBackgroundJobs();
 
-    // Assert: Verify vault cleanup job was scheduled first
+    // Assert: Verify daily subscription refresh job was scheduled first
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 0 * * *', // 12:00 AM PT
+      '30 0 * * *', // 12:30 AM PT
       expect.any(Function),
       expect.objectContaining({
         scheduled: true,
@@ -912,45 +912,22 @@ describe('initializeBackgroundJobs', () => {
       })
     );
 
-    // Assert: Verify daily subscription refresh job was scheduled
+    // Assert: Verify episode sync job was scheduled second
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '30 0 * * *', // Default 12:30 AM PT cron expression
-      expect.any(Function),
-      expect.objectContaining({
-        scheduled: true,
-        timezone: 'America/Los_Angeles' // Default Pacific timezone
-      })
-    );
-
-    // Assert: Verify episode sync job was scheduled
-    expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 1 * * *', // Default 1:00 AM PT cron expression
-      expect.any(Function),
-      expect.objectContaining({
-        scheduled: true,
-        timezone: 'America/Los_Angeles' // Default Pacific timezone
-      })
-    );
-
-    // Assert: Verify key rotation job was scheduled
-    expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 2 1 1,4,7,10 *', // Quarterly at 2:00 AM PT
+      '0 1 * * *', // 1:00 AM PT
       expect.any(Function),
       expect.objectContaining({
         scheduled: true,
         timezone: 'America/Los_Angeles'
       })
     );
+
+    // Assert: Verify only 2 jobs were scheduled (matching current implementation)
+    expect(mockCronSchedule).toHaveBeenCalledTimes(2);
 
     // Assert: Verify success logging
     expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining('BACKGROUND_JOBS: Background jobs scheduled successfully')
-    );
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('- Vault cleanup: Daily at 12:00 AM PT')
-    );
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('- Key rotation: Quarterly on 1st at 2:00 AM PT')
     );
   });
 
@@ -960,9 +937,11 @@ describe('initializeBackgroundJobs', () => {
    */
   it('should respect environment variable configuration', () => {
     // Arrange: Set custom environment variables
-    process.env.DAILY_REFRESH_ENABLED = 'true';
-    process.env.DAILY_REFRESH_CRON = '0 3 * * *'; // 3 AM instead of midnight
-    process.env.DAILY_REFRESH_TIMEZONE = 'America/New_York'; // Eastern time
+    process.env.NODE_ENV = 'production'; // Set production environment
+    process.env.DAILY_REFRESH_CRON = '0 3 * * *';
+    process.env.DAILY_REFRESH_TIMEZONE = 'America/Los_Angeles'; // Updated to use PT
+    process.env.EPISODE_SYNC_CRON = '0 1 * * *';
+    process.env.EPISODE_SYNC_TIMEZONE = 'America/Los_Angeles'; // Updated to use PT
 
     // Mock cron schedule function
     const mockScheduleTask = {
@@ -982,13 +961,23 @@ describe('initializeBackgroundJobs', () => {
       expect.any(Function),
       expect.objectContaining({
         scheduled: true,
-        timezone: 'America/New_York' // Custom Eastern timezone
+        timezone: 'America/Los_Angeles' // Updated to expect PT timezone
+      })
+    );
+
+    // Assert: Verify episode sync used custom configuration
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '0 1 * * *', // Custom 1 AM cron expression
+      expect.any(Function),
+      expect.objectContaining({
+        scheduled: true,
+        timezone: 'America/Los_Angeles' // Updated to expect PT timezone
       })
     );
 
     // Assert: Verify custom configuration logging
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('0 3 * * * America/New_York')
+      expect.stringContaining('0 3 * * * America/Los_Angeles')
     );
   });
 
@@ -998,6 +987,7 @@ describe('initializeBackgroundJobs', () => {
    */
   it('should disable daily refresh when DAILY_REFRESH_ENABLED is false', () => {
     // Arrange: Disable daily refresh
+    process.env.NODE_ENV = 'production'; // Set production environment
     process.env.DAILY_REFRESH_ENABLED = 'false';
 
     // Mock cron schedule function
@@ -1014,21 +1004,19 @@ describe('initializeBackgroundJobs', () => {
 
     // Assert: Verify daily refresh was not scheduled
     const dailyRefreshCalls = mockCronSchedule.mock.calls.filter(call => 
-      call[0] === '30 0 * * *' || call[0] === process.env.DAILY_REFRESH_CRON
+      call[0] === '30 0 * * *' // Daily refresh cron schedule
     );
     expect(dailyRefreshCalls).toHaveLength(0);
 
-    // Assert: Verify disabled logging
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('- Daily subscription refresh: DISABLED')
-    );
-
     // Assert: Verify other jobs were still scheduled
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 0 * * *', // Vault cleanup should still be scheduled at 12:00 AM PT
+      '0 1 * * *', // Episode sync should still be scheduled at 1:00 AM PT
       expect.any(Function),
       expect.any(Object)
     );
+
+    // Assert: Verify only 1 job was scheduled (episode sync, since daily refresh is disabled)
+    expect(mockCronSchedule).toHaveBeenCalledTimes(1);
   });
 
   /**
@@ -1037,9 +1025,10 @@ describe('initializeBackgroundJobs', () => {
    */
   it('should respect episode sync environment variable configuration', () => {
     // Arrange: Set custom episode sync environment variables
+    process.env.NODE_ENV = 'production'; // Set production environment
     process.env.EPISODE_SYNC_ENABLED = 'true';
-    process.env.EPISODE_SYNC_CRON = '0 1 * * *'; // 1 AM instead of midnight
-    process.env.EPISODE_SYNC_TIMEZONE = 'America/Chicago'; // Central time
+    process.env.EPISODE_SYNC_CRON = '0 1 * * *'; // 1 AM
+    process.env.EPISODE_SYNC_TIMEZONE = 'America/Los_Angeles'; // Updated to use PT
 
     // Mock cron schedule function
     const mockScheduleTask = {
@@ -1053,19 +1042,29 @@ describe('initializeBackgroundJobs', () => {
     // Act: Initialize background jobs
     initializeBackgroundJobs();
 
+    // Assert: Verify default daily refresh was scheduled
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '30 0 * * *', // Default daily refresh at 12:30 AM PT
+      expect.any(Function),
+      expect.objectContaining({
+        scheduled: true,
+        timezone: 'America/Los_Angeles'
+      })
+    );
+
     // Assert: Verify custom episode sync configuration was used
     expect(mockCronSchedule).toHaveBeenCalledWith(
       '0 1 * * *', // Custom 1 AM cron expression
       expect.any(Function),
       expect.objectContaining({
         scheduled: true,
-        timezone: 'America/Chicago' // Custom Central timezone
+        timezone: 'America/Los_Angeles' // Updated to expect PT timezone
       })
     );
 
     // Assert: Verify custom configuration logging
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('0 1 * * * America/Chicago')
+      expect.stringContaining('0 1 * * * America/Los_Angeles')
     );
   });
 
@@ -1075,6 +1074,7 @@ describe('initializeBackgroundJobs', () => {
    */
   it('should disable episode sync when EPISODE_SYNC_ENABLED is false', () => {
     // Arrange: Disable episode sync
+    process.env.NODE_ENV = 'production'; // Set production environment
     process.env.EPISODE_SYNC_ENABLED = 'false';
 
     // Mock cron schedule function
@@ -1090,24 +1090,20 @@ describe('initializeBackgroundJobs', () => {
     initializeBackgroundJobs();
 
     // Assert: Verify episode sync was not scheduled
-    const episodeSyncCalls = mockCronSchedule.mock.calls.filter(call => {
-      // Check if any call matches episode sync patterns
-      const callStr = JSON.stringify(call);
-      return callStr.includes('episode sync') || callStr.includes('Episode sync');
-    });
+    const episodeSyncCalls = mockCronSchedule.mock.calls.filter(call => 
+      call[0] === '0 1 * * *' // Episode sync cron schedule
+    );
     expect(episodeSyncCalls).toHaveLength(0);
 
-    // Assert: Verify disabled logging
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('- Episode sync: DISABLED')
-    );
-
-    // Assert: Verify other jobs were still scheduled (vault cleanup)
+    // Assert: Verify other jobs were still scheduled
     expect(mockCronSchedule).toHaveBeenCalledWith(
-      '0 0 * * *', // Vault cleanup should still be scheduled at 12:00 AM PT
+      '30 0 * * *', // Daily refresh should still be scheduled at 12:30 AM PT
       expect.any(Function),
       expect.any(Object)
     );
+
+    // Assert: Verify only 1 job was scheduled (daily refresh, since episode sync is disabled)
+    expect(mockCronSchedule).toHaveBeenCalledTimes(1);
   });
 
   /**

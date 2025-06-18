@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { getValidTokens, refreshTokens, getMetrics, healthCheck } from '../tokenService.js'
+import { getValidTokens, refreshTokens, getMetrics, healthCheck, clearRateLimit } from '../tokenService.js'
 import * as vaultHelpers from '../../lib/vaultHelpers.js'
 import * as tokenCache from '../../lib/tokenCache.js'
 
@@ -31,10 +31,13 @@ beforeEach(() => {
     SPOTIFY_CLIENT_ID: 'test-client-id',
     SPOTIFY_CLIENT_SECRET: 'test-client-secret',
     TOKEN_REFRESH_THRESHOLD_MINUTES: '5',
-    MAX_REFRESH_RETRIES: '1',
+    MAX_REFRESH_RETRIES: '3',
     TOKEN_CACHE_TTL_SECONDS: '60',
     RATE_LIMIT_PAUSE_SECONDS: '30'
   }
+  
+  // Clear rate limit state to prevent test pollution
+  clearRateLimit()
   
   // Clear all mocks and reset implementations
   vi.clearAllMocks()
@@ -302,6 +305,47 @@ describe('TokenService', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('Spotify rate limited')
+    })
+
+    it('should require reauth on 400 invalid_request error', async () => {
+      // Mock database locking
+      mockSupabaseClient.rpc.mockResolvedValue({ data: { success: true }, error: null })
+      
+      // Mock the from() chain for user updates (setting reauth flag)
+      const mockUpdate = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null })
+      })
+      mockSupabaseClient.from.mockReturnValue({
+        update: mockUpdate
+      })
+
+      // Mock cache
+      const mockCache = {
+        get: vi.fn(),
+        set: vi.fn(),
+        delete: vi.fn(),
+        clear: vi.fn(),
+        getStats: vi.fn()
+      }
+      vi.mocked(tokenCache.getTokenCache).mockReturnValue(mockCache)
+
+      // Mock 400 invalid_request response from Spotify (common when refresh token is expired)
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({
+          error: 'invalid_request',
+          error_description: ''
+        })
+      })
+
+      const result = await refreshTokens(mockUserId, 'expired-refresh-token')
+
+      expect(result.success).toBe(false)
+      expect(result.requires_reauth).toBe(true)
+      expect(result.error).toContain('Invalid refresh token (400 invalid_request)')
+      expect(mockCache.delete).toHaveBeenCalledWith(mockUserId)
+      expect(mockUpdate).toHaveBeenCalledWith({ spotify_reauth_required: true })
     })
   })
 

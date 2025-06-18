@@ -176,20 +176,12 @@ export class EpisodeSyncService {
           if (showResult.success) {
             result.successfulShows++;
             result.totalEpisodesUpserted += showResult.episodesUpserted;
-            this.logger.info(`Successfully synced show: ${show.title}`, {
-              showId: show.id,
-              episodesUpserted: showResult.episodesUpserted
-            });
           } else {
             result.failedShows++;
             result.errors.push({
               showId: show.id,
               showTitle: show.title,
               error: showResult.error || 'Unknown error'
-            });
-            this.logger.error(`Failed to sync show: ${show.title}`, undefined, {
-              showId: show.id,
-              error: showResult.error
             });
           }
         } catch (error) {
