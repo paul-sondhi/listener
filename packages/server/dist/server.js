@@ -8,6 +8,265 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// lib/encryptedTokenHelpers.ts
+var encryptedTokenHelpers_exports = {};
+__export(encryptedTokenHelpers_exports, {
+  createUserSecret: () => createUserSecret,
+  deleteUserSecret: () => deleteUserSecret,
+  encryptedTokenHealthCheck: () => encryptedTokenHealthCheck,
+  getUserSecret: () => getUserSecret,
+  storeUserSecret: () => storeUserSecret,
+  updateUserSecret: () => updateUserSecret
+});
+import { createClient as createClient2 } from "@supabase/supabase-js";
+function getSupabaseAdmin() {
+  if (!supabaseAdmin) {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Missing required Supabase environment variables");
+    }
+    supabaseAdmin = createClient2(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return supabaseAdmin;
+}
+function getEncryptionKey() {
+  const key = process.env.TOKEN_ENC_KEY || "default-dev-key-change-in-production";
+  if (process.env.NODE_ENV === "production" && key === "default-dev-key-change-in-production") {
+    throw new Error("TOKEN_ENC_KEY must be set in production environment");
+  }
+  return key;
+}
+function logEncryptedTokenOperation(userId, operation, elapsedMs, success, error) {
+  const logData = {
+    user_id: userId,
+    operation,
+    elapsed_ms: elapsedMs,
+    success,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    storage_type: "encrypted_column",
+    ...error && { error }
+  };
+  console.log(`ENCRYPTED_TOKEN_OPERATION: ${JSON.stringify(logData)}`);
+}
+async function createUserSecret(userId, tokenData) {
+  const startTime = Date.now();
+  try {
+    const supabase = getSupabaseAdmin();
+    const encryptionKey = getEncryptionKey();
+    const tokenJson = JSON.stringify(tokenData);
+    const { error } = await supabase.rpc("update_encrypted_tokens", {
+      p_user_id: userId,
+      p_token_data: tokenJson,
+      p_encryption_key: encryptionKey
+    });
+    const elapsedMs = Date.now() - startTime;
+    if (error) {
+      logEncryptedTokenOperation(userId, "create", elapsedMs, false, error.message);
+      return {
+        success: false,
+        error: error.message,
+        elapsed_ms: elapsedMs
+      };
+    }
+    logEncryptedTokenOperation(userId, "create", elapsedMs, true);
+    return {
+      success: true,
+      data: tokenData,
+      elapsed_ms: elapsedMs
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    logEncryptedTokenOperation(userId, "create", elapsedMs, false, errorMessage);
+    return {
+      success: false,
+      error: errorMessage,
+      elapsed_ms: elapsedMs
+    };
+  }
+}
+async function getUserSecret(userId) {
+  const startTime = Date.now();
+  try {
+    const supabase = getSupabaseAdmin();
+    const encryptionKey = getEncryptionKey();
+    const { data: userData, error: userError } = await supabase.rpc("get_encrypted_tokens", {
+      p_user_id: userId,
+      p_encryption_key: encryptionKey
+    });
+    if (userError) {
+      const elapsedMs2 = Date.now() - startTime;
+      logEncryptedTokenOperation(userId, "read", elapsedMs2, false, userError.message);
+      return {
+        success: false,
+        error: userError.message,
+        elapsed_ms: elapsedMs2
+      };
+    }
+    if (!userData) {
+      const elapsedMs2 = Date.now() - startTime;
+      const errorMsg = "No encrypted tokens found for user";
+      logEncryptedTokenOperation(userId, "read", elapsedMs2, false, errorMsg);
+      return {
+        success: false,
+        error: errorMsg,
+        elapsed_ms: elapsedMs2
+      };
+    }
+    const tokenData = JSON.parse(userData);
+    const elapsedMs = Date.now() - startTime;
+    logEncryptedTokenOperation(userId, "read", elapsedMs, true);
+    return {
+      success: true,
+      data: tokenData,
+      elapsed_ms: elapsedMs
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    logEncryptedTokenOperation(userId, "read", elapsedMs, false, errorMessage);
+    return {
+      success: false,
+      error: errorMessage,
+      elapsed_ms: elapsedMs
+    };
+  }
+}
+async function updateUserSecret(userId, tokenData) {
+  const startTime = Date.now();
+  try {
+    const supabase = getSupabaseAdmin();
+    const encryptionKey = getEncryptionKey();
+    const tokenJson = JSON.stringify(tokenData);
+    const { error } = await supabase.rpc("update_encrypted_tokens", {
+      p_user_id: userId,
+      p_token_data: tokenJson,
+      p_encryption_key: encryptionKey
+    });
+    const elapsedMs = Date.now() - startTime;
+    if (error) {
+      logEncryptedTokenOperation(userId, "update", elapsedMs, false, error.message);
+      return {
+        success: false,
+        error: error.message,
+        elapsed_ms: elapsedMs
+      };
+    }
+    logEncryptedTokenOperation(userId, "update", elapsedMs, true);
+    return {
+      success: true,
+      data: tokenData,
+      elapsed_ms: elapsedMs
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    logEncryptedTokenOperation(userId, "update", elapsedMs, false, errorMessage);
+    return {
+      success: false,
+      error: errorMessage,
+      elapsed_ms: elapsedMs
+    };
+  }
+}
+async function deleteUserSecret(userId, hardDelete = false, deletionReason = "User request") {
+  const startTime = Date.now();
+  try {
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase.from("users").update({
+      spotify_tokens_enc: null,
+      spotify_reauth_required: true,
+      updated_at: (/* @__PURE__ */ new Date()).toISOString()
+    }).eq("id", userId);
+    const elapsedMs = Date.now() - startTime;
+    if (error) {
+      logEncryptedTokenOperation(userId, "delete", elapsedMs, false, error.message);
+      return {
+        success: false,
+        status_code: 500,
+        elapsed_ms: elapsedMs,
+        error: error.message
+      };
+    }
+    logEncryptedTokenOperation(userId, "delete", elapsedMs, true);
+    return {
+      success: true,
+      status_code: 204,
+      elapsed_ms: elapsedMs
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    logEncryptedTokenOperation(userId, "delete", elapsedMs, false, errorMessage);
+    return {
+      success: false,
+      status_code: 500,
+      elapsed_ms: elapsedMs,
+      error: errorMessage
+    };
+  }
+}
+async function storeUserSecret(userId, tokenData) {
+  const startTime = Date.now();
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data: userData, error: userError } = await supabase.from("users").select("spotify_tokens_enc").eq("id", userId).single();
+    if (userError) {
+      const elapsedMs = Date.now() - startTime;
+      return {
+        success: false,
+        error: `User lookup failed: ${userError.message}`,
+        elapsed_ms: elapsedMs
+      };
+    }
+    console.log(`User ${userId} ${userData?.spotify_tokens_enc ? "updating existing" : "creating new"} encrypted tokens...`);
+    return await updateUserSecret(userId, tokenData);
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error in storeUserSecret for user ${userId}:`, errorMessage);
+    return {
+      success: false,
+      error: errorMessage,
+      elapsed_ms: elapsedMs
+    };
+  }
+}
+async function encryptedTokenHealthCheck() {
+  try {
+    const supabase = getSupabaseAdmin();
+    const encryptionKey = getEncryptionKey();
+    const testData = "health-check-test";
+    const { data, error } = await supabase.rpc("test_encryption", {
+      test_data: testData,
+      encryption_key: encryptionKey
+    });
+    if (error) {
+      console.error("Encrypted token health check failed:", error.message);
+      return false;
+    }
+    if (data !== testData) {
+      console.error("Encrypted token health check failed: decryption mismatch");
+      return false;
+    }
+    console.log("Encrypted token health check passed - pgcrypto working correctly");
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Encrypted token health check exception:", errorMessage);
+    return false;
+  }
+}
+var supabaseAdmin;
+var init_encryptedTokenHelpers = __esm({
+  "lib/encryptedTokenHelpers.ts"() {
+    "use strict";
+    supabaseAdmin = null;
+  }
+});
+
 // middleware/auth.ts
 var auth_exports = {};
 __export(auth_exports, {
@@ -15,11 +274,11 @@ __export(auth_exports, {
 });
 import path2 from "path";
 import { createClient as createClient9 } from "@supabase/supabase-js";
-var supabaseAdmin7, authMiddleware, auth_default;
+var supabaseAdmin6, authMiddleware, auth_default;
 var init_auth = __esm({
   "middleware/auth.ts"() {
     "use strict";
-    supabaseAdmin7 = createClient9(
+    supabaseAdmin6 = createClient9(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
@@ -44,7 +303,7 @@ var init_auth = __esm({
           res.status(401).json({ error: "Not authenticated" });
           return;
         }
-        const { data: { user }, error } = await supabaseAdmin7.auth.getUser(token);
+        const { data: { user }, error } = await supabaseAdmin6.auth.getUser(token);
         if (error) {
           console.error("Auth error:", error.message);
           res.clearCookie("sb-access-token");
@@ -548,227 +807,9 @@ router.post("/", async (req, res) => {
 var transcribe_default = router;
 
 // routes/spotifyTokens.ts
+init_encryptedTokenHelpers();
 import express2 from "express";
 import { createClient as createClient3 } from "@supabase/supabase-js";
-
-// lib/vaultHelpers.ts
-import { createClient as createClient2 } from "@supabase/supabase-js";
-var supabaseAdmin = null;
-function getSupabaseAdmin() {
-  if (!supabaseAdmin) {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Missing required Supabase environment variables");
-    }
-    supabaseAdmin = createClient2(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-  }
-  return supabaseAdmin;
-}
-function getSpotifySecretName(userId) {
-  return `spotify:${userId}:tokens`;
-}
-function logVaultOperation(userId, operation, elapsedMs, success, error) {
-  const logData = {
-    user_id: userId,
-    operation,
-    elapsed_ms: elapsedMs,
-    success,
-    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    ...error && { error }
-  };
-  console.log(`VAULT_OPERATION: ${JSON.stringify(logData)}`);
-}
-async function createUserSecret(userId, tokenData) {
-  const startTime = Date.now();
-  const secretName = getSpotifySecretName(userId);
-  try {
-    const supabase = getSupabaseAdmin();
-    const { data: secretId, error } = await supabase.rpc("vault_create_user_secret", {
-      p_secret_name: secretName,
-      p_secret_data: JSON.stringify(tokenData),
-      p_description: `Spotify tokens for user ${userId}`
-    });
-    const elapsedMs = Date.now() - startTime;
-    if (error) {
-      logVaultOperation(userId, "create", elapsedMs, false, error.message);
-      return {
-        success: false,
-        error: error.message,
-        elapsed_ms: elapsedMs
-      };
-    }
-    const { error: updateError } = await supabase.from("users").update({
-      spotify_vault_secret_id: secretId,
-      spotify_reauth_required: false,
-      updated_at: (/* @__PURE__ */ new Date()).toISOString()
-    }).eq("id", userId);
-    if (updateError) {
-      logVaultOperation(userId, "create", elapsedMs, false, `User update failed: ${updateError.message}`);
-      return {
-        success: false,
-        error: `User update failed: ${updateError.message}`,
-        elapsed_ms: elapsedMs
-      };
-    }
-    logVaultOperation(userId, "create", elapsedMs, true);
-    return {
-      success: true,
-      data: tokenData,
-      elapsed_ms: elapsedMs
-    };
-  } catch (error) {
-    const elapsedMs = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logVaultOperation(userId, "create", elapsedMs, false, errorMessage);
-    return {
-      success: false,
-      error: errorMessage,
-      elapsed_ms: elapsedMs
-    };
-  }
-}
-async function getUserSecret(userId) {
-  const startTime = Date.now();
-  try {
-    const supabase = getSupabaseAdmin();
-    const { data: userData, error: userError } = await supabase.from("users").select("spotify_vault_secret_id").eq("id", userId).single();
-    if (userError || !userData?.spotify_vault_secret_id) {
-      const elapsedMs2 = Date.now() - startTime;
-      const errorMsg = userError?.message || "No vault secret ID found for user";
-      logVaultOperation(userId, "read", elapsedMs2, false, errorMsg);
-      return {
-        success: false,
-        error: errorMsg,
-        elapsed_ms: elapsedMs2
-      };
-    }
-    const { data: secretData, error } = await supabase.rpc("vault_read_user_secret", {
-      p_secret_id: userData.spotify_vault_secret_id
-    });
-    const elapsedMs = Date.now() - startTime;
-    if (error) {
-      logVaultOperation(userId, "read", elapsedMs, false, error.message);
-      return {
-        success: false,
-        error: error.message,
-        elapsed_ms: elapsedMs
-      };
-    }
-    const tokenData = JSON.parse(secretData);
-    logVaultOperation(userId, "read", elapsedMs, true);
-    return {
-      success: true,
-      data: tokenData,
-      elapsed_ms: elapsedMs
-    };
-  } catch (error) {
-    const elapsedMs = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logVaultOperation(userId, "read", elapsedMs, false, errorMessage);
-    return {
-      success: false,
-      error: errorMessage,
-      elapsed_ms: elapsedMs
-    };
-  }
-}
-async function updateUserSecret(userId, tokenData) {
-  const startTime = Date.now();
-  try {
-    const supabase = getSupabaseAdmin();
-    const { data: userData, error: userError } = await supabase.from("users").select("spotify_vault_secret_id").eq("id", userId).single();
-    if (userError || !userData?.spotify_vault_secret_id) {
-      const elapsedMs2 = Date.now() - startTime;
-      const errorMsg = userError?.message || "No vault secret ID found for user";
-      logVaultOperation(userId, "update", elapsedMs2, false, errorMsg);
-      return {
-        success: false,
-        error: errorMsg,
-        elapsed_ms: elapsedMs2
-      };
-    }
-    const { data: updateSuccess, error } = await supabase.rpc("vault_update_user_secret", {
-      p_secret_id: userData.spotify_vault_secret_id,
-      p_secret_data: JSON.stringify(tokenData)
-    });
-    const elapsedMs = Date.now() - startTime;
-    if (error || !updateSuccess) {
-      const errorMsg = error?.message || "Update operation failed";
-      logVaultOperation(userId, "update", elapsedMs, false, errorMsg);
-      return {
-        success: false,
-        error: errorMsg,
-        elapsed_ms: elapsedMs
-      };
-    }
-    logVaultOperation(userId, "update", elapsedMs, true);
-    return {
-      success: true,
-      data: tokenData,
-      elapsed_ms: elapsedMs
-    };
-  } catch (error) {
-    const elapsedMs = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logVaultOperation(userId, "update", elapsedMs, false, errorMessage);
-    return {
-      success: false,
-      error: errorMessage,
-      elapsed_ms: elapsedMs
-    };
-  }
-}
-async function storeUserSecret(userId, tokenData) {
-  const startTime = Date.now();
-  try {
-    const supabase = getSupabaseAdmin();
-    const { data: userData, error: userError } = await supabase.from("users").select("spotify_vault_secret_id").eq("id", userId).single();
-    if (!userError && userData?.spotify_vault_secret_id) {
-      console.log(`User ${userId} has existing secret, updating...`);
-      return await updateUserSecret(userId, tokenData);
-    }
-    console.log(`User ${userId} has no existing secret, creating...`);
-    return await createUserSecret(userId, tokenData);
-  } catch (error) {
-    const elapsedMs = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`Error in storeUserSecret for user ${userId}:`, errorMessage);
-    return {
-      success: false,
-      error: errorMessage,
-      elapsed_ms: elapsedMs
-    };
-  }
-}
-async function vaultHealthCheck() {
-  try {
-    const supabase = getSupabaseAdmin();
-    const { error } = await supabase.rpc("vault_read_user_secret", {
-      p_secret_id: "00000000-0000-0000-0000-000000000000"
-      // Dummy UUID that won't exist
-    });
-    if (error) {
-      if (error.message.includes("function vault_read_user_secret does not exist")) {
-        console.error("Vault health check failed: RPC functions not found - vault extension likely not enabled");
-        return false;
-      }
-      if (error.message.includes("Secret not found") || error.message.includes("inaccessible")) {
-        return true;
-      }
-      console.error("Vault health check failed:", error.message);
-      return false;
-    }
-    return true;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Vault health check exception:", errorMessage);
-    return false;
-  }
-}
-
-// routes/spotifyTokens.ts
 var router2 = express2.Router();
 var supabaseAdmin2 = null;
 function getSupabaseAdmin2() {
@@ -828,10 +869,10 @@ router2.post("/", async (req, res) => {
       scope: "user-read-email user-library-read"
       // Default scopes
     };
-    const vaultResult = await storeUserSecret(user.id, tokenData);
-    if (!vaultResult.success) {
-      console.error("Failed to store tokens in vault:", vaultResult.error);
-      console.error(`VAULT_ERROR_DETAIL: User ID: ${user.id}, Error: ${vaultResult.error}, Elapsed: ${vaultResult.elapsed_ms}ms`);
+    const encryptedResult = await storeUserSecret(user.id, tokenData);
+    if (!encryptedResult.success) {
+      console.error("Failed to store tokens in encrypted storage:", encryptedResult.error);
+      console.error(`ENCRYPTED_TOKEN_ERROR_DETAIL: User ID: ${user.id}, Error: ${encryptedResult.error}, Elapsed: ${encryptedResult.elapsed_ms}ms`);
       res.status(500).json({
         success: false,
         error: "Failed to store tokens securely"
@@ -848,13 +889,13 @@ router2.post("/", async (req, res) => {
     }).select();
     if (upsertError) {
       console.error("Error updating user record:", upsertError.message);
-      console.warn("Vault storage succeeded but user record update failed");
+      console.warn("Encrypted storage succeeded but user record update failed");
     }
-    console.log(`Successfully stored tokens in vault for user: ${user.email} (${vaultResult.elapsed_ms}ms)`);
+    console.log(`Successfully stored tokens in encrypted storage for user: ${user.email} (${encryptedResult.elapsed_ms}ms)`);
     res.status(200).json({
       success: true,
       message: "Tokens stored securely",
-      vault_latency_ms: vaultResult.elapsed_ms
+      encrypted_token_latency_ms: encryptedResult.elapsed_ms
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
@@ -868,6 +909,7 @@ router2.post("/", async (req, res) => {
 var spotifyTokens_default = router2;
 
 // routes/syncShows.ts
+init_encryptedTokenHelpers();
 import express3 from "express";
 import { createClient as createClient4 } from "@supabase/supabase-js";
 var router3 = express3.Router();
@@ -952,16 +994,16 @@ router3.post("/", async (req, res) => {
       return;
     }
     const userId = user.id;
-    const vaultResult = await getUserSecret(userId);
-    if (!vaultResult.success) {
-      console.error("Could not retrieve user Spotify tokens from vault:", vaultResult.error);
+    const encryptedResult = await getUserSecret(userId);
+    if (!encryptedResult.success) {
+      console.error("Could not retrieve user Spotify tokens from encrypted storage:", encryptedResult.error);
       res.status(400).json({
         success: false,
         error: "Could not retrieve user Spotify tokens"
       });
       return;
     }
-    const spotifyTokens = vaultResult.data;
+    const spotifyTokens = encryptedResult.data;
     const spotifyAccessToken = spotifyTokens.access_token;
     if (!spotifyAccessToken) {
       console.error("No Spotify access token found for user");
@@ -1185,6 +1227,7 @@ import cron from "node-cron";
 import { createClient as createClient6 } from "@supabase/supabase-js";
 
 // services/tokenService.ts
+init_encryptedTokenHelpers();
 import { createClient as createClient5 } from "@supabase/supabase-js";
 
 // lib/tokenCache.ts
@@ -1328,13 +1371,13 @@ var spotifyRateLimit = {
 };
 var CONFIG = {
   refresh_threshold_minutes: parseInt(process.env.TOKEN_REFRESH_THRESHOLD_MINUTES || "5"),
-  max_refresh_retries: parseInt(process.env.MAX_REFRESH_RETRIES || "1"),
+  max_refresh_retries: parseInt(process.env.MAX_REFRESH_RETRIES || "3"),
   cache_ttl_seconds: parseInt(process.env.TOKEN_CACHE_TTL_SECONDS || "60"),
   rate_limit_pause_seconds: parseInt(process.env.RATE_LIMIT_PAUSE_SECONDS || "30")
 };
 var metrics = {
   spotify_token_refresh_failed_total: 0,
-  vault_write_total: 0,
+  encrypted_token_write_total: 0,
   cache_hits: 0,
   cache_misses: 0
 };
@@ -1398,11 +1441,10 @@ function setRateLimit(retryAfterSeconds = CONFIG.rate_limit_pause_seconds) {
 async function refreshSpotifyTokens(refreshToken) {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  const usePkce = process.env.SPOTIFY_USE_PKCE === "true";
   if (!clientId) {
     throw new Error("Missing Spotify client ID");
   }
-  if (!usePkce && !clientSecret) {
+  if (!clientSecret) {
     throw new Error("Missing Spotify client secret");
   }
   const headers = {
@@ -1412,15 +1454,10 @@ async function refreshSpotifyTokens(refreshToken) {
     grant_type: "refresh_token",
     refresh_token: refreshToken
   });
-  if (usePkce) {
-    body.append("client_id", clientId);
-  } else {
-    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-    headers["Authorization"] = `Basic ${credentials}`;
-  }
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  headers["Authorization"] = `Basic ${credentials}`;
   if (process.env.NODE_ENV !== "test") {
     console.debug("TOKEN_REFRESH_FLOW", {
-      usePkce,
       clientIdPresent: !!clientId,
       clientSecretPresent: !!clientSecret
     });
@@ -1514,24 +1551,24 @@ async function refreshTokens(userId, refreshToken) {
       try {
         console.log(`TOKEN_REFRESH: Attempting refresh for user ${userId} (attempt ${retryCount + 1})`);
         const newTokens = await refreshSpotifyTokens(refreshToken);
-        const vaultTokenData = {
+        const encryptedTokenData = {
           access_token: newTokens.access_token,
           refresh_token: newTokens.refresh_token,
           expires_at: newTokens.expires_at,
           token_type: newTokens.token_type,
           scope: newTokens.scope
         };
-        const vaultResult = await updateUserSecret(userId, vaultTokenData);
-        if (!vaultResult.success) {
-          console.error("Failed to update tokens in vault:", vaultResult.error);
-          throw new Error(`Vault update failed: ${vaultResult.error}`);
+        const encryptedResult = await updateUserSecret(userId, encryptedTokenData);
+        if (!encryptedResult.success) {
+          console.error("Failed to update tokens in encrypted storage:", encryptedResult.error);
+          throw new Error(`Encrypted token update failed: ${encryptedResult.error}`);
         }
         const cache = getTokenCache();
-        await cache.set(userId, vaultTokenData, CONFIG.cache_ttl_seconds);
+        await cache.set(userId, encryptedTokenData, CONFIG.cache_ttl_seconds);
         await supabase.from("users").update({ spotify_reauth_required: false }).eq("id", userId);
         emitMetric("spotify_token_refresh_success_total", 1, { user_id: userId });
-        emitMetric("vault_write_total", 1, { operation: "token_refresh" });
-        metrics.vault_write_total++;
+        emitMetric("encrypted_token_write_total", 1, { operation: "token_refresh" });
+        metrics.encrypted_token_write_total++;
         const elapsedMs = Date.now() - startTime;
         console.log(`TOKEN_REFRESH: Successfully refreshed tokens for user ${userId} in ${elapsedMs}ms`);
         return {
@@ -1559,6 +1596,23 @@ async function refreshTokens(userId, refreshToken) {
             success: false,
             requires_reauth: true,
             error: "Invalid refresh token - user must re-authenticate",
+            elapsed_ms: Date.now() - startTime
+          };
+        }
+        if (errorMessage.includes("400") && errorMessage.includes("invalid_request")) {
+          console.error(`TOKEN_REFRESH: Invalid request (400) for user ${userId}, likely expired refresh token, setting reauth required`);
+          await supabase.from("users").update({ spotify_reauth_required: true }).eq("id", userId);
+          const cache = getTokenCache();
+          await cache.delete(userId);
+          emitMetric("spotify_token_refresh_failed_total", 1, {
+            user_id: userId,
+            reason: "invalid_request_400"
+          });
+          metrics.spotify_token_refresh_failed_total++;
+          return {
+            success: false,
+            requires_reauth: true,
+            error: "Invalid refresh token (400 invalid_request) - user must re-authenticate",
             elapsed_ms: Date.now() - startTime
           };
         }
@@ -1636,9 +1690,9 @@ async function getValidTokens(userId) {
       emitMetric("token_cache_misses_total", 1, { user_id: userId });
     }
     if (!tokenData) {
-      const vaultResult = await getUserSecret(userId);
-      if (!vaultResult.success) {
-        console.log(`TOKEN_SERVICE: No tokens found in vault for user ${userId}`);
+      const encryptedResult = await getUserSecret(userId);
+      if (!encryptedResult.success) {
+        console.log(`TOKEN_SERVICE: No tokens found in encrypted storage for user ${userId}`);
         return {
           success: false,
           requires_reauth: true,
@@ -1646,7 +1700,7 @@ async function getValidTokens(userId) {
           elapsed_ms: Date.now() - startTime
         };
       }
-      tokenData = vaultResult.data;
+      tokenData = encryptedResult.data;
       await cache.set(userId, tokenData, CONFIG.cache_ttl_seconds);
     }
     const validation = validateTokens({
@@ -1658,7 +1712,7 @@ async function getValidTokens(userId) {
       scope: tokenData.scope
     });
     if (!validation.needs_refresh) {
-      console.log(`TOKEN_SERVICE: Vault tokens for user ${userId} are still valid (expires in ${validation.expires_in_minutes} minutes)`);
+      console.log(`TOKEN_SERVICE: Encrypted tokens for user ${userId} are still valid (expires in ${validation.expires_in_minutes} minutes)`);
       return {
         success: true,
         tokens: {
@@ -1688,17 +1742,13 @@ async function getValidTokens(userId) {
 }
 async function healthCheck() {
   try {
-    const supabase = getSupabaseAdmin4();
-    const { data, error } = await supabase.rpc("test_vault_count");
-    if (error) {
-      console.error("TOKEN_SERVICE: Vault health check failed:", error.message);
+    const { encryptedTokenHealthCheck: encryptedTokenHealthCheck2 } = await Promise.resolve().then(() => (init_encryptedTokenHelpers(), encryptedTokenHelpers_exports));
+    const result = await encryptedTokenHealthCheck2();
+    if (!result) {
+      console.error("TOKEN_SERVICE: Encrypted token health check failed");
       return false;
     }
-    if (typeof data !== "number") {
-      console.error("TOKEN_SERVICE: Vault health check failed: invalid response format");
-      return false;
-    }
-    console.log(`TOKEN_SERVICE: Vault health check passed - ${data} secrets in vault`);
+    console.log("TOKEN_SERVICE: Encrypted token health check passed");
     return true;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -2765,20 +2815,12 @@ var EpisodeSyncService = class {
           if (showResult.success) {
             result.successfulShows++;
             result.totalEpisodesUpserted += showResult.episodesUpserted;
-            this.logger.info(`Successfully synced show: ${show.title}`, {
-              showId: show.id,
-              episodesUpserted: showResult.episodesUpserted
-            });
           } else {
             result.failedShows++;
             result.errors.push({
               showId: show.id,
               showTitle: show.title,
               error: showResult.error || "Unknown error"
-            });
-            this.logger.error(`Failed to sync show: ${show.title}`, void 0, {
-              showId: show.id,
-              error: showResult.error
             });
           }
         } catch (error) {
@@ -3092,19 +3134,6 @@ var EpisodeSyncService = class {
 };
 
 // services/backgroundJobs.ts
-var supabaseAdmin6 = null;
-function getSupabaseAdmin6() {
-  if (!supabaseAdmin6) {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Missing required Supabase environment variables");
-    }
-    supabaseAdmin6 = createClient8(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-  }
-  return supabaseAdmin6;
-}
 function logJobExecution(execution) {
   console.log(`BACKGROUND_JOB: ${JSON.stringify(execution)}`);
 }
@@ -3118,156 +3147,6 @@ function emitJobMetric(jobName, success, recordsProcessed, elapsedMs) {
     timestamp: Date.now()
   };
   console.log(`METRIC: ${JSON.stringify(metricData)}`);
-}
-async function vaultCleanupJob() {
-  const startTime = Date.now();
-  const jobName = "vault_cleanup";
-  let recordsProcessed = 0;
-  console.log(`BACKGROUND_JOB: Starting ${jobName} job`);
-  try {
-    const supabase = getSupabaseAdmin6();
-    const retentionDays = parseInt(process.env.VAULT_RETENTION_DAYS || "30");
-    const { data: cleanupResult, error: cleanupError } = await supabase.rpc("cleanup_expired_secrets", { p_batch_size: 100 });
-    if (cleanupError) {
-      throw new Error(`Cleanup function failed: ${cleanupError.message}`);
-    }
-    const softDeletedCount = cleanupResult?.secrets_cleaned || 0;
-    recordsProcessed += softDeletedCount;
-    const cutoffDate = /* @__PURE__ */ new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-    console.log(`VAULT_CLEANUP: Processed ${softDeletedCount} expired secrets`);
-    const { data: orphanSecrets, error: orphanError } = await supabase.from("vault.secrets").select("id, name").ilike("name", "spotify:%:tokens").limit(100);
-    if (!orphanError && orphanSecrets) {
-      let orphanedCount = 0;
-      for (const secret of orphanSecrets) {
-        const match = secret.name.match(/^spotify:([^:]+):tokens$/);
-        if (match) {
-          const userId = match[1];
-          const { data: _userExists, error: userCheckError } = await supabase.from("users").select("id").eq("id", userId).single();
-          if (userCheckError && userCheckError.code === "PGRST116") {
-            const { error: deleteError } = await supabase.from("vault.secrets").delete().eq("id", secret.id);
-            if (!deleteError) {
-              orphanedCount++;
-              console.log(`VAULT_CLEANUP: Deleted orphaned secret for user ${userId}`);
-            }
-          }
-        }
-      }
-      recordsProcessed += orphanedCount;
-      console.log(`VAULT_CLEANUP: Cleaned up ${orphanedCount} orphaned secrets`);
-    }
-    const elapsedMs = Date.now() - startTime;
-    const execution = {
-      job_name: jobName,
-      started_at: startTime,
-      completed_at: Date.now(),
-      success: true,
-      records_processed: recordsProcessed,
-      elapsed_ms: elapsedMs
-    };
-    logJobExecution(execution);
-    emitJobMetric(jobName, true, recordsProcessed, elapsedMs);
-    console.log(`BACKGROUND_JOB: ${jobName} completed successfully in ${elapsedMs}ms, processed ${recordsProcessed} records`);
-  } catch (error) {
-    const elapsedMs = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const execution = {
-      job_name: jobName,
-      started_at: startTime,
-      completed_at: Date.now(),
-      success: false,
-      error: errorMessage,
-      records_processed: recordsProcessed,
-      elapsed_ms: elapsedMs
-    };
-    logJobExecution(execution);
-    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
-    console.error(`BACKGROUND_JOB: ${jobName} failed after ${elapsedMs}ms:`, errorMessage);
-  }
-}
-async function keyRotationJob() {
-  const startTime = Date.now();
-  const jobName = "key_rotation";
-  let recordsProcessed = 0;
-  console.log(`BACKGROUND_JOB: Starting ${jobName} job`);
-  try {
-    const supabase = getSupabaseAdmin6();
-    const { data: secrets, error: secretsError } = await supabase.from("vault.secrets").select("id, name, secret, created_at").ilike("name", "spotify:%:tokens").order("created_at", { ascending: true });
-    if (secretsError) {
-      throw new Error(`Failed to fetch secrets: ${secretsError.message}`);
-    }
-    if (!secrets || secrets.length === 0) {
-      console.log("KEY_ROTATION: No secrets found to rotate");
-      return;
-    }
-    console.log(`KEY_ROTATION: Found ${secrets.length} secrets to rotate`);
-    const batchSize = 10;
-    let successCount = 0;
-    let errorCount = 0;
-    for (let i = 0; i < secrets.length; i += batchSize) {
-      const batch = secrets.slice(i, i + batchSize);
-      console.log(`KEY_ROTATION: Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(secrets.length / batchSize)}`);
-      const batchPromises = batch.map(async (secret) => {
-        try {
-          const { error: updateError } = await supabase.from("vault.secrets").update({
-            updated_at: (/* @__PURE__ */ new Date()).toISOString(),
-            // Force re-encryption by updating the secret
-            description: `Spotify tokens - rotated ${(/* @__PURE__ */ new Date()).toISOString()}`
-          }).eq("id", secret.id);
-          if (updateError) {
-            console.error(`KEY_ROTATION: Failed to rotate secret ${secret.id}:`, updateError.message);
-            return { success: false, secretId: secret.id };
-          }
-          return { success: true, secretId: secret.id };
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          console.error(`KEY_ROTATION: Error rotating secret ${secret.id}:`, errorMessage);
-          return { success: false, secretId: secret.id };
-        }
-      });
-      const batchResults = await Promise.all(batchPromises);
-      batchResults.forEach((result) => {
-        if (result.success) {
-          successCount++;
-        } else {
-          errorCount++;
-        }
-      });
-      recordsProcessed += batchResults.length;
-      if (i + batchSize < secrets.length) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-    }
-    const elapsedMs = Date.now() - startTime;
-    console.log(`KEY_ROTATION: Completed - ${successCount} successful, ${errorCount} failed`);
-    const execution = {
-      job_name: jobName,
-      started_at: startTime,
-      completed_at: Date.now(),
-      success: errorCount === 0,
-      records_processed: recordsProcessed,
-      elapsed_ms: elapsedMs,
-      ...errorCount > 0 && { error: `${errorCount} secrets failed to rotate` }
-    };
-    logJobExecution(execution);
-    emitJobMetric(jobName, errorCount === 0, recordsProcessed, elapsedMs);
-    console.log(`BACKGROUND_JOB: ${jobName} completed in ${elapsedMs}ms, processed ${recordsProcessed} records`);
-  } catch (error) {
-    const elapsedMs = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const execution = {
-      job_name: jobName,
-      started_at: startTime,
-      completed_at: Date.now(),
-      success: false,
-      error: errorMessage,
-      records_processed: recordsProcessed,
-      elapsed_ms: elapsedMs
-    };
-    logJobExecution(execution);
-    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
-    console.error(`BACKGROUND_JOB: ${jobName} failed after ${elapsedMs}ms:`, errorMessage);
-  }
 }
 async function dailySubscriptionRefreshJob() {
   const startTime = Date.now();
@@ -3348,10 +3227,12 @@ async function dailySubscriptionRefreshJob() {
     const elapsedMs = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     const err = error;
-    log.error("scheduler", `Daily subscription refresh job failed with exception`, err, {
+    log.error("scheduler", `Daily subscription refresh job failed with exception`, {
+      job_id: jobId,
       component: "background_jobs",
       duration_ms: elapsedMs,
       users_processed: recordsProcessed,
+      error: err.message,
       stack_trace: err?.stack,
       job_name: jobName
     });
@@ -3383,24 +3264,24 @@ async function episodeSyncJob() {
       process.env.SUPABASE_SERVICE_ROLE_KEY,
       {
         info: (message, meta) => {
-          log.info("episode_sync", message, { job_id: jobId, ...meta });
+          log.info("scheduler", message, { job_id: jobId, ...meta });
         },
         warn: (message, meta) => {
-          log.warn("episode_sync", message, { job_id: jobId, ...meta });
+          log.warn("scheduler", message, { job_id: jobId, ...meta });
         },
         error: (message, error, meta) => {
-          log.error("episode_sync", message, error, { job_id: jobId, ...meta });
+          log.error("scheduler", message, error, { job_id: jobId, ...meta });
         }
       }
     );
-    log.info("episode_sync", "Executing nightly episode sync for all shows with active subscriptions", {
+    log.info("scheduler", "Executing nightly episode sync for all shows with active subscriptions", {
       job_id: jobId,
       component: "episode_sync_service"
     });
     const result = await episodeSyncService.syncAllShows();
     const elapsedMs = Date.now() - startTime;
     recordsProcessed = result.totalShows;
-    log.info("episode_sync", `Episode sync processed ${result.totalShows} shows`, {
+    log.info("scheduler", `Episode sync processed ${result.totalShows} shows`, {
       job_id: jobId,
       total_shows: result.totalShows,
       successful_shows: result.successfulShows,
@@ -3413,7 +3294,7 @@ async function episodeSyncJob() {
       }
     });
     if (result.failedShows > 0) {
-      log.warn("episode_sync", "Episode sync completed with some failures", {
+      log.warn("scheduler", "Episode sync completed with some failures", {
         job_id: jobId,
         failed_shows: result.failedShows,
         error_details: result.errors,
@@ -3456,10 +3337,12 @@ async function episodeSyncJob() {
     const elapsedMs = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     const err = error;
-    log.error("scheduler", `Episode sync job failed with exception`, err, {
+    log.error("scheduler", `Episode sync job failed with exception`, {
+      job_id: jobId,
       component: "background_jobs",
       duration_ms: elapsedMs,
       shows_processed: recordsProcessed,
+      error: err.message,
       stack_trace: err?.stack,
       job_name: jobName
     });
@@ -3482,53 +3365,36 @@ function initializeBackgroundJobs() {
     console.log("BACKGROUND_JOBS: Skipping job scheduling in test environment");
     return;
   }
+  const cronTimezone = process.env.CRON_TIMEZONE || "America/Los_Angeles";
   const dailyRefreshEnabled = process.env.DAILY_REFRESH_ENABLED !== "false";
-  const dailyRefreshCron = process.env.DAILY_REFRESH_CRON || "0 0 * * *";
-  const dailyRefreshTimezone = process.env.DAILY_REFRESH_TIMEZONE || "America/Los_Angeles";
+  const dailyRefreshCron = process.env.DAILY_REFRESH_CRON || "30 0 * * *";
   if (dailyRefreshEnabled) {
     cron.schedule(dailyRefreshCron, async () => {
       console.log("BACKGROUND_JOBS: Starting scheduled daily subscription refresh job");
       await dailySubscriptionRefreshJob();
     }, {
       scheduled: true,
-      timezone: dailyRefreshTimezone
+      timezone: cronTimezone
     });
-    console.log(`  - Daily subscription refresh: ${dailyRefreshCron} ${dailyRefreshTimezone}`);
+    console.log(`  - Daily subscription refresh: ${dailyRefreshCron} ${cronTimezone}`);
   } else {
     console.log("  - Daily subscription refresh: DISABLED");
   }
   const episodeSyncEnabled = process.env.EPISODE_SYNC_ENABLED !== "false";
-  const episodeSyncCron = process.env.EPISODE_SYNC_CRON || "0 0 * * *";
-  const episodeSyncTimezone = process.env.EPISODE_SYNC_TIMEZONE || "America/Los_Angeles";
+  const episodeSyncCron = process.env.EPISODE_SYNC_CRON || "0 1 * * *";
   if (episodeSyncEnabled) {
     cron.schedule(episodeSyncCron, async () => {
       console.log("BACKGROUND_JOBS: Starting scheduled episode sync job");
       await episodeSyncJob();
     }, {
       scheduled: true,
-      timezone: episodeSyncTimezone
+      timezone: cronTimezone
     });
-    console.log(`  - Episode sync: ${episodeSyncCron} ${episodeSyncTimezone}`);
+    console.log(`  - Episode sync: ${episodeSyncCron} ${cronTimezone}`);
   } else {
     console.log("  - Episode sync: DISABLED");
   }
-  cron.schedule("0 2 * * *", async () => {
-    console.log("BACKGROUND_JOBS: Starting scheduled vault cleanup job");
-    await vaultCleanupJob();
-  }, {
-    scheduled: true,
-    timezone: "UTC"
-  });
-  cron.schedule("0 3 1 1,4,7,10 *", async () => {
-    console.log("BACKGROUND_JOBS: Starting scheduled key rotation job");
-    await keyRotationJob();
-  }, {
-    scheduled: true,
-    timezone: "UTC"
-  });
   console.log("BACKGROUND_JOBS: Background jobs scheduled successfully");
-  console.log("  - Vault cleanup: Daily at 2:00 AM UTC");
-  console.log("  - Key rotation: Quarterly on 1st at 3:00 AM UTC");
 }
 async function runJob(jobName) {
   console.log(`BACKGROUND_JOBS: Manually running job: ${jobName}`);
@@ -3539,12 +3405,6 @@ async function runJob(jobName) {
       break;
     case "episode_sync":
       await episodeSyncJob();
-      break;
-    case "vault_cleanup":
-      await vaultCleanupJob();
-      break;
-    case "key_rotation":
-      await keyRotationJob();
       break;
     default:
       console.error(`BACKGROUND_JOBS: Unknown job name: ${jobName}`);
@@ -3647,7 +3507,7 @@ router5.get("/subscription-refresh/status", async (_req, res) => {
       },
       configuration: {
         enabled: process.env.DAILY_REFRESH_ENABLED !== "false",
-        cron_schedule: process.env.DAILY_REFRESH_CRON || "0 0 * * *",
+        cron_schedule: process.env.DAILY_REFRESH_CRON || "30 0 * * *",
         timezone: process.env.DAILY_REFRESH_TIMEZONE || "America/Los_Angeles",
         batch_size: parseInt(process.env.DAILY_REFRESH_BATCH_SIZE || "5"),
         batch_delay: parseInt(process.env.DAILY_REFRESH_BATCH_DELAY || "2000")
@@ -3704,24 +3564,31 @@ router5.get("/jobs/history", (_req, res) => {
     const jobInfo = {
       available_jobs: [
         {
+          name: "vault_cleanup",
+          description: "Clean up expired vault secrets",
+          schedule: "0 0 * * *",
+          timezone: "America/Los_Angeles",
+          enabled: true
+        },
+        {
           name: "daily_subscription_refresh",
           description: "Daily refresh of all user Spotify subscriptions",
-          schedule: process.env.DAILY_REFRESH_CRON || "0 0 * * *",
+          schedule: process.env.DAILY_REFRESH_CRON || "30 0 * * *",
           timezone: process.env.DAILY_REFRESH_TIMEZONE || "America/Los_Angeles",
           enabled: process.env.DAILY_REFRESH_ENABLED !== "false"
         },
         {
-          name: "vault_cleanup",
-          description: "Clean up expired vault secrets",
-          schedule: "0 2 * * *",
-          timezone: "UTC",
-          enabled: true
+          name: "episode_sync",
+          description: "Nightly sync of new podcast episodes",
+          schedule: process.env.EPISODE_SYNC_CRON || "0 1 * * *",
+          timezone: process.env.EPISODE_SYNC_TIMEZONE || "America/Los_Angeles",
+          enabled: process.env.EPISODE_SYNC_ENABLED !== "false"
         },
         {
           name: "key_rotation",
           description: "Quarterly key rotation for security",
-          schedule: "0 3 1 1,4,7,10 *",
-          timezone: "UTC",
+          schedule: "0 2 1 1,4,7,10 *",
+          timezone: "America/Los_Angeles",
           enabled: true
         }
       ],
@@ -3777,6 +3644,7 @@ router6.use("/admin", admin_default);
 var routes_default = router6;
 
 // server.ts
+init_encryptedTokenHelpers();
 var __filename = fileURLToPath(import.meta.url);
 var __dirname2 = path3.dirname(__filename);
 dotenv.config({
@@ -3804,21 +3672,21 @@ app.get("/healthz", (_req, res) => {
 var safeHealthCheck = typeof healthCheck === "function" ? healthCheck : async () => true;
 app.get("/health", async (_req, res) => {
   try {
-    const [tokenServiceHealthy, vaultHealthy] = await Promise.all([
+    const [tokenServiceHealthy, encryptedTokenHealthy] = await Promise.all([
       safeHealthCheck(),
-      vaultHealthCheck()
+      encryptedTokenHealthCheck()
     ]);
-    if (tokenServiceHealthy && vaultHealthy) {
+    if (tokenServiceHealthy && encryptedTokenHealthy) {
       res.status(200).json({
         status: "healthy",
-        vault: "connected",
+        encryptedTokenStorage: "connected",
         tokenService: "connected",
         timestamp: (/* @__PURE__ */ new Date()).toISOString()
       });
     } else {
       res.status(503).json({
         status: "unhealthy",
-        vault: vaultHealthy ? "connected" : "disconnected",
+        encryptedTokenStorage: encryptedTokenHealthy ? "connected" : "disconnected",
         tokenService: tokenServiceHealthy ? "connected" : "disconnected",
         timestamp: (/* @__PURE__ */ new Date()).toISOString()
       });
@@ -3854,11 +3722,11 @@ var initializeServer = async () => {
       console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
       console.log("Initializing background jobs...");
       initializeBackgroundJobs();
-      Promise.all([safeHealthCheck(), vaultHealthCheck()]).then(([tokenHealthy, vaultHealthy]) => {
-        if (tokenHealthy && vaultHealthy) {
+      Promise.all([safeHealthCheck(), encryptedTokenHealthCheck()]).then(([tokenHealthy, encryptedTokenHealthy]) => {
+        if (tokenHealthy && encryptedTokenHealthy) {
           console.log("\u2705 Health checks passed - system ready");
         } else {
-          console.warn(`\u26A0\uFE0F  Health check issues - Token Service: ${tokenHealthy ? "OK" : "FAIL"}, Vault: ${vaultHealthy ? "OK" : "FAIL"}`);
+          console.warn(`\u26A0\uFE0F  Health check issues - Token Service: ${tokenHealthy ? "OK" : "FAIL"}, Encrypted Token Storage: ${encryptedTokenHealthy ? "OK" : "FAIL"}`);
         }
       }).catch((error) => {
         console.error("\u274C Health check error:", error.message);

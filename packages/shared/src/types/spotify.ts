@@ -131,22 +131,14 @@ export type SpotifyUserShows = SpotifyPagination<{
   show: SpotifyShow;
 }>;
 
-// === Vault & Token Management Types ===
+// === Token Management Types ===
 
-// Vault operation result for token operations
-export interface VaultOperationResult {
+// Encrypted token operation result for token operations
+export interface EncryptedTokenOperationResult {
   success: boolean;
   data?: SpotifyTokens;
   error?: string;
   elapsed_ms: number;
-}
-
-// Vault delete operation result
-export interface VaultDeleteResult {
-  success: boolean;
-  status_code: number;
-  elapsed_ms: number;
-  error?: string;
 }
 
 // Token refresh operation result

@@ -10,7 +10,7 @@ import express from 'express'
 import cookieParser from 'cookie-parser'
 import { createClient } from '@supabase/supabase-js'
 import syncShowsRouter from '../syncShows.js'
-import * as vaultHelpers from '../../lib/vaultHelpers.js'
+import * as encryptedTokenHelpers from '../../lib/encryptedTokenHelpers.js'
 
 // Set up environment variables for testing
 process.env.SUPABASE_URL = 'http://127.0.0.1:54321'
@@ -31,8 +31,8 @@ describe('Sync Shows Database Schema Integration', () => {
     app.use(express.json())
     app.use('/api/sync-spotify-shows', syncShowsRouter)
 
-    // Mock vault helpers
-    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+    // Mock encrypted token helpers
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
       data: {
         access_token: 'mock-spotify-token',
@@ -375,4 +375,4 @@ describe('Sync Shows Database Schema Integration', () => {
 
 // Mock the modules
 vi.mock('@supabase/supabase-js')
-vi.mock('../../lib/vaultHelpers.js') 
+vi.mock('../../lib/encryptedTokenHelpers.js') 

@@ -41,7 +41,7 @@ const {
 }));
 
 // Mock external dependencies while keeping internal integrations
-vi.mock('../lib/vaultHelpers.js', () => ({
+vi.mock('../lib/encryptedTokenHelpers.js', () => ({
   getUserSecret: mockGetUserSecret
 }));
 
@@ -73,7 +73,6 @@ class IntegrationTestDataFactory {
     const users = Array(count).fill(null).map((_, i) => ({
       id: `test-user-${i + 1}`,
       email: `test${i + 1}@example.com`,
-      spotify_vault_secret_id: `vault-secret-${i + 1}`,
       spotify_reauth_required: false,
       created_at: new Date().toISOString()
     }));
@@ -212,7 +211,7 @@ class IntegrationTestDataFactory {
         tokens: mockTokens
       });
       
-      // Also mock the vault helper that getValidTokens likely calls internally
+      // Also mock the encrypted token helper that getValidTokens likely calls internally
       mockGetUserSecret.mockResolvedValueOnce({
         success: true,
         data: {

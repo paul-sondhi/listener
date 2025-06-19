@@ -1,4 +1,4 @@
-import { SpotifyTokenData } from './vaultHelpers';
+import { SpotifyTokenData } from './encryptedTokenHelpers';
 
 // Cache entry interface with TTL
 interface CacheEntry {
@@ -193,4 +193,4 @@ if (CACHE_BACKEND.toLowerCase() === 'memory') {
 }
 
 // Export the SpotifyTokenData type for use in other modules
-export type { SpotifyTokenData } from './vaultHelpers'; 
+export type { SpotifyTokenData } from './encryptedTokenHelpers'; 

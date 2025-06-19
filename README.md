@@ -40,6 +40,9 @@ A podcast transcription service that integrates with Spotify.
    SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
    PORT=3000
    
+   # Token encryption (required for Spotify integration)
+   TOKEN_ENC_KEY=your_secure_encryption_key_here
+   
    # Episode Sync Configuration (optional)
    EPISODE_SYNC_ENABLED=true
    EPISODE_SYNC_CRON=0 0 * * *
@@ -122,7 +125,7 @@ await runJob('daily_subscription_refresh');
 cd packages/server
 npx tsx -e "
 import { runJob } from './services/backgroundJobs.js';
-console.log('Available jobs: episode_sync, daily_subscription_refresh, vault_cleanup, key_rotation');
+console.log('Available jobs: episode_sync, daily_subscription_refresh');
 "
 ```
 
@@ -132,9 +135,79 @@ console.log('Available jobs: episode_sync, daily_subscription_refresh, vault_cle
 - `POST /api/store-spotify-tokens` - Store Spotify authentication tokens
 - `POST /api/sync-spotify-shows` - Sync user's Spotify podcast subscriptions
 
+## Token Storage
+
+The application securely stores Spotify authentication tokens using encrypted column storage:
+
+### Architecture
+
+- **Encryption**: Tokens are encrypted using PostgreSQL's pgcrypto extension
+- **Storage**: Encrypted tokens are stored in the `users.spotify_tokens_enc` column as `bytea`
+- **Key Management**: Encryption key is provided via the `TOKEN_ENC_KEY` environment variable
+- **Access**: Tokens are decrypted on-demand when making Spotify API calls
+
+### Token Data Structure
+
+```typescript
+interface SpotifyTokenData {
+  access_token: string;     // Spotify access token (1-hour expiry)
+  refresh_token: string;    // Spotify refresh token (long-lived)
+  expires_at: number;       // Unix timestamp when access_token expires
+  token_type: string;       // Always "Bearer"
+  scope: string;           // Spotify API scopes granted
+}
+```
+
+### Database Functions
+
+The application uses custom PostgreSQL functions for token operations:
+
+```sql
+-- Encrypt and store token data
+SELECT update_encrypted_tokens(user_id, token_data_json, encryption_key);
+
+-- Retrieve and decrypt token data  
+SELECT get_encrypted_tokens(user_id, encryption_key);
+
+-- Test encryption/decryption (health check)
+SELECT test_encryption(test_data);
+```
+
+### Environment Configuration
+
+```bash
+# Required: Encryption key for token storage
+TOKEN_ENC_KEY=your_secure_encryption_key_here
+
+# Recommended: Use a strong, randomly generated key
+# Example generation: openssl rand -base64 32
+```
+
+### Security Features
+
+- **Automatic Token Refresh**: Expired access tokens are automatically refreshed using stored refresh tokens
+- **Reauth Handling**: Users requiring re-authentication are flagged via `spotify_reauth_required`
+- **In-Memory Caching**: Valid tokens are cached for 60 seconds to reduce database calls
+- **Secure Cleanup**: No tokens are stored in application logs or temporary files
+
 ## Database Schema
 
 The application uses Supabase (PostgreSQL) with the following core tables:
+
+### User Tables
+
+```sql
+-- User authentication and Spotify integration
+-- (extends Supabase auth.users)
+CREATE TABLE users (
+  id uuid PRIMARY KEY,                    -- References auth.users.id
+  email text,
+  spotify_tokens_enc bytea,              -- Encrypted Spotify tokens
+  spotify_reauth_required boolean DEFAULT false,
+  created_at timestamptz DEFAULT timezone('utc', now()),
+  updated_at timestamptz DEFAULT timezone('utc', now())
+);
+```
 
 ### Podcast Tables
 
@@ -200,6 +273,9 @@ podcast_episodes
 
 - `20250616190040_create_podcast_core.sql` - Creates core podcast tables and episodes
 - `20250616192002_migrate_subscriptions.sql` - Migrates legacy subscriptions to normalized schema
+- `20250619093954_encrypted_token_column.sql` - Adds encrypted token storage and removes vault dependencies
+- `20250619095919_remove_vault_test_tokens.sql` - Removes vault testing infrastructure
+- `20250619102030_encrypted_token_functions.sql` - Adds PostgreSQL functions for encrypted token operations
 
 ## Deployment
 
@@ -304,6 +380,34 @@ echo "scripts/backfillRssUrl.ts" >> .gitignore
 ```
 
 **⚠️ Important**: Never run the backfill script in production after the initial deployment. It's designed for one-time use only.
+
+## Token Storage Migration
+
+**⚠️ Breaking Change**: The application migrated from Supabase Vault to encrypted column storage for Spotify tokens. This migration requires existing users to re-authenticate with Spotify.
+
+### For Existing Production Users
+
+If you have existing users who authenticated before the encrypted token migration (applied 2025-06-19), they will need to re-authenticate:
+
+1. **Automatic Detection**: Users with invalid tokens will be automatically redirected to re-authenticate
+2. **Manual Reset**: To manually reset a user's authentication status:
+   ```sql
+   UPDATE users 
+   SET spotify_reauth_required = true, spotify_tokens_enc = NULL 
+   WHERE id = 'user-id-here';
+   ```
+3. **User Experience**: Users will see a "Connect to Spotify" prompt on their next visit
+4. **No Data Loss**: User subscriptions and preferences are preserved during re-authentication
+
+### Migration Timeline
+
+- **Before 2025-06-19**: Tokens stored in Supabase Vault
+- **After 2025-06-19**: Tokens stored in encrypted columns using pgcrypto
+- **Transition**: All vault data was safely migrated and vault infrastructure removed
+
+### For New Deployments
+
+New deployments automatically use encrypted column storage with no additional setup required beyond setting the `TOKEN_ENC_KEY` environment variable.
 
 ## Authentication
 

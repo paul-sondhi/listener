@@ -56,27 +56,25 @@ async function testConnection() {
       console.log(`   Found ${data?.length || 0} users (showing max 1)`);
     }
     
-    console.log('\n🔍 Testing Vault accessibility...');
-    const { data: vaultTest, error: vaultError } = await supabase
-      .from('vault.secrets')
-      .select('id')
-      .limit(1);
-    
-    if (vaultError) {
-      console.log('❌ Vault access failed:', vaultError.message);
-      if (vaultError.message.includes('does not exist')) {
-        console.log('   → Vault extension may not be enabled in Supabase');
+    console.log('\n🔍 Testing encrypted token functionality...');
+    const { data: encryptionTest, error: encryptionError } = await supabase
+      .rpc('test_encryption', { test_data: 'test' });
+
+    if (encryptionError) {
+      console.log('❌ Encrypted token functions not available:', encryptionError.message);
+      if (encryptionError.message.includes('does not exist')) {
+        console.log('   → Encrypted token functions may not be migrated yet');
       }
     } else {
-      console.log('✅ Vault is accessible');
-      console.log(`   Found ${vaultTest?.length || 0} secrets (showing max 1)`);
+      console.log('✅ Encrypted token functions are available');
+      console.log(`   Test result: ${encryptionTest || 'success'}`);
     }
     
     console.log('\n📊 CONNECTION TEST SUMMARY');
     console.log('==========================');
     console.log('✅ Supabase connection is working!');
     console.log('✅ Service role key has basic permissions');
-    console.log('✅ Ready to test Vault functionality');
+    console.log('✅ Ready to test encrypted token functionality');
     
     process.exit(0);
     

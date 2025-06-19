@@ -152,11 +152,11 @@ async function checkVaultFunctions(supabase) {
 async function checkDatabaseSchema(supabase) {
   const checks = []
   
-  // Check podcast_shows table structure
+  // Check podcast_shows table structure (rss_url was renamed to spotify_url)
   try {
     const { error } = await supabase
       .from('podcast_shows')
-      .select('id, title, rss_url, spotify_url, last_checked_episodes')
+      .select('id, title, spotify_url, last_checked_episodes')
       .limit(1)
     
     checks.push({
@@ -172,11 +172,11 @@ async function checkDatabaseSchema(supabase) {
     })
   }
   
-  // Check users table structure
+  // Check users table structure (vault column replaced by encrypted token column)
   try {
     const { error } = await supabase
       .from('users')
-      .select('id, email, spotify_vault_secret_id, spotify_reauth_required')
+      .select('id, email, spotify_tokens_enc, spotify_reauth_required')
       .limit(1)
     
     checks.push({

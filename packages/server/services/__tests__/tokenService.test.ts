@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { getValidTokens, refreshTokens, getMetrics, healthCheck, clearRateLimit } from '../tokenService.js'
-import * as vaultHelpers from '../../lib/vaultHelpers.js'
+import * as encryptedTokenHelpers from '../../lib/encryptedTokenHelpers.js'
 import * as tokenCache from '../../lib/tokenCache.js'
 
 // Mock dependencies
-vi.mock('../../lib/vaultHelpers')
+vi.mock('../../lib/encryptedTokenHelpers')
 vi.mock('../../lib/tokenCache')
 
 // Mock the Supabase client
@@ -90,7 +90,7 @@ describe('TokenService', () => {
       expect(mockCache.get).toHaveBeenCalledWith(mockUserId)
     })
 
-    it('should fetch from vault when cache miss', async () => {
+    it('should fetch from encrypted storage when cache miss', async () => {
       // Mock cache miss
       const mockCache = {
         get: vi.fn().mockResolvedValue(null),
@@ -101,8 +101,8 @@ describe('TokenService', () => {
       }
       vi.mocked(tokenCache.getTokenCache).mockReturnValue(mockCache)
 
-      // Mock vault success
-      vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+      // Mock encrypted token success
+      vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
         success: true,
         data: mockTokenData,
         elapsed_ms: 100
@@ -111,11 +111,11 @@ describe('TokenService', () => {
       const result = await getValidTokens(mockUserId)
 
       expect(result.success).toBe(true)
-      expect(vaultHelpers.getUserSecret).toHaveBeenCalledWith(mockUserId)
+      expect(encryptedTokenHelpers.getUserSecret).toHaveBeenCalledWith(mockUserId)
       expect(mockCache.set).toHaveBeenCalledWith(mockUserId, mockTokenData, 60)
     })
 
-    it('should require reauth when no tokens found in vault', async () => {
+    it('should require reauth when no tokens found in encrypted storage', async () => {
       // Mock cache miss
       const mockCache = {
         get: vi.fn().mockResolvedValue(null),
@@ -126,8 +126,8 @@ describe('TokenService', () => {
       }
       vi.mocked(tokenCache.getTokenCache).mockReturnValue(mockCache)
 
-      // Mock vault failure
-      vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+      // Mock encrypted token failure
+      vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
         success: false,
         error: 'No tokens found',
         elapsed_ms: 50
@@ -163,7 +163,7 @@ describe('TokenService', () => {
           eq: vi.fn().mockResolvedValue({ error: null })
         })
       })
-      vi.mocked(vaultHelpers.updateUserSecret).mockResolvedValue({
+      vi.mocked(encryptedTokenHelpers.updateUserSecret).mockResolvedValue({
         success: true,
         data: mockTokenData,
         elapsed_ms: 200
@@ -208,8 +208,8 @@ describe('TokenService', () => {
         })
       })
 
-      // Mock vault update
-      vi.mocked(vaultHelpers.updateUserSecret).mockResolvedValue({
+      // Mock encrypted token update
+      vi.mocked(encryptedTokenHelpers.updateUserSecret).mockResolvedValue({
         success: true,
         data: mockTokenData,
         elapsed_ms: 150
@@ -243,7 +243,7 @@ describe('TokenService', () => {
       expect(result.success).toBe(true)
       expect(result.tokens).toBeDefined()
       expect(result.requires_reauth).toBe(false)
-      expect(vaultHelpers.updateUserSecret).toHaveBeenCalled()
+      expect(encryptedTokenHelpers.updateUserSecret).toHaveBeenCalled()
       expect(mockCache.set).toHaveBeenCalled()
     })
 
@@ -354,7 +354,7 @@ describe('TokenService', () => {
       const metrics = getMetrics()
 
       expect(metrics).toHaveProperty('spotify_token_refresh_failed_total')
-      expect(metrics).toHaveProperty('vault_write_total')
+      expect(metrics).toHaveProperty('encrypted_token_write_total')
       expect(metrics).toHaveProperty('cache_hits')
       expect(metrics).toHaveProperty('cache_misses')
       expect(typeof metrics.spotify_token_refresh_failed_total).toBe('number')
@@ -362,53 +362,34 @@ describe('TokenService', () => {
   })
 
   describe('healthCheck', () => {
-    it('should return true when vault is accessible via RPC', async () => {
-      // Mock successful RPC call to test_vault_count
-      mockSupabaseClient.rpc.mockResolvedValue({ 
-        data: 6, // Mock count of secrets in vault
-        error: null 
-      })
+    it('should return true when encrypted token storage is accessible', async () => {
+      // Mock successful encrypted token health check
+      vi.mocked(encryptedTokenHelpers.encryptedTokenHealthCheck).mockResolvedValue(true)
 
       const result = await healthCheck()
 
       expect(result).toBe(true)
-      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('test_vault_count')
+      expect(encryptedTokenHelpers.encryptedTokenHealthCheck).toHaveBeenCalled()
     })
 
-    it('should return false when vault RPC call fails', async () => {
-      // Mock RPC call error
-      mockSupabaseClient.rpc.mockResolvedValue({ 
-        data: null,
-        error: { message: 'Connection failed' } 
-      })
+    it('should return false when encrypted token health check fails', async () => {
+      // Mock encrypted token health check failure
+      vi.mocked(encryptedTokenHelpers.encryptedTokenHealthCheck).mockResolvedValue(false)
 
       const result = await healthCheck()
 
       expect(result).toBe(false)
-      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('test_vault_count')
+      expect(encryptedTokenHelpers.encryptedTokenHealthCheck).toHaveBeenCalled()
     })
 
-    it('should return false when RPC returns invalid response format', async () => {
-      // Mock RPC call with invalid response (not a number)
-      mockSupabaseClient.rpc.mockResolvedValue({ 
-        data: 'invalid', // Should be a number
-        error: null 
-      })
+    it('should return false when health check throws an error', async () => {
+      // Mock encrypted token health check throwing an exception
+      vi.mocked(encryptedTokenHelpers.encryptedTokenHealthCheck).mockRejectedValue(new Error('Network error'))
 
       const result = await healthCheck()
 
       expect(result).toBe(false)
-      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('test_vault_count')
-    })
-
-    it('should handle unexpected errors during health check', async () => {
-      // Mock RPC call throwing an exception
-      mockSupabaseClient.rpc.mockRejectedValue(new Error('Network error'))
-
-      const result = await healthCheck()
-
-      expect(result).toBe(false)
-      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('test_vault_count')
+      expect(encryptedTokenHelpers.encryptedTokenHealthCheck).toHaveBeenCalled()
     })
   })
 }) 

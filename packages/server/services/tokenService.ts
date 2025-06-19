@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database, SpotifyTokens } from '@listener/shared';
-import { getUserSecret, updateUserSecret } from '../lib/vaultHelpers.js';
+import { getUserSecret, updateUserSecret } from '../lib/encryptedTokenHelpers.js';
 import { getTokenCache, SpotifyTokenData } from '../lib/tokenCache.js';
 
 // Local type definitions for token management
@@ -48,7 +48,7 @@ const CONFIG: TokenServiceConfig = {
 // Metrics for monitoring
 const metrics = {
   spotify_token_refresh_failed_total: 0,
-  vault_write_total: 0,
+  encrypted_token_write_total: 0,
   cache_hits: 0,
   cache_misses: 0
 };
@@ -332,8 +332,8 @@ export async function refreshTokens(userId: string, refreshToken: string): Promi
         // Attempt to refresh tokens
         const newTokens = await refreshSpotifyTokens(refreshToken);
         
-        // Convert to vault format
-        const vaultTokenData: SpotifyTokenData = {
+        // Convert to encrypted token format
+        const encryptedTokenData: SpotifyTokenData = {
           access_token: newTokens.access_token,
           refresh_token: newTokens.refresh_token,
           expires_at: newTokens.expires_at,
@@ -341,17 +341,17 @@ export async function refreshTokens(userId: string, refreshToken: string): Promi
           scope: newTokens.scope
         };
         
-        // Update tokens in vault
-        const vaultResult = await updateUserSecret(userId, vaultTokenData);
+        // Update tokens in encrypted storage
+        const encryptedResult = await updateUserSecret(userId, encryptedTokenData);
         
-        if (!vaultResult.success) {
-          console.error('Failed to update tokens in vault:', vaultResult.error);
-          throw new Error(`Vault update failed: ${vaultResult.error}`);
+        if (!encryptedResult.success) {
+          console.error('Failed to update tokens in encrypted storage:', encryptedResult.error);
+          throw new Error(`Encrypted token update failed: ${encryptedResult.error}`);
         }
         
         // Update cache
         const cache = getTokenCache();
-        await cache.set(userId, vaultTokenData, CONFIG.cache_ttl_seconds);
+        await cache.set(userId, encryptedTokenData, CONFIG.cache_ttl_seconds);
         
         // Clear reauth flag on successful refresh
         await supabase
@@ -361,8 +361,8 @@ export async function refreshTokens(userId: string, refreshToken: string): Promi
         
         // Emit success metrics
         emitMetric('spotify_token_refresh_success_total', 1, { user_id: userId });
-        emitMetric('vault_write_total', 1, { operation: 'token_refresh' });
-        metrics.vault_write_total++;
+        emitMetric('encrypted_token_write_total', 1, { operation: 'token_refresh' });
+        metrics.encrypted_token_write_total++;
         
         const elapsedMs = Date.now() - startTime;
         console.log(`TOKEN_REFRESH: Successfully refreshed tokens for user ${userId} in ${elapsedMs}ms`);
@@ -486,7 +486,7 @@ export async function refreshTokens(userId: string, refreshToken: string): Promi
 
 /**
  * Get valid tokens for a user
- * Follows cache → Vault → refresh flow with 5-minute expiry threshold
+ * Follows cache → encrypted storage → refresh flow with 5-minute expiry threshold
  * @param {string} userId - The user's UUID
  * @returns {Promise<TokenRefreshResult>} Valid tokens or error
  */
@@ -536,12 +536,12 @@ export async function getValidTokens(userId: string): Promise<TokenRefreshResult
       emitMetric('token_cache_misses_total', 1, { user_id: userId });
     }
     
-    // Step 2: Get from Vault if not in cache or cache is stale
+    // Step 2: Get from encrypted storage if not in cache or cache is stale
     if (!tokenData) {
-      const vaultResult = await getUserSecret(userId);
+      const encryptedResult = await getUserSecret(userId);
       
-      if (!vaultResult.success) {
-        console.log(`TOKEN_SERVICE: No tokens found in vault for user ${userId}`);
+      if (!encryptedResult.success) {
+        console.log(`TOKEN_SERVICE: No tokens found in encrypted storage for user ${userId}`);
         return {
           success: false,
           requires_reauth: true,
@@ -550,9 +550,9 @@ export async function getValidTokens(userId: string): Promise<TokenRefreshResult
         };
       }
       
-      tokenData = vaultResult.data!;
+      tokenData = encryptedResult.data!;
       
-      // Update cache with vault data
+      // Update cache with encrypted storage data
       await cache.set(userId, tokenData, CONFIG.cache_ttl_seconds);
     }
     
@@ -567,7 +567,7 @@ export async function getValidTokens(userId: string): Promise<TokenRefreshResult
     });
     
     if (!validation.needs_refresh) {
-      console.log(`TOKEN_SERVICE: Vault tokens for user ${userId} are still valid (expires in ${validation.expires_in_minutes} minutes)`);
+      console.log(`TOKEN_SERVICE: Encrypted tokens for user ${userId} are still valid (expires in ${validation.expires_in_minutes} minutes)`);
       return {
         success: true,
         tokens: {
@@ -609,28 +609,23 @@ export function getMetrics(): typeof metrics {
 }
 
 /**
- * Health check function to verify vault connectivity
- * @returns {Promise<boolean>} True if vault is accessible
+ * Health check function to verify encrypted token storage connectivity
+ * @returns {Promise<boolean>} True if encrypted token storage is accessible
  */
 export async function healthCheck(): Promise<boolean> {
   try {
-    const supabase = getSupabaseAdmin();
+    // Import the health check function from encrypted token helpers
+    const { encryptedTokenHealthCheck } = await import('../lib/encryptedTokenHelpers.js');
     
-    // Test vault connectivity using RPC function (vault schema is not directly accessible via REST API)
-    const { data, error } = await supabase.rpc('test_vault_count');
+    // Test encrypted token storage connectivity
+    const result = await encryptedTokenHealthCheck();
     
-    if (error) {
-      console.error('TOKEN_SERVICE: Vault health check failed:', error.message);
+    if (!result) {
+      console.error('TOKEN_SERVICE: Encrypted token health check failed');
       return false;
     }
     
-    // Verify we got a valid count response
-    if (typeof data !== 'number') {
-      console.error('TOKEN_SERVICE: Vault health check failed: invalid response format');
-      return false;
-    }
-    
-    console.log(`TOKEN_SERVICE: Vault health check passed - ${data} secrets in vault`);
+    console.log('TOKEN_SERVICE: Encrypted token health check passed');
     return true;
     
   } catch (error) {

@@ -194,13 +194,6 @@ router.get('/jobs/history', (_req: Request, res: Response): void => {
     const jobInfo = {
       available_jobs: [
         {
-          name: 'vault_cleanup',
-          description: 'Clean up expired vault secrets',
-          schedule: '0 0 * * *',
-          timezone: 'America/Los_Angeles',
-          enabled: true
-        },
-        {
           name: 'daily_subscription_refresh',
           description: 'Daily refresh of all user Spotify subscriptions',
           schedule: process.env.DAILY_REFRESH_CRON || '30 0 * * *',
@@ -213,13 +206,6 @@ router.get('/jobs/history', (_req: Request, res: Response): void => {
           schedule: process.env.EPISODE_SYNC_CRON || '0 1 * * *',
           timezone: process.env.EPISODE_SYNC_TIMEZONE || 'America/Los_Angeles',
           enabled: process.env.EPISODE_SYNC_ENABLED !== 'false'
-        },
-        {
-          name: 'key_rotation',
-          description: 'Quarterly key rotation for security',
-          schedule: '0 2 1 1,4,7,10 *',
-          timezone: 'America/Los_Angeles',
-          enabled: true
         }
       ],
       note: 'Job execution history would be stored in database in production',

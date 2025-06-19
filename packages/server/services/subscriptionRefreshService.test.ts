@@ -36,7 +36,7 @@ const {
 // Mock external dependencies
 vi.mock('@supabase/supabase-js');
 
-vi.mock('../lib/vaultHelpers.js', () => ({
+vi.mock('../lib/encryptedTokenHelpers.js', () => ({
   getUserSecret: mockGetUserSecret
 }));
 vi.mock('./tokenService.js', () => ({
@@ -67,7 +67,7 @@ import {
 interface MockUser {
   id: string;
   email?: string;
-  spotify_vault_secret_id?: string;
+  spotify_tokens_enc?: string | null;
   spotify_reauth_required?: boolean;
   created_at?: string;
 }
@@ -105,7 +105,7 @@ class TestDataFactory {
     return {
       id: 'user-123',
       email: 'test@example.com',
-      spotify_vault_secret_id: 'vault-secret-123',
+      spotify_tokens_enc: 'encrypted_token_data',
       spotify_reauth_required: false,
       created_at: '2024-01-01T00:00:00.000Z',
       ...overrides
@@ -821,7 +821,7 @@ describe('User Discovery Functions', () => {
     it('should validate user has valid Spotify integration', async () => {
       // Arrange: Set up user with valid integration
       const mockUser = TestDataFactory.createMockUser({
-        spotify_vault_secret_id: 'vault-123',
+        spotify_tokens_enc: 'encrypted_token_data',
         spotify_reauth_required: false
       });
 
@@ -840,7 +840,7 @@ describe('User Discovery Functions', () => {
     it('should return false for user needing reauth', async () => {
       // Arrange: Set up user needing reauth
       const mockUser = TestDataFactory.createMockUser({
-        spotify_vault_secret_id: 'vault-123',
+        spotify_tokens_enc: 'encrypted_token_data',
         spotify_reauth_required: true
       });
 

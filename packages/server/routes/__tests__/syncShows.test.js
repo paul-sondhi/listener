@@ -3,7 +3,7 @@ import request from 'supertest';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import syncShowsRouter from '../syncShows'; // Adjust path
-import * as vaultHelpers from '../../lib/vaultHelpers.js';
+import * as encryptedTokenHelpers from '../../lib/encryptedTokenHelpers.js';
 
 // Set up required environment variables for testing
 // These need to be present for the getSupabaseAdmin() function to work
@@ -74,8 +74,8 @@ vi.mock('@supabase/supabase-js', () => ({
 // Import the mocked createClient for use in beforeEach
 import { createClient } from '@supabase/supabase-js';
 
-// --- Mock vault helpers ---
-vi.mock('../../lib/vaultHelpers', () => ({
+// --- Mock encrypted token helpers ---
+vi.mock('../../lib/encryptedTokenHelpers', () => ({
   getUserSecret: vi.fn()
 }));
 
@@ -181,8 +181,8 @@ describe('POST /sync-spotify-shows', () => {
     // Re-establish global fetch mock
     global.fetch = mockFetch;
     
-    // Re-establish vault helpers mock
-    vi.mocked(vaultHelpers.getUserSecret).mockImplementation(() => Promise.resolve(null));
+    // Re-establish encrypted token helpers mock
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockImplementation(() => Promise.resolve(null));
     
     // Set up default successful responses for all mocks
     mockSupabaseAuthGetUser.mockResolvedValue({
@@ -196,8 +196,8 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should successfully sync shows when user is authenticated and has Spotify token', async () => {
-    // Set up vault to return valid Spotify tokens
-    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+    // Set up encrypted token storage to return valid Spotify tokens
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
       data: {
         access_token: 'spotify_token',
@@ -229,8 +229,8 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should handle pagination from Spotify API', async () => {
-    // Set up vault to return valid Spotify tokens
-    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+    // Set up encrypted token storage to return valid Spotify tokens
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
       data: {
         access_token: 'spotify_token',
@@ -261,8 +261,8 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should mark shows as inactive if not present in Spotify response', async () => {
-    // Set up vault to return valid Spotify tokens
-    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+    // Set up encrypted token storage to return valid Spotify tokens
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
       data: {
         access_token: 'spotify_token',
@@ -332,10 +332,10 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should return 400 if user has no Spotify token in DB (userRow is null)', async () => {
-    // Mock vault getUserSecret to simulate failure to retrieve tokens
-    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValueOnce({
+    // Mock encrypted token getUserSecret to simulate failure to retrieve tokens
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValueOnce({
       success: false,
-      error: 'No vault secret found',
+      error: 'No encrypted tokens found',
       elapsed_ms: 50
     });
     
@@ -345,8 +345,8 @@ describe('POST /sync-spotify-shows', () => {
   });
   
   it('should return 400 if user row has no spotify_access_token field', async () => {
-    // Mock vault getUserSecret to return data without access_token
-    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValueOnce({
+    // Mock encrypted token getUserSecret to return data without access_token
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValueOnce({
       success: true,
       data: {
         refresh_token: 'refresh',
@@ -364,8 +364,8 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should return 502 if Spotify API call fails after retries', async () => {
-    // Set up vault to return valid Spotify tokens first
-    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+    // Set up encrypted token storage to return valid Spotify tokens first
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
       data: {
         access_token: 'spotify_token',
@@ -392,8 +392,8 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should handle errors during Supabase upsert', async () => {
-    // Set up vault to return valid Spotify tokens
-    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+    // Set up encrypted token storage to return valid Spotify tokens
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
       data: {
         access_token: 'spotify_token',
@@ -423,8 +423,8 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should handle errors during Supabase select for existing subscriptions', async () => {
-    // Set up vault to return valid Spotify tokens
-    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+    // Set up encrypted token storage to return valid Spotify tokens
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
       data: {
         access_token: 'spotify_token',
@@ -457,8 +457,8 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should handle errors during Supabase update (for inactivation)', async () => {
-    // Set up vault to return valid Spotify tokens
-    vi.mocked(vaultHelpers.getUserSecret).mockResolvedValue({
+    // Set up encrypted token storage to return valid Spotify tokens
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
       data: {
         access_token: 'spotify_token',
@@ -501,7 +501,7 @@ describe('POST /sync-spotify-shows', () => {
   });
 
   it('should return 500 for unexpected errors (e.g. users.select.eq.single throws)', async () => {
-    vi.mocked(vaultHelpers.getUserSecret).mockRejectedValueOnce(new Error('Unexpected vault error during token fetch!'));
+    vi.mocked(encryptedTokenHelpers.getUserSecret).mockRejectedValueOnce(new Error('Unexpected encrypted token storage error during token fetch!'));
     const response = await request(app).post('/sync-spotify-shows').set('Cookie', `sb-access-token=${mockSupabaseToken}`);
     expect(response.status).toBe(500);
     expect(response.body.error).toBe('Internal server error');

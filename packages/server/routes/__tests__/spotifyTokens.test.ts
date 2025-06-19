@@ -9,7 +9,7 @@ import request from 'supertest'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import spotifyTokensRouter from '../spotifyTokens.js'
-import * as vaultHelpers from '../../lib/vaultHelpers.js'
+import * as encryptedTokenHelpers from '../../lib/encryptedTokenHelpers.js'
 
 // Set up required environment variables for testing
 // These need to be present to pass the environment check in the route handler
@@ -64,8 +64,8 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockSupabaseClient),
 }))
 
-// Mock vault helpers - Update to mock storeUserSecret instead of createUserSecret
-vi.mock('../../lib/vaultHelpers', () => ({
+// Mock encrypted token helpers - Update to mock storeUserSecret instead of createUserSecret
+vi.mock('../../lib/encryptedTokenHelpers', () => ({
   storeUserSecret: vi.fn()
 }))
 
@@ -112,8 +112,8 @@ describe('POST /spotify-tokens', () => {
     mockSupabaseAuthGetUser.mockResolvedValue({ data: { user: mockUser }, error: null })
     // Default successful update mock
     mockSupabaseSelect.mockResolvedValue({ error: null })
-    // Default successful vault operation mock - Update to use storeUserSecret
-    vi.mocked(vaultHelpers.storeUserSecret).mockResolvedValue({
+    // Default successful encrypted token operation mock - Update to use storeUserSecret
+    vi.mocked(encryptedTokenHelpers.storeUserSecret).mockResolvedValue({
       success: true,
       data: mockTokens,
       elapsed_ms: 100
@@ -132,10 +132,10 @@ describe('POST /spotify-tokens', () => {
     expect(response.body).toEqual({ 
       success: true, 
       message: 'Tokens stored securely',
-      vault_latency_ms: 100
+      encrypted_token_latency_ms: 100
     })
     expect(mockSupabaseAuthGetUser).toHaveBeenCalledWith('user_supabase_token')
-    expect(vi.mocked(vaultHelpers.storeUserSecret)).toHaveBeenCalledWith(mockUser.id, {
+    expect(vi.mocked(encryptedTokenHelpers.storeUserSecret)).toHaveBeenCalledWith(mockUser.id, {
       access_token: mockTokens.access_token,
       refresh_token: mockTokens.refresh_token,
       expires_at: mockTokens.expires_at,
@@ -148,7 +148,7 @@ describe('POST /spotify-tokens', () => {
     // Arrange - Ensure mocks are properly set up for this test
     mockSupabaseAuthGetUser.mockResolvedValue({ data: { user: mockUser }, error: null })
     mockSupabaseSelect.mockResolvedValue({ error: null })
-    vi.mocked(vaultHelpers.storeUserSecret).mockResolvedValue({
+    vi.mocked(encryptedTokenHelpers.storeUserSecret).mockResolvedValue({
       success: true,
       data: mockTokens,
       elapsed_ms: 100
@@ -165,7 +165,7 @@ describe('POST /spotify-tokens', () => {
     expect(response.body).toEqual({ 
       success: true, 
       message: 'Tokens stored securely',
-      vault_latency_ms: 100
+      encrypted_token_latency_ms: 100
     })
     expect(mockSupabaseAuthGetUser).toHaveBeenCalledWith('user_supabase_token')
   })
@@ -209,10 +209,10 @@ describe('POST /spotify-tokens', () => {
   })
 
   it('should return 500 if Supabase update fails', async () => {
-    // Arrange - Mock vault failure
-    vi.mocked(vaultHelpers.storeUserSecret).mockResolvedValueOnce({
+    // Arrange - Mock encrypted token storage failure
+    vi.mocked(encryptedTokenHelpers.storeUserSecret).mockResolvedValueOnce({
       success: false,
-      error: 'Vault operation failed',
+      error: 'Encrypted token storage operation failed',
       elapsed_ms: 50
     })
 

@@ -1,7 +1,7 @@
 import express, { Router, Request, Response } from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database, ApiResponse } from '@listener/shared';
-import { storeUserSecret, SpotifyTokenData } from '../lib/vaultHelpers.js';
+import { storeUserSecret, SpotifyTokenData } from '../lib/encryptedTokenHelpers.js';
 
 // Create router with proper typing
 const router: Router = express.Router();
@@ -30,7 +30,7 @@ interface StoreTokensRequest {
  * Store Spotify tokens endpoint
  * POST /api/store-spotify-tokens
  * Body: { access_token, refresh_token, expires_at }
- * Now uses Vault for secure token storage
+ * Now uses encrypted column storage for secure token storage
  */
 router.post('/', async (req: Request, res: Response): Promise<void> => {
     try {
@@ -64,10 +64,13 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
+        // DEBUG: Log first/last 6 chars of token to help diagnose auth failures (safe to log)
+        console.debug(`[STORE_TOKENS] Received JWT: ${token.substring(0, 6)}…${token.substring(token.length - 6)}`);
+
         // Get the authenticated user
         const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(token);
         if (error || !user) {
-            console.error('User authentication failed:', error?.message);
+            console.error('[STORE_TOKENS] Supabase getUser failed:', error?.message);
             res.status(401).json({ 
                 success: false, 
                 error: 'User authentication failed' 
@@ -87,7 +90,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
-        // Prepare token data for vault storage
+        // Prepare token data for encrypted storage
         const tokenData: SpotifyTokenData = {
             access_token,
             refresh_token,
@@ -96,13 +99,13 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
             scope: 'user-read-email user-library-read' // Default scopes
         };
 
-        // Store tokens in vault
-        const vaultResult = await storeUserSecret(user.id, tokenData);
+        // Store tokens in encrypted storage
+        const encryptedResult = await storeUserSecret(user.id, tokenData);
         
-        if (!vaultResult.success) {
-            console.error('Failed to store tokens in vault:', vaultResult.error);
+        if (!encryptedResult.success) {
+            console.error('Failed to store tokens in encrypted storage:', encryptedResult.error);
             // Add more detailed logging for production debugging
-            console.error(`VAULT_ERROR_DETAIL: User ID: ${user.id}, Error: ${vaultResult.error}, Elapsed: ${vaultResult.elapsed_ms}ms`);
+            console.error(`ENCRYPTED_TOKEN_ERROR_DETAIL: User ID: ${user.id}, Error: ${encryptedResult.error}, Elapsed: ${encryptedResult.elapsed_ms}ms`);
             res.status(500).json({ 
                 success: false, 
                 error: 'Failed to store tokens securely' 
@@ -125,17 +128,17 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 
         if (upsertError) {
             console.error('Error updating user record:', upsertError.message);
-            // Don't fail the request since vault storage succeeded
-            console.warn('Vault storage succeeded but user record update failed');
+            // Don't fail the request since encrypted storage succeeded
+            console.warn('Encrypted storage succeeded but user record update failed');
         }
 
-        console.log(`Successfully stored tokens in vault for user: ${user.email} (${vaultResult.elapsed_ms}ms)`);
+        console.log(`Successfully stored tokens in encrypted storage for user: ${user.email} (${encryptedResult.elapsed_ms}ms)`);
         
         // Success response
         res.status(200).json({ 
             success: true, 
             message: 'Tokens stored securely',
-            vault_latency_ms: vaultResult.elapsed_ms
+            encrypted_token_latency_ms: encryptedResult.elapsed_ms
         } as ApiResponse);
         
     } catch (error: unknown) {

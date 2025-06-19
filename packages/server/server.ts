@@ -10,11 +10,15 @@ import dotenv from 'dotenv';
 const __filename: string = fileURLToPath(import.meta.url);
 const __dirname: string = path.dirname(__filename);
 
-// Load environment variables from the root directory
-// In production, Render will provide env vars directly, so we only need basic dotenv
-dotenv.config({
-    path: path.join(__dirname, '../../.env') // Point to root directory where .env file is located
-});
+// Load environment variables
+// Priority: 1) .env.local (for local dev overrides) 2) .env (default)  
+// In production (Render / Vercel) env vars are injected by the platform so these files are ignored.
+const envLocalPath = path.join(__dirname, '../../.env.local');
+const envDefaultPath = path.join(__dirname, '../../.env');
+
+// Load .env.local first if it exists, then fallback to .env
+dotenv.config({ path: envDefaultPath }); // base
+dotenv.config({ path: envLocalPath, override: true });
 
 // Import routes
 import apiRoutes from './routes/index.js';
@@ -22,7 +26,7 @@ import apiRoutes from './routes/index.js';
 // Import services
 import { initializeBackgroundJobs } from './services/backgroundJobs.js';
 import * as tokenService from './services/tokenService.js';
-import { vaultHealthCheck } from './lib/vaultHelpers.js';
+import { encryptedTokenHealthCheck } from './lib/encryptedTokenHelpers.js';
 
 // Create Express application with proper typing
 const app: Application = express();
@@ -66,25 +70,25 @@ const safeHealthCheck: () => Promise<boolean> =
     ? tokenService.healthCheck
     : async () => true; // assume healthy when mock does not provide implementation
 
-// Enhanced health check endpoint with vault connectivity
+// Enhanced health check endpoint with encrypted token storage connectivity
 app.get('/health', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const [tokenServiceHealthy, vaultHealthy] = await Promise.all([
+    const [tokenServiceHealthy, encryptedTokenHealthy] = await Promise.all([
       safeHealthCheck(),
-      vaultHealthCheck()
+      encryptedTokenHealthCheck()
     ]);
     
-    if (tokenServiceHealthy && vaultHealthy) {
+    if (tokenServiceHealthy && encryptedTokenHealthy) {
       res.status(200).json({
         status: 'healthy',
-        vault: 'connected',
+        encryptedTokenStorage: 'connected',
         tokenService: 'connected',
         timestamp: new Date().toISOString()
       });
     } else {
       res.status(503).json({
         status: 'unhealthy',
-        vault: vaultHealthy ? 'connected' : 'disconnected',
+        encryptedTokenStorage: encryptedTokenHealthy ? 'connected' : 'disconnected',
         tokenService: tokenServiceHealthy ? 'connected' : 'disconnected',
         timestamp: new Date().toISOString()
       });
@@ -140,11 +144,11 @@ const initializeServer = async (): Promise<void> => {
             initializeBackgroundJobs();
             
             // Perform initial health check
-            Promise.all([safeHealthCheck(), vaultHealthCheck()]).then(([tokenHealthy, vaultHealthy]) => {
-                if (tokenHealthy && vaultHealthy) {
+            Promise.all([safeHealthCheck(), encryptedTokenHealthCheck()]).then(([tokenHealthy, encryptedTokenHealthy]) => {
+                if (tokenHealthy && encryptedTokenHealthy) {
                     console.log('✅ Health checks passed - system ready');
                 } else {
-                    console.warn(`⚠️  Health check issues - Token Service: ${tokenHealthy ? 'OK' : 'FAIL'}, Vault: ${vaultHealthy ? 'OK' : 'FAIL'}`);
+                    console.warn(`⚠️  Health check issues - Token Service: ${tokenHealthy ? 'OK' : 'FAIL'}, Encrypted Token Storage: ${encryptedTokenHealthy ? 'OK' : 'FAIL'}`);
                 }
             }).catch(error => {
                 console.error('❌ Health check error:', error.message);

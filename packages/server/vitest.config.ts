@@ -176,9 +176,11 @@ export default defineConfig({
       TEST_SUPABASE_URL: 'http://localhost:54321',
       TEST_SUPABASE_ANON_KEY: 'test-anon-key',
       
-      // Disable external services in tests
-      SPOTIFY_API_ENABLED: 'false',
-      VAULT_ENABLED: 'false',
+      // Disable external services for tests
+      SPOTIFY_CLIENT_ID: 'test-client-id',
+      SPOTIFY_CLIENT_SECRET: 'test-client-secret',
+      OPENAI_API_KEY: 'test-openai-key',
+      DEEPGRAM_API_KEY: 'test-deepgram-key',
       
       // Test-specific configurations
       DAILY_REFRESH_ENABLED: 'false',

@@ -79,6 +79,15 @@ const AppPage = (): React.JSX.Element => {
         const expiresAt: number | undefined = session.expires_at
         const supabaseAccessToken: string | undefined = session?.access_token
 
+        // NEW: Ensure we have a Supabase access token before proceeding
+        if (!supabaseAccessToken) {
+          logger.error('Missing Supabase access token – cannot authenticate backend request')
+          setError('Authentication error: missing session token. Please log out and sign in again.')
+          // Prevent endless retry loops
+          hasSynced.current = true
+          return
+        }
+
         // Only proceed if we have all required tokens
         if (!accessToken || !refreshToken || !expiresAt) {
           logger.warn('Missing Spotify tokens:', { 
@@ -109,7 +118,7 @@ const AppPage = (): React.JSX.Element => {
         if (!storeResponse.ok) {
           const errorData: ErrorResponse = await storeResponse.json()
           const errorMessage = errorData.error || 'Failed to store Spotify tokens'
-          logger.error('Vault storage failed:', errorMessage)
+          logger.error('Token storage failed:', errorMessage)
           setError(`Authentication error: ${errorMessage}`)
           // CRITICAL: Mark as attempted even on failure to prevent infinite loops
           hasSynced.current = true

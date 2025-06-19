@@ -14,7 +14,7 @@
  */
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-export type LogContext = 'subscription_refresh' | 'scheduler' | 'spotify_api' | 'database' | 'auth' | 'admin' | 'vault' | 'system';
+export type LogContext = 'subscription_refresh' | 'scheduler' | 'spotify_api' | 'database' | 'auth' | 'admin' | 'system';
 
 /**
  * Base log entry structure for consistent formatting

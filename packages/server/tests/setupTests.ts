@@ -25,7 +25,6 @@ config({ path: '.env.test' });
 process.env.NODE_ENV = 'test';
 process.env.LOG_LEVEL = 'error'; // Suppress logs during testing
 process.env.SPOTIFY_API_ENABLED = 'false';
-process.env.VAULT_ENABLED = 'false';
 process.env.DAILY_REFRESH_ENABLED = 'false';
 process.env.BACKGROUND_JOBS_ENABLED = 'false';
 
@@ -112,8 +111,8 @@ vi.mock('node-cron', () => ({
 // Global test data factory
 (global as any).createTestUser = (overrides: Record<string, unknown> = {}) => ({
   id: `test-user-${Math.random().toString(36).substr(2, 9)}`,
-  email: `test${Math.random().toString(36).substr(2, 5)}@example.com`,
-  spotify_vault_secret_id: `vault-secret-${Math.random().toString(36).substr(2, 9)}`,
+  email: `test-${Math.random().toString(36).substr(2, 9)}@example.com`,
+  spotify_tokens_enc: null,
   spotify_reauth_required: false,
   created_at: new Date().toISOString(),
   ...overrides

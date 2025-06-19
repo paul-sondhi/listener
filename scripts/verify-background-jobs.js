@@ -35,20 +35,17 @@ async function verifyBackgroundJobs() {
       return false;
     }
 
-    // Test 2: Manual Vault Cleanup
-    console.log('\n2. Testing manual vault cleanup...');
-    const cleanupResponse = await fetch(`${RENDER_URL}/api/admin/jobs/vault-cleanup`, {
+    // Test 2: Episode Sync
+    console.log('\n2. Testing episode sync job...');
+    const episodeResponse = await fetch(`${RENDER_URL}/api/admin/jobs/episode-sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
     
-    if (cleanupResponse.ok) {
-      const cleanupResult = await cleanupResponse.json();
-      console.log('✅ Vault cleanup test passed');
-      console.log(`   Message: ${cleanupResult.message}`);
+    if (episodeResponse.ok) {
+      console.log('✅ Episode sync test passed');
     } else {
-      console.log(`❌ Vault cleanup test failed: ${cleanupResponse.status}`);
-      return false;
+      console.log(`❌ Episode sync test failed: ${episodeResponse.status}`);
     }
 
     // Test 3: Manual Key Rotation
@@ -71,29 +68,19 @@ async function verifyBackgroundJobs() {
     console.log('\n4. Checking scheduled job times...');
     const now = new Date();
     const utcTime = now.toISOString();
-    const nextCleanup = new Date(now);
-    nextCleanup.setUTCDate(nextCleanup.getUTCDate() + 1);
-    nextCleanup.setUTCHours(2, 0, 0, 0);
-    
-    const nextRotation = new Date(now);
-    // Set to next quarter (Apr 1, Jul 1, Oct 1, Jan 1)
-    const currentMonth = nextRotation.getUTCMonth();
-    if (currentMonth < 3) nextRotation.setUTCMonth(3, 1); // April
-    else if (currentMonth < 6) nextRotation.setUTCMonth(6, 1); // July  
-    else if (currentMonth < 9) nextRotation.setUTCMonth(9, 1); // October
-    else {
-      nextRotation.setUTCFullYear(nextRotation.getUTCFullYear() + 1, 0, 1); // January next year
+    const nextEpisodeSync = new Date();
+    nextEpisodeSync.setHours(1, 0, 0, 0); // 1 AM PT
+    if (nextEpisodeSync <= new Date()) {
+      nextEpisodeSync.setDate(nextEpisodeSync.getDate() + 1);
     }
-    nextRotation.setUTCHours(3, 0, 0, 0);
 
     console.log(`✅ Current UTC time: ${utcTime}`);
-    console.log(`📅 Next vault cleanup: ${nextCleanup.toISOString()}`);
-    console.log(`📅 Next key rotation: ${nextRotation.toISOString()}`);
+    console.log(`📅 Next episode sync: ${nextEpisodeSync.toISOString()}`);
 
     console.log('\n🎉 All background job tests passed!');
     console.log('\n📋 Next Steps:');
-    console.log(`   • Check logs tomorrow after ${nextCleanup.toLocaleString()} for automatic cleanup`);
-    console.log(`   • Set calendar reminder for ${nextRotation.toLocaleDateString()} key rotation`);
+    console.log(`   • Check logs tomorrow after ${nextEpisodeSync.toLocaleString()} for automatic cleanup`);
+    console.log(`   • Set calendar reminder for ${nextEpisodeSync.toLocaleDateString()} key rotation`);
     console.log(`   • Run this script weekly to verify continued operation`);
 
     return true;

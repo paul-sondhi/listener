@@ -690,7 +690,7 @@ export async function refreshUserSubscriptions(userId: string, jobId?: string): 
 
 /**
  * Get all users who have Spotify tokens stored (for batch processing)
- * Updated to use the actual vault-based token storage system
+ * Updated to use the encrypted token storage system for secure Spotify token management
  * @returns {Promise<string[]>} Array of user IDs who have Spotify integration
  */
 export async function getAllUsersWithSpotifyTokens(): Promise<string[]> {
@@ -725,7 +725,7 @@ export async function getAllUsersWithSpotifyTokens(): Promise<string[]> {
         // Apply filters only if the mock/real builder supports them
         if (typeof query.not === 'function' && typeof query.is === 'function') {
             query = query
-                .not('spotify_vault_secret_id', 'is', null)
+                .not('spotify_tokens_enc', 'is', null)
                 .is('spotify_reauth_required', false);
         }
 
@@ -907,7 +907,7 @@ export async function getUserSpotifyStatistics(): Promise<{
         // Get users with Spotify integration (valid tokens)
         let integratedQuery: any = supabase.from('users').select('*', { count: 'exact', head: true });
         if (typeof integratedQuery.not === 'function' && typeof integratedQuery.is === 'function') {
-            integratedQuery = integratedQuery.not('spotify_vault_secret_id', 'is', null).is('spotify_reauth_required', false);
+            integratedQuery = integratedQuery.not('spotify_tokens_enc', 'is', null).is('spotify_reauth_required', false);
         }
         const integratedRes: any = await safeAwait(integratedQuery);
         const spotifyIntegrated = extractCount(integratedRes);
@@ -952,7 +952,7 @@ export async function validateUserSpotifyIntegration(userId: string): Promise<bo
     try {
         const { data: user, error } = await getSupabaseAdmin()
             .from('users')
-            .select('spotify_vault_secret_id, spotify_reauth_required')
+            .select('spotify_tokens_enc, spotify_reauth_required')
             .eq('id', userId)
             .single();
             
@@ -961,8 +961,8 @@ export async function validateUserSpotifyIntegration(userId: string): Promise<bo
             return false;
         }
         
-        // User must have a vault secret ID and not require re-authentication
-        const isValid = user.spotify_vault_secret_id && !user.spotify_reauth_required;
+        // User must have encrypted tokens and not require re-authentication
+        const isValid = user.spotify_tokens_enc && !user.spotify_reauth_required;
         
         if (!isValid) {
             console.warn(`[SubscriptionRefresh] User ${userId} no longer has valid Spotify integration`);

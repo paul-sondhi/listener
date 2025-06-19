@@ -1,7 +1,7 @@
 import express, { Router, Request, Response } from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database, ApiResponse, SpotifyShow, SpotifyUserShows } from '@listener/shared';
-import { getUserSecret } from '../lib/vaultHelpers.js';
+import { getUserSecret } from '../lib/encryptedTokenHelpers.js';
 
 // Create router with proper typing
 const router: Router = express.Router();
@@ -180,11 +180,11 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         
         const userId: string = user.id;
 
-        // Retrieve the user's Spotify tokens from the vault
-        const vaultResult = await getUserSecret(userId);
+        // Retrieve the user's Spotify tokens from encrypted storage
+        const encryptedResult = await getUserSecret(userId);
             
-        if (!vaultResult.success) {
-            console.error('Could not retrieve user Spotify tokens from vault:', vaultResult.error);
+        if (!encryptedResult.success) {
+            console.error('Could not retrieve user Spotify tokens from encrypted storage:', encryptedResult.error);
             res.status(400).json({ 
                 success: false, 
                 error: 'Could not retrieve user Spotify tokens' 
@@ -192,7 +192,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
             return;
         }
         
-        const spotifyTokens = vaultResult.data!;
+        const spotifyTokens = encryptedResult.data!;
         const spotifyAccessToken: string = spotifyTokens.access_token;
         
         if (!spotifyAccessToken) {
@@ -272,6 +272,9 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
             const now: string = new Date().toISOString();
             const showIds: string[] = [];
             
+            // Emit the legacy rss_url warning only once per sync call
+            let legacyRssWarningEmitted = false;
+            
             for (const showObj of shows) {
                 const show: SpotifyShow = showObj.show;
                 
@@ -299,6 +302,39 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                             })
                             .select('id')
                     );
+
+                    // Legacy fallback: some local databases still have NOT NULL rss_url.
+                    if (showUpsertRes?.error && showUpsertRes.error.message?.includes('rss_url')) {
+                        if (!legacyRssWarningEmitted) {
+                            console.warn('[SYNC_SHOWS] Detected legacy rss_url NOT NULL constraint – falling back to include rss_url in upsert. This message will appear only once per sync.');
+                            legacyRssWarningEmitted = true;
+                        }
+                        const retryRes = await safeAwait<{ data: any; error: any }>(
+                            getSupabaseAdmin()
+                                .from('podcast_shows')
+                                .upsert([
+                                    {
+                                        spotify_url: spotifyUrl,
+                                        rss_url: spotifyUrl, // fallback same value
+                                        title: show.name || 'Unknown Show',
+                                        description: show.description || null,
+                                        image_url: show.images?.[0]?.url || null,
+                                        last_updated: now
+                                    }
+                                ], { 
+                                    onConflict: 'spotify_url',
+                                    ignoreDuplicates: false 
+                                })
+                                .select('id')
+                        );
+                        if (retryRes?.error) {
+                            console.error('Error upserting podcast show after legacy retry:', retryRes.error.message);
+                            throw new Error(`Error saving show to database: ${retryRes.error.message}`);
+                        }
+                        showUpsertRes.data = retryRes?.data;
+                        // Clear the original error so downstream check passes
+                        showUpsertRes.error = null;
+                    }
 
                     if (showUpsertRes?.error) {
                         console.error('Error upserting podcast show:', showUpsertRes.error.message);

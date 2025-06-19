@@ -44,7 +44,7 @@ const db: Record<string, any[]> = {
     // users table columns
     { table_name: 'users', column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
     { table_name: 'users', column_name: 'email', data_type: 'text', is_nullable: 'YES' },
-    { table_name: 'users', column_name: 'spotify_vault_secret_id', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'users', column_name: 'spotify_tokens_enc', data_type: 'bytea', is_nullable: 'YES' },
     { table_name: 'users', column_name: 'spotify_reauth_required', data_type: 'boolean', is_nullable: 'YES' },
     { table_name: 'users', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
     

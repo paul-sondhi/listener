@@ -456,11 +456,13 @@ describe('dailySubscriptionRefreshJob', () => {
     expect(mockLog.error).toHaveBeenCalledWith(
       'scheduler',
       expect.stringContaining('Daily subscription refresh job failed with exception'),
-      testError,
       expect.objectContaining({
         component: 'background_jobs',
         users_processed: 0,
-        stack_trace: expect.stringContaining('Database connection failed')
+        error: 'Database connection failed',
+        stack_trace: expect.stringContaining('Database connection failed'),
+        job_id: expect.any(String),
+        job_name: 'daily_subscription_refresh'
       })
     );
 
@@ -738,11 +740,12 @@ describe('episodeSyncJob', () => {
     expect(mockLog.error).toHaveBeenCalledWith(
       'scheduler',
       expect.stringContaining('Episode sync job failed with exception'),
-      testError,
       expect.objectContaining({
         component: 'background_jobs',
         shows_processed: 0,
+        error: 'Service initialization failed',
         stack_trace: expect.stringContaining('Service initialization failed'),
+        job_id: expect.any(String),
         job_name: 'episode_sync'
       })
     );
@@ -876,12 +879,6 @@ describe('initializeBackgroundJobs', () => {
     delete process.env.EPISODE_SYNC_ENABLED;
     delete process.env.EPISODE_SYNC_CRON;
     delete process.env.EPISODE_SYNC_TIMEZONE;
-    // Reset vault cleanup variables
-    delete process.env.VAULT_CLEANUP_ENABLED;
-    delete process.env.VAULT_CLEANUP_CRON;
-    // Reset key rotation variables
-    delete process.env.KEY_ROTATION_ENABLED;
-    delete process.env.KEY_ROTATION_CRON;
   });
 
   afterEach(() => {
@@ -928,8 +925,8 @@ describe('initializeBackgroundJobs', () => {
       })
     );
 
-    // Assert: Verify total number of scheduled jobs (daily refresh, episode sync, vault cleanup, key rotation)
-    expect(mockCronSchedule).toHaveBeenCalledTimes(4);
+    // Assert: Verify total number of scheduled jobs (daily refresh, episode sync) - 2 jobs after removing vault functionality
+    expect(mockCronSchedule).toHaveBeenCalledTimes(2);
 
     // Assert: Verify success logging
     expect(console.log).toHaveBeenCalledWith(
@@ -1021,8 +1018,8 @@ describe('initializeBackgroundJobs', () => {
       expect.any(Object)
     );
 
-    // Assert: Verify total number of scheduled jobs (vault cleanup, episode sync, key rotation) when daily refresh is disabled
-    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
+    // Assert: Verify total number of scheduled jobs (episode sync) when daily refresh is disabled - 1 job after removing vault functionality
+    expect(mockCronSchedule).toHaveBeenCalledTimes(1);
   });
 
   /**
@@ -1108,8 +1105,8 @@ describe('initializeBackgroundJobs', () => {
       expect.any(Object)
     );
 
-    // Assert: Verify total number of scheduled jobs (vault cleanup, daily refresh, key rotation) when episode sync is disabled
-    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
+    // Assert: Verify total number of scheduled jobs (daily refresh) when episode sync is disabled - 1 job after removing vault functionality
+    expect(mockCronSchedule).toHaveBeenCalledTimes(1);
   });
 
   /**

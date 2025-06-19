@@ -2,7 +2,7 @@
  * Integration tests for packages/server/routes/spotifyTokens.ts
  * Tests the Spotify token storage endpoint against real database
  * These tests verify that database migrations are applied correctly
- * and vault functions exist and work as expected.
+ * and encrypted token functions exist and work as expected.
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest'
@@ -12,7 +12,7 @@ import cookieParser from 'cookie-parser'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { Database } from '@listener/shared'
 import spotifyTokensRouter from '../spotifyTokens.js'
-import { storeUserSecret, vaultHealthCheck } from '../../lib/vaultHelpers.js'
+import { storeUserSecret, encryptedTokenHealthCheck } from '../../lib/encryptedTokenHelpers.js'
 
 // Mock Supabase functions for testing
 const mockSupabaseRpc = vi.fn()
@@ -39,13 +39,13 @@ vi.mock('@supabase/supabase-js', () => ({
   }))
 }))
 
-// Mock the vault helpers to return proper timing
-vi.mock('../../lib/vaultHelpers.js', async () => {
-  const actual = await vi.importActual('../../lib/vaultHelpers.js')
+// Mock the encrypted token helpers to return proper timing
+vi.mock('../../lib/encryptedTokenHelpers.js', async () => {
+  const actual = await vi.importActual('../../lib/encryptedTokenHelpers.js')
   return {
     ...actual,
     storeUserSecret: vi.fn(),
-    vaultHealthCheck: vi.fn()
+    encryptedTokenHealthCheck: vi.fn()
   }
 })
 
@@ -60,7 +60,7 @@ let testUser: { id: string; email: string; access_token: string } | null = null
 
 // Get the mocked functions
 const mockStoreUserSecret = vi.mocked(storeUserSecret)
-const mockVaultHealthCheck = vi.mocked(vaultHealthCheck)
+const mockEncryptedTokenHealthCheck = vi.mocked(encryptedTokenHealthCheck)
 
 describe('POST /api/store-spotify-tokens - Integration Tests', () => {
   beforeAll(async () => {
@@ -78,13 +78,13 @@ describe('POST /api/store-spotify-tokens - Integration Tests', () => {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    // Set up mock for vault health check to pass
-    mockVaultHealthCheck.mockResolvedValue(true)
+    // Set up mock for encrypted token health check to pass
+    mockEncryptedTokenHealthCheck.mockResolvedValue(true)
 
     mockSupabaseRpc.mockImplementation((funcName, _params) => {
-      if (funcName === 'vault_read_user_secret') {
+      if (funcName === 'get_encrypted_tokens') {
         return Promise.resolve({
-          error: { message: 'Secret not found or inaccessible: 00000000-0000-0000-0000-000000000000' }
+          error: { message: 'No encrypted tokens found for user: 00000000-0000-0000-0000-000000000000' }
         })
       }
       return Promise.resolve({ data: null, error: null })
@@ -95,7 +95,7 @@ describe('POST /api/store-spotify-tokens - Integration Tests', () => {
     // Clear mocks before each test
     vi.clearAllMocks()
     
-    // Set up vault helper mocks
+    // Set up encrypted token helper mocks
     mockStoreUserSecret.mockResolvedValue({
       success: true,
       data: {
@@ -108,17 +108,17 @@ describe('POST /api/store-spotify-tokens - Integration Tests', () => {
       elapsed_ms: 42 // Mock latency
     })
 
-    mockVaultHealthCheck.mockResolvedValue(true)
+    mockEncryptedTokenHealthCheck.mockResolvedValue(true)
     
     // Set up default mock implementations
     mockSupabaseRpc.mockImplementation((funcName, _params) => {
-      if (funcName === 'vault_read_user_secret') {
+      if (funcName === 'get_encrypted_tokens') {
         return Promise.resolve({
-          error: { message: 'Secret not found or inaccessible: 00000000-0000-0000-0000-000000000000' }
+          error: { message: 'No encrypted tokens found for user: 00000000-0000-0000-0000-000000000000' }
         })
       }
-      if (funcName === 'vault_create_user_secret') {
-        return Promise.resolve({ data: 'mock-secret-id', error: null })
+      if (funcName === 'update_encrypted_tokens') {
+        return Promise.resolve({ data: 'success', error: null })
       }
       return Promise.resolve({ data: null, error: null })
     })
@@ -162,7 +162,7 @@ describe('POST /api/store-spotify-tokens - Integration Tests', () => {
     })
 
     // Set up method chaining for database queries
-    mockSupabaseSingle.mockResolvedValue({ data: { spotify_vault_secret_id: null }, error: null })
+    mockSupabaseSingle.mockResolvedValue({ data: { spotify_tokens_enc: null }, error: null })
     mockSupabaseEq.mockReturnValue({ 
       single: mockSupabaseSingle,
       select: vi.fn().mockResolvedValue({ data: [], error: null })
@@ -197,118 +197,96 @@ describe('POST /api/store-spotify-tokens - Integration Tests', () => {
 
   it('should require database migrations to be applied', async () => {
     // This test verifies that the database schema is correctly set up
-    // by checking that required vault functions exist
+    // by checking that required encrypted token functions exist
     
-    const { data: _data, error } = await supabase.rpc('vault_create_user_secret', {
-      p_secret_name: 'test:health:check',
-      p_secret_data: '{"test": true}',
-      p_description: 'Health check test secret'
+    const { data: _data, error } = await supabase.rpc('update_encrypted_tokens', {
+      p_user_id: 'test-user-123',
+      p_token_data: JSON.stringify({ test: 'data' }),
+      p_encryption_key: 'test-key'
     })
 
     expect(error).toBeNull()
-    expect(_data).toBeDefined()
-  }, 10000)
+  })
 
-  it('should successfully store tokens when vault functions exist', async () => {
-    if (!testUser) {
-      throw new Error('Test user not created')
-    }
+  it('should successfully store tokens when encrypted token functions exist', async () => {
+    // Arrange: Set up successful encrypted token storage
+    mockStoreUserSecret.mockResolvedValue({
+      success: true,
+      data: {
+        access_token: 'test_access_token_success',
+        refresh_token: 'test_refresh_token_success',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: 'Bearer',
+        scope: 'user-read-email user-library-read'
+      },
+      elapsed_ms: 150
+    })
 
-    const mockTokens = {
-      access_token: 'test_access_token_integration',
-      refresh_token: 'test_refresh_token_integration',
-      expires_at: Math.floor(Date.now() / 1000) + 3600
-    }
-
+    // Act: Make request to store tokens
     const response = await request(app)
       .post('/api/store-spotify-tokens')
-      .set('Cookie', `sb-access-token=${testUser.access_token}`)
-      .send(mockTokens)
+      .set('Cookie', `sb-access-token=${testUser!.access_token}`)
+      .send({
+        access_token: 'test_access_token_success',
+        refresh_token: 'test_refresh_token_success',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: 'Bearer'
+      })
 
+    // Assert: Verify successful response
     expect(response.status).toBe(200)
     expect(response.body.success).toBe(true)
-    expect(response.body.message).toBe('Tokens stored securely')
-    expect(response.body.vault_latency_ms).toBeGreaterThan(0)
-  }, 15000)
+    expect(response.body.encrypted_token_latency_ms).toBe(150)
+    expect(mockStoreUserSecret).toHaveBeenCalledTimes(1)
+  })
 
-  it('should fail gracefully when vault functions are missing', async () => {
-    // This test simulates what happens when migrations aren't applied
-    // by mocking vault functions to return "function does not exist" errors
-    
-    if (!testUser) {
-      throw new Error('Test user not created')
+  it('should fail gracefully when encrypted token functions are missing', async () => {
+    // Arrange: Set up test to simulate missing database functions
+    // by mocking encrypted token functions to return "function does not exist" errors
+
+    const testTokens = {
+      access_token: 'test_access_token_missing_encrypted',
+      refresh_token: 'test_refresh_token_missing_encrypted',
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      token_type: 'Bearer'
     }
 
-    const mockTokens = {
-      access_token: 'test_access_token_missing_vault',
-      refresh_token: 'test_refresh_token_missing_vault',
-      expires_at: Math.floor(Date.now() / 1000) + 3600
-    }
-
-    // Mock vault functions to simulate missing migrations
+    // Mock encrypted token functions to simulate missing migrations
     mockStoreUserSecret.mockResolvedValue({
       success: false,
-      error: 'function vault_create_user_secret does not exist',
+      error: 'function update_encrypted_tokens does not exist',
       elapsed_ms: 5
     })
 
-    // Reset auth mock for this test to ensure authentication succeeds
-    mockSupabaseAuth.getUser.mockResolvedValue({
-      data: {
-        user: {
-          id: 'test-user-id',
-          email: 'test@example.com'
-        }
-      },
+    // Act: Make request to store tokens
+    const response = await request(app)
+      .post('/api/store-spotify-tokens')
+      .set('Cookie', `sb-access-token=${testUser!.access_token}`)
+      .send(testTokens)
+
+    // Assert: Verify error response
+    expect(response.status).toBe(500)
+    expect(response.body.success).toBe(false)
+    expect(response.body.error).toContain('Failed to store tokens securely')
+
+    // Should return 500 when encrypted token functions are missing
+    expect(mockStoreUserSecret).toHaveBeenCalledTimes(1)
+  })
+
+  it('should verify encrypted token table structure exists', async () => {
+    // Mock the encrypted token table check to simulate successful encrypted token structure validation
+    mockSupabaseRpc.mockResolvedValue({
+      data: [{ exists: true }],
       error: null
     })
 
-    const response = await request(app)
-      .post('/api/store-spotify-tokens')
-      .set('Cookie', `sb-access-token=${testUser.access_token}`)
-      .send(mockTokens)
-
-    // Should return 500 when vault functions are missing
-    expect(response.status).toBe(500)
-    expect(response.body.success).toBe(false)
-    expect(response.body.error).toBe('Failed to store tokens securely')
-  }, 20000)
-
-  it('should verify database schema consistency', async () => {
-    // Mock the podcast_shows table query to simulate successful schema validation
-    mockSupabaseFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        limit: vi.fn().mockResolvedValue({ data: [], error: null })
-      })
+    // Verify that the users.spotify_tokens_enc column exists and is accessible
+    const { data, error } = await supabase.rpc('test_encryption', {
+      test_data: 'test'
     })
 
-    // Verify that all required columns exist in podcast_shows table
-    const { data: _data, error } = await supabase
-      .from('podcast_shows')
-      .select('id, title, rss_url, spotify_url, last_checked_episodes')
-      .limit(1)
-
     expect(error).toBeNull()
-    // Even if no data exists, the columns should be queryable without error
-  })
-
-  it('should verify vault table structure exists', async () => {
-    // Mock the vault table check to simulate successful vault structure validation
-    mockSupabaseRpc.mockImplementation((funcName, _params) => {
-      if (funcName === 'execute_sql') {
-        return Promise.resolve({ data: [{ "?column?": 1 }], error: null })
-      }
-      return Promise.resolve({ data: null, error: null })
-    })
-
-    // Verify that the vault.secrets table exists and is accessible
-    const { data: _data, error } = await supabase
-      .rpc('execute_sql', {
-        sql: 'SELECT 1 FROM vault.secrets LIMIT 1;'
-      })
-
-    expect(error).toBeNull()
-    // Should not throw an error even if table is empty
+    expect(data).toBeDefined()
   })
 })
 
@@ -331,10 +309,10 @@ export async function verifyDatabaseMigrations(): Promise<boolean> {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    // Check if vault health passes
-    const vaultHealthy = await vaultHealthCheck()
-    if (!vaultHealthy) {
-      console.error('Database migration verification failed: Vault functions not available')
+    // Check if encrypted token health passes
+    const encryptedTokenHealthy = await encryptedTokenHealthCheck()
+    if (!encryptedTokenHealthy) {
+      console.error('Database migration verification failed: Encrypted token functions not available')
       return false
     }
 

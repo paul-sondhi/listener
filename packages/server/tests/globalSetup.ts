@@ -185,9 +185,9 @@ function setupTestDataGenerators() {
   (global as any).generateUniqueTestUser = (overrides: any = {}) => {
     const counter = ++(global as any).testDataCounters.users;
     return {
-      id: `test-user-${counter}-${Date.now()}`,
-      email: `testuser${counter}@example.com`,
-      spotify_vault_secret_id: `vault-secret-${counter}`,
+      id: `test-user-${counter}`,
+      email: `test${counter}@example.com`,
+      spotify_tokens_enc: null,
       spotify_reauth_required: false,
       created_at: new Date().toISOString(),
       ...overrides
