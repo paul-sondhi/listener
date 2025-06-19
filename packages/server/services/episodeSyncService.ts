@@ -5,7 +5,8 @@
  * This service:
  * 1. Queries shows that have active subscriptions
  * 2. Fetches RSS feeds for each show
- * 3. Parses episodes and filters by publish date (>= 2025-06-15)
+ * 3. Parses episodes and keeps only those published within the last
+ *    `EPISODE_CUTOFF_HOURS` (default 48h)
  * 4. Upserts episodes into podcast_episodes table
  * 5. Updates show metadata (last_checked_episodes, etag, last_modified)
  */
@@ -14,8 +15,37 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 import { Database } from '@listener/shared';
 
-// Episode cutoff date - only sync episodes published on or after this date
-const EPISODE_CUTOFF_DATE = new Date('2025-06-15T00:00:00Z');
+// ---------------------------------------------------------------------------
+// Rolling episode cutoff
+// ---------------------------------------------------------------------------
+// We no longer need a hard-coded back-fill date.  Instead, we keep the sync
+// lightweight by only fetching episodes published within a *recent* window.
+//
+// • Default window length = 48 hours.
+// • Can be overridden at runtime by setting the environment variable
+//   `EPISODE_CUTOFF_HOURS` – handy for one-off back-fills or A/B testing.
+//
+//  ───────────────────────────────────────────────────────────────────────────
+//  Why compute it via a helper instead of a module-scope Date?
+//  ───────────────────────────────────────────────────────────────────────────
+//  Unit-tests often monkey-patch `Date.now()`.  If we evaluated the cutoff once
+//  at import-time we would *freeze* it, ignoring later `vi.spyOn(Date, 'now')`
+//  calls.  Wrapping the calculation in a function keeps the value dynamic and
+//  test-friendly.
+// ---------------------------------------------------------------------------
+
+const EPISODE_CUTOFF_HOURS: number = (() => {
+  // Parse the env var (if present) but fall back safely to 48.
+  const parsed = parseInt(process.env.EPISODE_CUTOFF_HOURS || '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 48;
+})();
+
+/**
+ * Returns a Date object representing `EPISODE_CUTOFF_HOURS` hours ago.
+ */
+function getEpisodeCutoffDate(): Date {
+  return new Date(Date.now() - EPISODE_CUTOFF_HOURS * 60 * 60 * 1000);
+}
 
 // Interface for RSS feed episode item
 interface RssEpisodeItem {
@@ -464,8 +494,9 @@ export class EpisodeSyncService {
       }
     }
 
-    // Filter by cutoff date
-    if (pubDate && pubDate < EPISODE_CUTOFF_DATE) {
+    // Filter by dynamic cutoff date (e.g., 48 h ago)
+    const cutoffDate = getEpisodeCutoffDate();
+    if (pubDate && pubDate < cutoffDate) {
       return null; // Skip episodes older than cutoff
     }
 

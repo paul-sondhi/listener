@@ -336,8 +336,8 @@ jobs:
           echo "✅ Staging environment is up to date - no new migrations to deploy"
 
       - name: Deploy migrations to production
-        # Only deploy if production has new migrations to apply
-        if: ${{ steps.check-migrations.outputs.production-needs-migration == 'true' }}
+        # Always push migrations – CLI is idempotent and exits quickly when no changes are pending.
+        # This prevents false negatives caused by parsing `supabase migration list` output formats.
         run: |
           echo "🚀 Deploying migrations to production environment..."
           
@@ -372,11 +372,6 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-
-      - name: Skip production deployment (no new migrations)
-        if: ${{ steps.check-migrations.outputs.production-needs-migration == 'false' }}
-        run: |
-          echo "✅ Production environment is up to date - no new migrations to deploy"
 
       - name: Verify migration deployment
         # Only run verification if migrations were actually deployed

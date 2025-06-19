@@ -135,6 +135,11 @@ describe('EpisodeSyncService', () => {
   beforeEach(() => {
     // Reset all mocks before each test
     vi.clearAllMocks();
+
+    // Freeze the system clock so the dynamic 48-hour cutoff includes our
+    // fixture dates (mostly "2025-06-15T…Z").  Using a fixed point in time keeps
+    // the tests deterministic no matter when they run.
+    vi.spyOn(Date, 'now').mockReturnValue(new Date('2025-06-17T08:00:00Z').getTime());
     
     // Create service instance with mocked dependencies
     episodeSyncService = new EpisodeSyncService(
@@ -160,7 +165,7 @@ describe('EpisodeSyncService', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.restoreAllMocks(); // restores Date.now spy as well
   });
 
   /**

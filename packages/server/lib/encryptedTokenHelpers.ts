@@ -382,27 +382,64 @@ export async function encryptedTokenHealthCheck(): Promise<boolean> {
     const supabase = getSupabaseAdmin();
     const encryptionKey = getEncryptionKey();
     
-    // Test encryption/decryption with dummy data
+    /*
+     * 1. Verify that the helper PL/pgSQL functions exist.
+     *    We do this by invoking them with _dummy_ data. The calls are wrapped in
+     *    logic that treats a "User not found" error as **success** (because the
+     *    dummy user obviously does not exist) while treating a
+     *    "function … does not exist" error as **failure** (because that means
+     *    the migration that creates the function has not been applied).
+     */
+    const dummyUserId = '00000000-0000-0000-0000-000000000000';
+    const dummyTokenJson = JSON.stringify({ health_check: true });
+    
+    // ── update_encrypted_tokens ────────────────────────────────────────────
+    const { error: updateFnErr } = await supabase.rpc('update_encrypted_tokens', {
+      p_user_id: dummyUserId,
+      p_token_data: dummyTokenJson,
+      p_encryption_key: encryptionKey
+    });
+    
+    if (updateFnErr && !updateFnErr.message.includes('User not found')) {
+      // Any error other than the expected "user not found" means the function
+      // is missing or mis-behaving.
+      console.error('Encrypted token health check failed: update_encrypted_tokens missing or invalid –', updateFnErr.message);
+      return false;
+    }
+    
+    // ── get_encrypted_tokens ──────────────────────────────────────────────
+    const { error: getFnErr } = await supabase.rpc('get_encrypted_tokens', {
+      p_user_id: dummyUserId,
+      p_encryption_key: encryptionKey
+    });
+    
+    if (getFnErr && !getFnErr.message.includes('No encrypted tokens')) {
+      console.error('Encrypted token health check failed: get_encrypted_tokens missing or invalid –', getFnErr.message);
+      return false;
+    }
+    
+    /*
+     * 2. Verify pgcrypto can actually encrypt/decrypt round-trips
+     *    (this existed previously but we keep it as a cheap sanity check).
+     */
     const testData = 'health-check-test';
-    const { data, error } = await supabase.rpc('test_encryption', {
+    const { data: echo, error: testErr } = await supabase.rpc('test_encryption', {
       test_data: testData,
       encryption_key: encryptionKey
     });
     
-    if (error) {
-      console.error('Encrypted token health check failed:', error.message);
+    if (testErr) {
+      console.error('Encrypted token health check failed: test_encryption call errored –', testErr.message);
       return false;
     }
     
-    // Verify we can encrypt and decrypt successfully
-    if (data !== testData) {
+    if (echo !== testData) {
       console.error('Encrypted token health check failed: decryption mismatch');
       return false;
     }
     
-    console.log('Encrypted token health check passed - pgcrypto working correctly');
+    console.log('Encrypted token health check passed – all helper functions present and pgcrypto operational');
     return true;
-    
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Encrypted token health check exception:', errorMessage);
