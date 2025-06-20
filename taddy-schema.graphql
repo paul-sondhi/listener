@@ -1,0 +1,53 @@
+# Taddy GraphQL API Schema (Placeholder)
+# This is a minimal schema for development purposes
+# Run `npm run codegen` with TADDY_API_KEY to fetch the real schema
+
+scalar DateTime
+scalar JSON
+
+type Query {
+  # Podcast queries
+  getPodcastSeries(
+    name: String
+    iTunesId: String
+    podcastGuid: String
+  ): PodcastSeries
+
+  # Episode queries  
+  getPodcastEpisode(
+    podcastName: String
+    episodeGuid: String
+    podcastGuid: String
+  ): PodcastEpisode
+}
+
+type PodcastSeries {
+  uuid: String!
+  name: String!
+  itunesId: String
+  podcastGuid: String
+  rssUrl: String
+  description: String
+  episodes: [PodcastEpisode!]
+}
+
+type PodcastEpisode {
+  uuid: String!
+  name: String!
+  guid: String!
+  datePublished: DateTime
+  description: String
+  audioUrl: String
+  transcripts: [Transcript!]
+  podcastSeries: PodcastSeries
+}
+
+type Transcript {
+  uuid: String!
+  text: String!
+  isPartial: Boolean!
+  percentComplete: Float
+  wordCount: Int
+  language: String
+  createdAt: DateTime!
+} 

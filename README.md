@@ -99,7 +99,13 @@ For new developers joining the project:
    # See ENVIRONMENT_SETUP.md for step-by-step instructions
    ```
 
-3. **Initialize the local database:**
+3. **Generate GraphQL types:**
+   ```bash
+   # Generate typed SDK for Taddy API (requires TADDY_API_KEY in .env.local)
+   npm run codegen
+   ```
+
+4. **Initialize the local database:**
    ```bash
    # Start Supabase services
    npm run supabase:start
@@ -111,7 +117,7 @@ For new developers joining the project:
    cd packages/server && npx tsx scripts/create-transcripts-bucket.ts
    ```
 
-4. **Verify setup:**
+5. **Verify setup:**
    ```bash
    # Check that services are running
    npm run supabase:status
@@ -120,7 +126,7 @@ For new developers joining the project:
    npm test
    ```
 
-5. **Start development:**
+6. **Start development:**
    ```bash
    npm run dev
    ```
@@ -128,6 +134,18 @@ For new developers joining the project:
 The database will now include the `transcripts` table for storing podcast episode transcript metadata.
 
 ## Development Commands
+
+### GraphQL Code Generation
+
+```bash
+# Generate typed SDK for Taddy API
+npm run codegen
+
+# This command:
+# 1. Fetches the latest Taddy GraphQL schema
+# 2. Generates TypeScript types and request functions
+# 3. Outputs to packages/server/generated/taddy.ts
+```
 
 ### Database Management
 

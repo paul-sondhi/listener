@@ -1,0 +1,33 @@
+overwrite: true
+schema: taddy-schema.graphql
+generates:
+  packages/server/generated/taddy.ts:
+    plugins:
+      - typescript
+      - typescript-graphql-request
+    config:
+      # Generate types for GraphQL operations
+      useIndexSignature: true
+      # Make all fields optional by default (safer for API responses)
+      maybeValue: T | null | undefined
+      # Generate request functions with typed variables
+      rawRequest: false
+      # Export GraphQL documents as const assertions
+      constAssertions: true
+      # Use exact types for better type safety
+      exactOptionalPropertyTypes: true
+      # Generate enums as const objects for better tree-shaking
+      enumsAsTypes: false
+      # Add JSDoc comments to generated types
+      addDocBlocks: true
+      # Generate scalars with proper typing
+      scalars:
+        DateTime: string
+        Date: string
+        Time: string
+        JSON: any
+        Upload: any
+      # Prefix all generated types to avoid conflicts
+      typesPrefix: Taddy
+      # Suffix for generated request functions
+      requestFunctionSuffix: Request 
