@@ -52,6 +52,10 @@ describe('encryptedTokenHelpers', () => {
       process.env.NODE_ENV = 'production';
       delete process.env.TOKEN_ENC_KEY;
       
+      // Provide required Supabase env vars so we can test TOKEN_ENC_KEY validation
+      process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-service-role-key';
+      
       // Re-import module to get fresh instance with new environment
       const { storeUserSecret: freshStoreUserSecret } = await import('../encryptedTokenHelpers');
 
@@ -68,6 +72,10 @@ describe('encryptedTokenHelpers', () => {
       process.env.NODE_ENV = 'production';
       process.env.TOKEN_ENC_KEY = 'default-dev-key-change-in-production';
       
+      // Provide required Supabase env vars so we can test TOKEN_ENC_KEY validation
+      process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-service-role-key';
+      
       // Re-import module to get fresh instance with new environment
       const { storeUserSecret: freshStoreUserSecret } = await import('../encryptedTokenHelpers');
 
@@ -83,13 +91,17 @@ describe('encryptedTokenHelpers', () => {
       process.env.NODE_ENV = 'development';
       process.env.TOKEN_ENC_KEY = 'my-custom-dev-key-for-testing-12345';
       
+      // Provide required Supabase env vars
+      process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-service-role-key';
+      
       // Re-import module to get fresh instance with new environment
       const { storeUserSecret: freshStoreUserSecret } = await import('../encryptedTokenHelpers');
 
       // Act: Function should handle custom key gracefully (will fail due to no Supabase, but not due to key validation)
       const result = await freshStoreUserSecret(TEST_USER_ID, mockTokenData);
       
-      // Assert: Should fail for Supabase reasons, not TOKEN_ENC_KEY validation
+      // Assert: Should fail for Supabase/database connection reasons, not TOKEN_ENC_KEY validation
       expect(result.success).toBe(false);
       expect(result.error).not.toContain('TOKEN_ENC_KEY');
     });
@@ -98,6 +110,10 @@ describe('encryptedTokenHelpers', () => {
       // Arrange: Set development environment without TOKEN_ENC_KEY
       process.env.NODE_ENV = 'development';
       delete process.env.TOKEN_ENC_KEY;
+      
+      // Provide required Supabase env vars
+      process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-service-role-key';
       
       // Mock console.warn to capture warning
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -111,7 +127,7 @@ describe('encryptedTokenHelpers', () => {
       // Assert: Should show warning about using default key
       expect(warnSpy).toHaveBeenCalledWith('⚠️  Using default encryption key for development. Set TOKEN_ENC_KEY for production-like testing.');
       
-      // Should fail for Supabase reasons, not TOKEN_ENC_KEY validation
+      // Should fail for Supabase/database connection reasons, not TOKEN_ENC_KEY validation
       expect(result.success).toBe(false);
       expect(result.error).not.toContain('TOKEN_ENC_KEY must be set');
       

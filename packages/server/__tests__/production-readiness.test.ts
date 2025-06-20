@@ -26,6 +26,10 @@ describe('Production Readiness - Environment Configuration', () => {
       process.env.NODE_ENV = 'production';
       delete process.env.TOKEN_ENC_KEY;
       
+      // Provide required Supabase env vars so we can test TOKEN_ENC_KEY validation
+      process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-service-role-key';
+      
       // Import fresh module instance
       const { storeUserSecret } = await import('../lib/encryptedTokenHelpers');
       
@@ -48,6 +52,10 @@ describe('Production Readiness - Environment Configuration', () => {
       process.env.NODE_ENV = 'production';
       process.env.TOKEN_ENC_KEY = 'default-dev-key-change-in-production';
       
+      // Provide required Supabase env vars so we can test TOKEN_ENC_KEY validation
+      process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-service-role-key';
+      
       // Import fresh module instance
       const { storeUserSecret } = await import('../lib/encryptedTokenHelpers');
       
@@ -69,6 +77,10 @@ describe('Production Readiness - Environment Configuration', () => {
       // Arrange: Simulate production with short TOKEN_ENC_KEY
       process.env.NODE_ENV = 'production';
       process.env.TOKEN_ENC_KEY = 'short-key';
+      
+      // Provide required Supabase env vars so we can test TOKEN_ENC_KEY validation
+      process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-service-role-key';
       
       // Import fresh module instance  
       const { storeUserSecret } = await import('../lib/encryptedTokenHelpers');
