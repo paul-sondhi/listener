@@ -2,6 +2,12 @@
 
 A podcast transcription service that integrates with Spotify.
 
+## Quick Start
+
+**⚡ New to the project?** See [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) for a complete setup guide (10-15 minutes).
+
+**🔧 Environment Variables:** All configuration is now centralized in root-level `.env` files. No more package-specific environment files!
+
 ## Project Structure
 
 ```
@@ -34,22 +40,39 @@ A podcast transcription service that integrates with Spotify.
    npm install
    ```
 
-2. Create a `.env` file with the following variables:
+2. **Environment Configuration:**
+   ```bash
+   # Copy the environment template
+   cp .env.example .env.local
+   
+   # Fill in your credentials (see ENVIRONMENT_SETUP.md for detailed instructions)
    ```
-   SUPABASE_URL=your_supabase_url
+   
+   📖 **For detailed setup instructions, see [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)**
+   
+   **Quick Reference - Required Variables:**
+   ```bash
+   # Database & Auth (Supabase)
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your_anon_key
    SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-   PORT=3000
    
-   # Token encryption (required for Spotify integration)
-   TOKEN_ENC_KEY=your_secure_encryption_key_here
+   # API Credentials
+   SPOTIFY_CLIENT_ID=your_client_id
+   SPOTIFY_CLIENT_SECRET=your_client_secret
+   TADDY_API_KEY=your_taddy_api_key
    
-   # Episode Sync Configuration (optional)
-   EPISODE_SYNC_ENABLED=true
-   EPISODE_SYNC_CRON=0 0 * * *
-   EPISODE_SYNC_TIMEZONE=America/Los_Angeles
+   # Security
+   JWT_SECRET=your_jwt_secret
+   TOKEN_ENC_KEY=your_32_char_encryption_key
    ```
 
-3. Start the development environment:
+3. **Verify setup:**
+   ```bash
+   npm run validate-setup
+   ```
+
+4. Start the development environment:
    ```bash
    npm run dev
    ```
@@ -65,7 +88,14 @@ For new developers joining the project:
    npm install
    ```
 
-2. **Set up environment variables** (create `.env` file as shown in Setup section above)
+2. **Set up environment variables:**
+   ```bash
+   # Copy the environment template
+   cp .env.example .env.local
+   
+   # Follow the detailed setup guide
+   # See ENVIRONMENT_SETUP.md for step-by-step instructions
+   ```
 
 3. **Initialize the local database:**
    ```bash
