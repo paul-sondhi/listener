@@ -1,8 +1,5 @@
-import { DatabaseRow, EpisodeWithShow } from '../../../shared/src/types/supabase.js';
+import { EpisodeWithShow } from '../../../shared/src/types/supabase.js';
 import { createLogger, Logger } from '../logger.js';
-
-// Use the database row type for podcast episodes
-type PodcastEpisodeRow = DatabaseRow<'podcast_episodes'>;
 
 /**
  * TranscriptService - Central service for all transcript-related operations
