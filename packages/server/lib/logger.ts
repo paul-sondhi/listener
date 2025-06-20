@@ -144,7 +144,7 @@ function redactSensitiveData(data: any): any {
 /**
  * Core logger class with comprehensive logging functionality
  */
-class Logger {
+export class Logger {
     private config: LoggerConfig;
 
     constructor(config: Partial<LoggerConfig> = {}) {
@@ -534,5 +534,14 @@ export function configureLogger(config: Partial<LoggerConfig>): void {
  * @returns {LoggerConfig} Current logger configuration
  */
 export function getLoggerConfig(): LoggerConfig {
-    return { ...globalLogger['config'] };
+    return { ...DEFAULT_LOGGER_CONFIG };
+}
+
+/**
+ * Create a new generic logger instance
+ * @param {Partial<LoggerConfig>} config - Optional logger configuration
+ * @returns {Logger} New logger instance
+ */
+export function createLogger(config: Partial<LoggerConfig> = {}): Logger {
+    return new Logger(config);
 } 
