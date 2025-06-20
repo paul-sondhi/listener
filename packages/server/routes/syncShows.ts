@@ -2,6 +2,7 @@ import express, { Router, Request, Response } from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database, ApiResponse, SpotifyShow, SpotifyUserShows } from '@listener/shared';
 import { getUserSecret } from '../lib/encryptedTokenHelpers.js';
+import { getTitleSlug, getFeedUrl } from '../lib/utils.js';
 
 // Create router with proper typing
 const router: Router = express.Router();
@@ -309,6 +310,30 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                 const spotifyUrl: string = `https://open.spotify.com/show/${show.id}`;
 
                 try {
+                    // Try to fetch actual RSS feed URL for this Spotify show
+                    let rssUrl: string = spotifyUrl; // Default fallback to Spotify URL
+                    
+                    try {
+                        // Get the show title slug from Spotify
+                        const titleSlug = await getTitleSlug(spotifyUrl);
+                        
+                        // Try to find the RSS feed URL using the title slug
+                        const fetchedRssUrl = await getFeedUrl(titleSlug);
+                        if (fetchedRssUrl) {
+                            rssUrl = fetchedRssUrl;
+                            if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SYNC === 'true') {
+                                console.log(`[SyncShows] Found RSS feed for ${show.name}: ${rssUrl}`);
+                            }
+                        } else {
+                            if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SYNC === 'true') {
+                                console.log(`[SyncShows] No RSS feed found for ${show.name}, using Spotify URL as fallback`);
+                            }
+                        }
+                    } catch (rssError) {
+                        // If RSS lookup fails, we'll use the Spotify URL as fallback
+                        console.warn(`[SyncShows] RSS lookup failed for ${show.name}:`, (rssError as Error).message);
+                    }
+
                     // -----------------------------------------------------
                     // Robust upsert that works with *partial* Vitest mocks
                     // -----------------------------------------------------
@@ -331,6 +356,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                         .upsert([
                             {
                                 spotify_url: spotifyUrl,
+                                rss_url: rssUrl, // Use actual RSS URL if found, otherwise Spotify URL as fallback
                                 title: show.name || 'Unknown Show',
                                 description: show.description || null,
                                 image_url: show.images?.[0]?.url || null,
@@ -362,7 +388,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                             .upsert([
                                 {
                                     spotify_url: spotifyUrl,
-                                    rss_url: spotifyUrl, // legacy fallback uses same value
+                                    rss_url: rssUrl, // Use the same RSS URL logic as the main upsert
                                     title: show.name || 'Unknown Show',
                                     description: show.description || null,
                                     image_url: show.images?.[0]?.url || null,
@@ -494,7 +520,9 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
             // Find subscriptions that are no longer in the current Spotify list
             const subsToInactivate = (allSubs || []).filter((s: any) => !showIds.includes(s.show_id));
             const inactiveIds: string[] = subsToInactivate.map((s: any) => s.id);
-            console.log('Subscriptions to inactivate IDs:', inactiveIds);
+            if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SYNC === 'true') {
+                console.log('Subscriptions to inactivate IDs:', inactiveIds);
+            }
 
             let inactiveCount: number = 0;
             if (inactiveIds.length > 0) {

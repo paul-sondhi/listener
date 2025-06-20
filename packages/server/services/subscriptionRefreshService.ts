@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database, SpotifyShow, SpotifyUserShows } from '@listener/shared';
 import { getValidTokens } from './tokenService.js';
 import { createSubscriptionRefreshLogger, log } from '../lib/logger.js';
+import { getTitleSlug, getFeedUrl } from '../lib/utils.js';
 
 // Initialize Supabase Admin client lazily with proper typing
 let supabaseAdmin: SupabaseClient<Database> | null = null;
@@ -317,6 +318,32 @@ async function updateSubscriptionStatus(
         const spotifyUrl = podcastUrl; // Directly map Spotify URL to the spotify_url column
         
         try {
+            // Try to fetch actual RSS feed URL for this Spotify show
+            let rssUrl: string = spotifyUrl; // Default fallback to Spotify URL
+            let showTitle: string = `Show ${showId}`; // Default placeholder title
+            
+            try {
+                // Get the show title slug from Spotify
+                const titleSlug = await getTitleSlug(spotifyUrl);
+                showTitle = titleSlug; // Use the actual show title
+                
+                // Try to find the RSS feed URL using the title slug
+                const fetchedRssUrl = await getFeedUrl(titleSlug);
+                if (fetchedRssUrl) {
+                    rssUrl = fetchedRssUrl;
+                                if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SUBSCRIPTION_REFRESH === 'true') {
+                console.log(`[SubscriptionRefresh] Found RSS feed for ${spotifyUrl}: ${rssUrl}`);
+            }
+        } else {
+            if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SUBSCRIPTION_REFRESH === 'true') {
+                console.log(`[SubscriptionRefresh] No RSS feed found for ${spotifyUrl}, using Spotify URL as fallback`);
+            }
+                }
+            } catch (rssError) {
+                // If RSS lookup fails, we'll use the Spotify URL as fallback
+                console.warn(`[SubscriptionRefresh] RSS lookup failed for ${spotifyUrl}:`, (rssError as Error).message);
+            }
+
             // Upsert the show into podcast_shows table
             const showUpsertResult = await safeAwait(
                 getSupabaseAdmin()
@@ -324,7 +351,8 @@ async function updateSubscriptionStatus(
                     .upsert([
                         {
                             spotify_url: spotifyUrl,
-                            title: `Show ${showId}`, // Placeholder title - in production you'd fetch this from Spotify
+                            rss_url: rssUrl, // Use actual RSS URL if found, otherwise Spotify URL as fallback
+                            title: showTitle,
                             description: null,
                             image_url: null,
                             last_updated: now
@@ -392,7 +420,9 @@ async function updateSubscriptionStatus(
     
     let inactiveCount: number = 0;
     if (inactiveIds.length > 0) {
-        console.log(`[SubscriptionRefresh] Marking ${inactiveIds.length} subscriptions as inactive for user ${userId}`);
+        if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SUBSCRIPTION_REFRESH === 'true') {
+            console.log(`[SubscriptionRefresh] Marking ${inactiveIds.length} subscriptions as inactive for user ${userId}`);
+        }
         
         const updateResult: any = await safeAwait(
             getSupabaseAdmin()

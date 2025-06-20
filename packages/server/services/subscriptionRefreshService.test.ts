@@ -48,6 +48,12 @@ vi.mock('../lib/logger.js', () => ({
   log: mockLog
 }));
 
+// Mock the utils functions
+vi.mock('../lib/utils.js', () => ({
+  getTitleSlug: vi.fn(),
+  getFeedUrl: vi.fn()
+}));
+
 // Mock global fetch for Spotify API calls
 global.fetch = vi.fn();
 
@@ -60,6 +66,8 @@ import {
   __setSupabaseAdminForTesting,
   __resetSupabaseAdminForTesting
 } from './subscriptionRefreshService.js';
+
+import { getTitleSlug, getFeedUrl } from '../lib/utils.js';
 
 
 
@@ -248,6 +256,18 @@ describe('refreshUserSubscriptions', () => {
       spotifyApiCall: vi.fn(),
       databaseOperation: vi.fn(),
       logError: vi.fn()
+    });
+
+    // Mock utils functions with default implementations
+    vi.mocked(getTitleSlug).mockImplementation(async (spotifyUrl: string) => {
+      // Extract the show ID from the Spotify URL and return a simple slug
+      const showId = spotifyUrl.split('/').pop() || 'unknown';
+      return `show-${showId}`;
+    });
+    
+    vi.mocked(getFeedUrl).mockImplementation(async (slug: string) => {
+      // Return a mock RSS feed URL for most shows
+      return `https://feeds.example.com/${slug}.rss`;
     });
 
     // Ensure global.fetch is properly mocked and won't be cleared
@@ -594,6 +614,19 @@ describe('refreshUserSubscriptions', () => {
    * Verifies that multiple pages of subscription data are properly fetched
    */
   it('should handle Spotify API pagination correctly', async () => {
+    // Arrange: Mock the utils functions to avoid external API calls in tests
+    vi.mocked(getTitleSlug).mockImplementation(async (spotifyUrl: string) => {
+      if (spotifyUrl.includes('show1')) return 'test-show-1';
+      if (spotifyUrl.includes('show2')) return 'test-show-2';
+      return 'test-show';
+    });
+    
+    vi.mocked(getFeedUrl).mockImplementation(async (slug: string) => {
+      if (slug === 'test-show-1') return 'https://feeds.example.com/show1.rss';
+      if (slug === 'test-show-2') return 'https://feeds.example.com/show2.rss';
+      return null; // Fallback to Spotify URL
+    });
+
     // Arrange: Set up successful token retrieval
     mockGetValidTokens.mockResolvedValue({
       success: true,
@@ -666,7 +699,7 @@ describe('refreshUserSubscriptions', () => {
       inactive_count: 0
     });
 
-    // Assert: Verify both API calls were made
+    // Assert: Verify both Spotify API calls were made for pagination
     expect(global.fetch).toHaveBeenCalledTimes(2);
     expect(global.fetch).toHaveBeenNthCalledWith(1,
       'https://api.spotify.com/v1/me/shows?limit=50',
@@ -676,6 +709,12 @@ describe('refreshUserSubscriptions', () => {
       'https://api.spotify.com/v1/me/shows?offset=50&limit=50',
       expect.any(Object)
     );
+    
+    // Assert: Verify RSS feed lookup was attempted for both shows
+    expect(getTitleSlug).toHaveBeenCalledTimes(2);
+    expect(getFeedUrl).toHaveBeenCalledTimes(2);
+    expect(getTitleSlug).toHaveBeenCalledWith('https://open.spotify.com/show/show1');
+    expect(getTitleSlug).toHaveBeenCalledWith('https://open.spotify.com/show/show2');
   });
 });
 

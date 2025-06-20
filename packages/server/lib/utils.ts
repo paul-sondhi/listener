@@ -73,8 +73,11 @@ function getAuthHeaders(): AuthHeaders {
       .update(apiKey + apiSecret + apiHeaderTime.toString())
       .digest('hex');
     
-    console.log('DEBUG: Generated signature for timestamp:', apiHeaderTime);
-    console.log('DEBUG: Signature preview:', signature.substring(0, 10) + '...');
+    // Only log debug info in development or when DEBUG_API is set
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_API === 'true') {
+      console.log('DEBUG: Generated signature for timestamp:', apiHeaderTime);
+      console.log('DEBUG: Signature preview:', signature.substring(0, 10) + '...');
+    }
     
     // Return the three required headers
     return {

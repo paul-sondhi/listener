@@ -74,10 +74,8 @@ describe('sync-spotify-shows legacy rss_url fallback', () => {
     vi.clearAllMocks();
   });
 
-  it('retries upsert when rss_url NOT NULL constraint error occurs and eventually succeeds', async () => {
-    // 1st call: fail with rss_url error
-    mockUpsert.mockResolvedValueOnce({ error: { message: 'null value in column "rss_url" of relation "podcast_shows" violates not-null constraint' } });
-    // Retry call: succeed
+  it('succeeds on first try now that rss_url is always included in upsert', async () => {
+    // Mock successful upsert (no retry needed since rss_url is now always included)
     mockUpsert.mockResolvedValueOnce({ error: null, data: [{ id: 'show-row-1' }] });
 
     // No existing subscriptions
@@ -89,7 +87,13 @@ describe('sync-spotify-shows legacy rss_url fallback', () => {
       .set('Cookie', `sb-access-token=${mockSupabaseToken}`);
 
     expect(response.status).toBe(200);
-    // Upsert should have been called twice due to retry logic
-    expect(mockUpsert).toHaveBeenCalledTimes(2);
+    // Upsert should only be called once since rss_url is now always included
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    
+    // Verify that the upsert call includes both spotify_url and rss_url
+    const upsertCall = mockUpsert.mock.calls[0];
+    const upsertData = upsertCall[0][0]; // First call, first argument, first array element
+    expect(upsertData).toHaveProperty('spotify_url');
+    expect(upsertData).toHaveProperty('rss_url');
   });
 }); 

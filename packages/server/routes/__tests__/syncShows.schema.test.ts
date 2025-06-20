@@ -188,13 +188,13 @@ describe('Sync Shows Database Schema Integration', () => {
 
     // Verify the correct columns are being used for podcast_shows
     expect(showUpsertData).toHaveProperty('spotify_url')
+    expect(showUpsertData).toHaveProperty('rss_url') // Now required in production database
     expect(showUpsertData).toHaveProperty('title', 'Test Podcast')
     expect(showUpsertData).toHaveProperty('description', 'A test podcast')
     expect(showUpsertData).toHaveProperty('image_url', 'https://example.com/image.jpg')
     expect(showUpsertData).toHaveProperty('last_updated')
 
     // Verify old/incorrect columns are NOT used
-    expect(showUpsertData).not.toHaveProperty('rss_url')
     expect(showUpsertData).not.toHaveProperty('podcast_url')
     expect(showUpsertData).not.toHaveProperty('name')
   })
