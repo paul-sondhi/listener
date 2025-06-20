@@ -9,6 +9,8 @@ export * from './podcast.js';
 export * from './spotify.js';
 // Supabase types
 export * from './supabase.js';
+// Transcript types
+export * from './transcript.js';
 // Common types (primary source for PaginationParams, SortParams)
 export * from './common.js';
 // External API types

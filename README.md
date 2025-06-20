@@ -54,6 +54,47 @@ A podcast transcription service that integrates with Spotify.
    npm run dev
    ```
 
+## Getting Started
+
+For new developers joining the project:
+
+1. **Clone and install dependencies:**
+   ```bash
+   git clone <repository-url>
+   cd listener
+   npm install
+   ```
+
+2. **Set up environment variables** (create `.env` file as shown in Setup section above)
+
+3. **Initialize the local database:**
+   ```bash
+   # Start Supabase services
+   npm run supabase:start
+   
+   # Apply all migrations (including the new transcripts table)
+   supabase db reset
+   
+   # Create storage buckets for transcripts
+   cd packages/server && npx tsx scripts/create-transcripts-bucket.ts
+   ```
+
+4. **Verify setup:**
+   ```bash
+   # Check that services are running
+   npm run supabase:status
+   
+   # Run tests to ensure everything works
+   npm test
+   ```
+
+5. **Start development:**
+   ```bash
+   npm run dev
+   ```
+
+The database will now include the `transcripts` table for storing podcast episode transcript metadata.
+
 ## Development Commands
 
 ### Database Management
@@ -73,6 +114,9 @@ npm run supabase:status
 
 # Apply migrations manually (if needed)
 supabase db push
+
+# Create transcripts storage bucket (after migrations)
+pnpm tsx scripts/create-transcripts-bucket.ts
 ```
 
 ### Testing
@@ -278,6 +322,20 @@ podcast_episodes
 - `20250619102030_encrypted_token_functions.sql` - Adds PostgreSQL functions for encrypted token operations
 
 ## Deployment
+
+### Transcripts Feature Deployment
+
+The transcripts feature requires creating a private storage bucket in addition to database migrations:
+
+```bash
+# 1. Apply database migrations
+supabase db push --linked
+
+# 2. Create transcripts storage bucket
+pnpm tsx scripts/create-transcripts-bucket.ts
+```
+
+**Note**: The bucket creation script is idempotent and safe to run multiple times. Include it in your deployment pipeline after the database migrations.
 
 ### Episode Sync Feature Deployment
 

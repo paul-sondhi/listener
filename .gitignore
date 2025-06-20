@@ -53,3 +53,5 @@ esling.config.mjs
 .cursor
 /tasks
 /backups
+
+reference/

@@ -3,6 +3,7 @@ export * from './auth.js';
 export * from './podcast.js';
 export * from './spotify.js';
 export * from './supabase.js';
+export * from './transcript.js';
 export * from './common.js';
 export * from './external-apis.js';
 export type { Optional, Required, NonNullable, DeepPartial, DeepRequired, WithTimestamps, WithId, FilterParams, Result, AsyncResult, ResultHandler, ValidationRule, ValidationResult, ValidatedData, HttpHeaders, RequestConfig, ResponseMetadata, DatabaseOperation, QueryFilter, QueryOptions, EnvironmentVariables, JSONPrimitive, JSONObject, JSONArray, JSONValue } from './utilities.js';

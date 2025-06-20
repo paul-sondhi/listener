@@ -94,16 +94,13 @@ export interface SyncShowsError extends ApiErrorResponse {
     database_errors?: string[];
 }
 export interface UserSpotifyTokens {
-    spotify_access_token: string | null;
-    spotify_refresh_token: string | null;
-    spotify_token_expires_at: string | null;
     user_id?: string;
 }
 export interface AuthTokenRequest {
     email: string;
     password: string;
 }
-export interface AuthTokenResponse extends ApiSuccess<{
+export type AuthTokenResponse = ApiSuccess<{
     access_token: string;
     refresh_token: string;
     user: {
@@ -111,16 +108,14 @@ export interface AuthTokenResponse extends ApiSuccess<{
         email: string;
         created_at: string;
     };
-}> {
-}
+}>;
 export interface RefreshTokenRequest {
     refresh_token: string;
 }
-export interface RefreshTokenResponse extends ApiSuccess<{
+export type RefreshTokenResponse = ApiSuccess<{
     access_token: string;
     expires_at: number;
-}> {
-}
+}>;
 export interface CreatePodcastRequest {
     title: string;
     description?: string;
@@ -128,28 +123,25 @@ export interface CreatePodcastRequest {
     spotify_url?: string;
     category?: string;
 }
-export interface CreatePodcastResponse extends ApiSuccess<{
+export type CreatePodcastResponse = ApiSuccess<{
     id: string;
     title: string;
     created_at: string;
-}> {
-}
+}>;
 export interface UpdatePodcastRequest extends Partial<CreatePodcastRequest> {
     id: string;
 }
-export interface UpdatePodcastResponse extends ApiSuccess<{
+export type UpdatePodcastResponse = ApiSuccess<{
     id: string;
     updated_at: string;
-}> {
-}
+}>;
 export interface DeletePodcastRequest {
     id: string;
 }
-export interface DeletePodcastResponse extends ApiSuccess<{
+export type DeletePodcastResponse = ApiSuccess<{
     id: string;
     deleted_at: string;
-}> {
-}
+}>;
 export interface CreateEpisodeRequest {
     podcast_id: string;
     title: string;
@@ -160,21 +152,19 @@ export interface CreateEpisodeRequest {
     episode_number?: number;
     season_number?: number;
 }
-export interface CreateEpisodeResponse extends ApiSuccess<{
+export type CreateEpisodeResponse = ApiSuccess<{
     id: string;
     podcast_id: string;
     title: string;
     created_at: string;
-}> {
-}
+}>;
 export interface UpdateEpisodeRequest extends Partial<CreateEpisodeRequest> {
     id: string;
 }
-export interface UpdateEpisodeResponse extends ApiSuccess<{
+export type UpdateEpisodeResponse = ApiSuccess<{
     id: string;
     updated_at: string;
-}> {
-}
+}>;
 export interface CreateTranscriptionJobRequest {
     episode_id: string;
     audio_url: string;
@@ -184,13 +174,12 @@ export interface CreateTranscriptionJobRequest {
         priority?: 'low' | 'normal' | 'high';
     };
 }
-export interface CreateTranscriptionJobResponse extends ApiSuccess<{
+export type CreateTranscriptionJobResponse = ApiSuccess<{
     job_id: string;
     status: 'pending' | 'processing' | 'completed' | 'failed';
     created_at: string;
-}> {
-}
-export interface GetTranscriptionJobResponse extends ApiSuccess<{
+}>;
+export type GetTranscriptionJobResponse = ApiSuccess<{
     job_id: string;
     episode_id: string;
     status: 'pending' | 'processing' | 'completed' | 'failed';
@@ -200,38 +189,35 @@ export interface GetTranscriptionJobResponse extends ApiSuccess<{
     created_at: string;
     updated_at: string;
     completed_at?: string;
-}> {
-}
+}>;
 export interface CreateSubscriptionRequest {
-    podcast_url: string;
+    spotify_url: string;
     status?: 'active' | 'inactive';
 }
-export interface CreateSubscriptionResponse extends ApiSuccess<{
+export type CreateSubscriptionResponse = ApiSuccess<{
     id: string;
-    podcast_url: string;
+    spotify_url: string;
     status: string;
     created_at: string;
-}> {
-}
+}>;
 export interface UpdateSubscriptionRequest {
     id: string;
     status: 'active' | 'inactive';
 }
-export interface UpdateSubscriptionResponse extends ApiSuccess<{
+export type UpdateSubscriptionResponse = ApiSuccess<{
     id: string;
     status: string;
     updated_at: string;
-}> {
-}
+}>;
 export interface ListSubscriptionsRequest {
     status?: 'active' | 'inactive' | 'all';
     limit?: number;
     offset?: number;
 }
-export interface ListSubscriptionsResponse extends ApiSuccess<{
+export type ListSubscriptionsResponse = ApiSuccess<{
     subscriptions: Array<{
         id: string;
-        podcast_url: string;
+        spotify_url: string;
         status: string;
         created_at: string;
         updated_at: string;
@@ -239,23 +225,21 @@ export interface ListSubscriptionsResponse extends ApiSuccess<{
     total: number;
     limit: number;
     offset: number;
-}> {
-}
+}>;
 export interface FileUploadRequest {
     file: File | Buffer;
     filename: string;
     content_type: string;
     metadata?: Record<string, unknown>;
 }
-export interface FileUploadResponse extends ApiSuccess<{
+export type FileUploadResponse = ApiSuccess<{
     file_id: string;
     filename: string;
     url: string;
     size: number;
     content_type: string;
     uploaded_at: string;
-}> {
-}
+}>;
 export interface BatchRequest<T> {
     operations: T[];
     options?: {
@@ -263,7 +247,7 @@ export interface BatchRequest<T> {
         max_concurrent?: number;
     };
 }
-export interface BatchResponse<T> extends ApiSuccess<{
+export type BatchResponse<T> = ApiSuccess<{
     results: Array<{
         success: boolean;
         data?: T;
@@ -273,8 +257,7 @@ export interface BatchResponse<T> extends ApiSuccess<{
     total: number;
     successful: number;
     failed: number;
-}> {
-}
+}>;
 export interface WebSocketMessage<T = unknown> {
     type: string;
     payload: T;

@@ -139,33 +139,307 @@ vi.mock('crypto', async () => {
 })
 
 // ---------------------------------------------------------------------------
-// Supabase Client Mock
+// Enhanced Supabase Client Mock with Database Constraints Simulation
 // ---------------------------------------------------------------------------
+
+// Global shared data stores to ensure all client instances share the same data
+const globalDataStores = {
+  users: {} as Record<string, { id: string; email: string }>,
+  podcastShows: {} as Record<string, any>,
+  podcastEpisodes: {} as Record<string, any>,
+  transcripts: {} as Record<string, any>
+}
 
 const supabaseMockFactory = () => ({
   createClient: vi.fn(() => {
     // -------------------------------------------------------------------------
-    // In-memory data store so that admin.createUser → auth.getUser share state
+    // In-memory data store with database-like behavior and constraint enforcement
     // -------------------------------------------------------------------------
-    const users: Record<string, { id: string; email: string }> = {}
+    const users = globalDataStores.users
+    const podcastShows = globalDataStores.podcastShows
+    const podcastEpisodes = globalDataStores.podcastEpisodes
+    const transcripts = globalDataStores.transcripts
 
     // Helper to generate deterministic test JWTs (simple placeholder string)
     const makeJwt = (uid: string) => `test-jwt-${uid}`
 
+    // Generate consistent UUIDs for test data
+    const generateUUID = () => {
+      return `test-uuid-${Date.now()}-${Math.random().toString(36).substring(2)}`
+    }
+
+    // Validate database constraints
+    const validateConstraints = (table: string, operation: string, data: any) => {
+      switch (table) {
+        case 'transcripts':
+          // Check constraint for status values
+          if (data.status && !['pending', 'available', 'error'].includes(data.status)) {
+            throw new Error(`new row for relation "transcripts" violates check constraint "transcripts_status_check"`)
+          }
+          
+          // Foreign key constraint for episode_id
+          if (operation === 'insert' && data.episode_id && !podcastEpisodes[data.episode_id]) {
+            throw new Error(`insert or update on table "transcripts" violates foreign key constraint "transcripts_episode_id_fkey"`)
+          }
+          
+          // Unique constraint for episode_id
+          if (operation === 'insert' && data.episode_id) {
+            const existingTranscript = Object.values(transcripts).find((t: any) => 
+              t.episode_id === data.episode_id && !t.deleted_at
+            )
+            if (existingTranscript) {
+              throw new Error(`duplicate key value violates unique constraint "transcripts_episode_id_key"`)
+            }
+          }
+          break
+      }
+    }
+
+    // Enhanced query builder
+    const createQueryBuilder = (tableName: string) => {
+      const queryState = {
+        tableName,
+        selectedFields: '*',
+        filters: [] as any[],
+        isUpdateQuery: false,
+        isInsertQuery: false,
+        isDeleteQuery: false,
+        updateData: {} as any,
+        insertData: [] as any[],
+        shouldReturnSingle: false,
+      }
+      
+      const getTableData = () => {
+        switch (tableName) {
+          case 'podcast_shows': return podcastShows
+          case 'podcast_episodes': return podcastEpisodes
+          case 'transcripts': return transcripts
+          default: return {}
+        }
+      }
+      
+      const applyFilters = (data: any) => {
+        return queryState.filters.every(filter => {
+          switch (filter.type) {
+            case 'eq':
+              return data[filter.column] === filter.value
+            case 'is':
+              if (filter.value === null) {
+                return data[filter.column] === null || data[filter.column] === undefined
+              }
+              return data[filter.column] === filter.value
+            case 'in':
+              return filter.value.includes(data[filter.column])
+            default:
+              return true
+          }
+        })
+      }
+
+      const executeQuery = async () => {
+        const tableData = getTableData()
+        
+        try {
+          if (queryState.isInsertQuery) {
+            const insertedRecords = []
+            for (const record of queryState.insertData) {
+              // Validate constraints before inserting
+              validateConstraints(tableName, 'insert', record)
+              
+              const id = record.id || generateUUID()
+              const now = new Date().toISOString()
+              const newRecord = {
+                id,
+                ...record,
+                // Ensure nullable fields are explicitly null, not undefined
+                word_count: record.word_count !== undefined ? record.word_count : null,
+                deleted_at: record.deleted_at !== undefined ? record.deleted_at : null,
+                created_at: record.created_at || now,
+                updated_at: record.updated_at || now,
+              }
+              
+              tableData[id] = newRecord
+              insertedRecords.push(newRecord)
+            }
+            
+            return { 
+              data: queryState.shouldReturnSingle ? insertedRecords[0] : insertedRecords, 
+              error: null,
+              status: 201,
+              statusText: 'Created'
+            }
+          } else if (queryState.isUpdateQuery) {
+            const matchingRecords = Object.values(tableData).filter(applyFilters)
+            if (matchingRecords.length === 0 && queryState.shouldReturnSingle) {
+              return { data: null, error: null }
+            } else {
+              const updatedRecords = []
+              for (const record of matchingRecords) {
+                const updatedRecord = {
+                  ...record,
+                  ...queryState.updateData,
+                  // Trigger behavior: automatically update updated_at timestamp
+                  updated_at: new Date().toISOString(),
+                  // Ensure nullable fields are explicitly null, not undefined
+                  word_count: queryState.updateData.word_count !== undefined ? queryState.updateData.word_count : (record.word_count !== undefined ? record.word_count : null),
+                  deleted_at: queryState.updateData.deleted_at !== undefined ? queryState.updateData.deleted_at : (record.deleted_at !== undefined ? record.deleted_at : null),
+                }
+                tableData[record.id] = updatedRecord
+                updatedRecords.push(updatedRecord)
+              }
+              return { 
+                data: queryState.shouldReturnSingle ? updatedRecords[0] : updatedRecords, 
+                error: null 
+              }
+            }
+          } else if (queryState.isDeleteQuery) {
+            const matchingRecords = Object.values(tableData).filter(applyFilters)
+            for (const record of matchingRecords) {
+              delete tableData[record.id]
+            }
+            return { 
+              data: null, 
+              error: null 
+            }
+          } else {
+            // SELECT query
+            const matchingRecords = Object.values(tableData).filter(applyFilters)
+            if (queryState.shouldReturnSingle) {
+              if (matchingRecords.length === 0) {
+                return { 
+                  data: null, 
+                  error: { code: 'PGRST116', message: 'No rows found' } 
+                }
+              } else {
+                return { 
+                  data: matchingRecords[0], 
+                  error: null 
+                }
+              }
+            } else {
+              return { 
+                data: matchingRecords, 
+                error: null 
+              }
+            }
+          }
+        } catch (err: any) {
+          const error = { message: err.message, code: 'constraint_violation' }
+          return { data: null, error }
+        }
+      }
+
+      // Create a thenable object that works with async/await
+      const createThenable = () => {
+        let promise: Promise<any> | null = null
+        
+        const getPromise = () => {
+          if (!promise) {
+            promise = executeQuery()
+          }
+          return promise
+        }
+        
+        return {
+          then: (onFulfilled?: any, onRejected?: any) => {
+            return getPromise().then((result) => {
+              if (result.error && result.error.code === 'constraint_violation') {
+                if (onRejected) {
+                  return onRejected(new Error(result.error.message))
+                }
+                throw new Error(result.error.message)
+              }
+              if (onFulfilled) {
+                return onFulfilled(result)
+              }
+              return result
+            }, onRejected)
+          },
+          catch: (onRejected?: any) => {
+            return getPromise().then((result) => {
+              if (result.error && result.error.code === 'constraint_violation') {
+                if (onRejected) {
+                  return onRejected(new Error(result.error.message))
+                }
+                throw new Error(result.error.message)
+              }
+              return result
+            }).catch(onRejected)
+          }
+        }
+      }
+
+      const queryBuilder = {
+        select: vi.fn((fields = '*') => {
+          queryState.selectedFields = fields
+          return queryBuilder
+        }),
+        
+        insert: vi.fn((data) => {
+          queryState.isInsertQuery = true
+          queryState.insertData = Array.isArray(data) ? data : [data]
+          return queryBuilder
+        }),
+        
+        update: vi.fn((data) => {
+          queryState.isUpdateQuery = true
+          queryState.updateData = data
+          return queryBuilder
+        }),
+        
+        delete: vi.fn(() => {
+          queryState.isDeleteQuery = true
+          return queryBuilder
+        }),
+        
+        upsert: vi.fn((data) => {
+          // For simplicity, treat upsert as insert for now
+          queryState.isInsertQuery = true
+          queryState.insertData = Array.isArray(data) ? data : [data]
+          return createThenable()
+        }),
+        
+        eq: vi.fn((column, value) => {
+          queryState.filters.push({ type: 'eq', column, value })
+          return queryBuilder
+        }),
+        
+        is: vi.fn((column, value) => {
+          queryState.filters.push({ type: 'is', column, value })
+          return queryBuilder
+        }),
+
+        in: vi.fn((column, values) => {
+          queryState.filters.push({ type: 'in', column, value: values })
+          return queryBuilder
+        }),
+        
+        single: vi.fn(() => {
+          queryState.shouldReturnSingle = true
+          return createThenable()
+        }),
+        
+        limit: vi.fn(() => createThenable()),
+        
+        // Also make the query builder itself thenable for cases where methods are chained
+        then: (onFulfilled?: any, onRejected?: any) => {
+          return createThenable().then(onFulfilled, onRejected)
+        },
+        
+        catch: (onRejected?: any) => {
+          return createThenable().catch(onRejected)
+        }
+      }
+      
+      return queryBuilder
+    }
+
     // Typed stub for the Supabase client used throughout the server codebase
     const client = {
       // ---------------------------------------------------------------------
-      // Minimal query-builder stub – enough for .from(...).upsert(...).select()
+      // Enhanced query-builder with database constraint simulation
       // ---------------------------------------------------------------------
-      from: vi.fn(() => ({
-        select: vi.fn().mockReturnThis(),
-        insert: vi.fn().mockReturnThis(),
-        update: vi.fn().mockReturnThis(),
-        delete: vi.fn().mockReturnThis(),
-        upsert: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: null }),
-      })),
+      from: vi.fn((tableName: string) => createQueryBuilder(tableName)),
 
       //--------------------------------------------------------------------
       // Auth namespace ----------------------------------------------------
@@ -200,29 +474,44 @@ const supabaseMockFactory = () => ({
             return {
               data: {
                 properties: {
-                  action_link: `https://example.com/#access_token=${token}`,
-                },
+                  action_link: `http://localhost:3000/auth/callback?token=${token}`
+                }
               },
-              error: null,
+              error: null
             }
           }),
-          deleteUser: vi.fn(async (uid: string) => {
-            delete users[typeof uid === 'string' ? uid : String(uid)]
-            return { data: {}, error: null }
-          }),
-        },
+          deleteUser: vi.fn(async (uid) => {
+            delete users[uid]
+            return { data: null, error: null }
+          })
+        }
       },
+
+      // ---------------------------------------------------------------------
+      // Storage namespace (minimal stub)
+      // ---------------------------------------------------------------------
+      storage: {
+        from: vi.fn(() => ({
+          upload: vi.fn().mockResolvedValue({ data: null, error: null }),
+          download: vi.fn().mockResolvedValue({ data: null, error: null }),
+          remove: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }))
+      }
     }
 
-    if (process.env.NODE_ENV === 'test') {
-      console.log('[SUPABASE_MOCK] createClient invoked – admin:', !!client.auth.admin)
-    }
     return client
-  }),
+  })
 })
 
-// Register the mock at module load
-vi.mock('@supabase/supabase-js', supabaseMockFactory)
+// Apply the Supabase mock - this must intercept the createClient calls in the database modules
+vi.mock('@supabase/supabase-js', () => {
+  const mockFactory = supabaseMockFactory()
+  return {
+    createClient: mockFactory.createClient,
+    // Include any other exports that might be needed
+    SupabaseClient: vi.fn(),
+  }
+})
 
 // Mock Spotify API responses - Only used when no specific mock is set
 const mockSpotifyResponses = {
@@ -306,6 +595,12 @@ afterEach(() => {
   // Clear any timers
   vi.clearAllTimers()
   
+  // Clear global data stores but preserve structure
+  Object.keys(globalDataStores.users).forEach(key => delete globalDataStores.users[key])
+  Object.keys(globalDataStores.podcastShows).forEach(key => delete globalDataStores.podcastShows[key])
+  Object.keys(globalDataStores.podcastEpisodes).forEach(key => delete globalDataStores.podcastEpisodes[key])
+  Object.keys(globalDataStores.transcripts).forEach(key => delete globalDataStores.transcripts[key])
+  
   // Reset module registry so that subsequent suites get a *fresh* copy of
   // @supabase/supabase-js backed by our full-featured mock implementation.
   vi.resetModules()
@@ -313,7 +608,13 @@ afterEach(() => {
   // Re-register the Supabase mock so subsequent suites start with a fresh
   // client that includes the full admin API. This counters overrides applied
   // by individual test files which might strip critical functionality.
-  vi.mock('@supabase/supabase-js', supabaseMockFactory)
+  vi.mock('@supabase/supabase-js', () => {
+    const mockFactory = supabaseMockFactory()
+    return {
+      createClient: mockFactory.createClient,
+      SupabaseClient: vi.fn(),
+    }
+  })
 })
 
 // Utility functions for tests

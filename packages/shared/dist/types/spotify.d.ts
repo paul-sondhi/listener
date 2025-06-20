@@ -97,24 +97,16 @@ export interface SpotifyPagination<T> {
     next?: string;
     previous?: string;
 }
-export interface SpotifyShowEpisodes extends SpotifyPagination<SpotifyEpisode> {
-}
-export interface SpotifyUserShows extends SpotifyPagination<{
+export type SpotifyShowEpisodes = SpotifyPagination<SpotifyEpisode>;
+export type SpotifyUserShows = SpotifyPagination<{
     added_at: string;
     show: SpotifyShow;
-}> {
-}
-export interface VaultOperationResult {
+}>;
+export interface EncryptedTokenOperationResult {
     success: boolean;
     data?: SpotifyTokens;
     error?: string;
     elapsed_ms: number;
-}
-export interface VaultDeleteResult {
-    success: boolean;
-    status_code: number;
-    elapsed_ms: number;
-    error?: string;
 }
 export interface TokenRefreshResult {
     success: boolean;

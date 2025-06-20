@@ -151,10 +151,12 @@ function buildQuery(table?: string) {
   // ------------------------------
   // Mutation Methods
   // ------------------------------
-  qb.insert = vi.fn((payload: any[]) => {
-    state.pendingInsert = payload;
+  qb.insert = vi.fn((payload: any[] | any) => {
+    // Normalize payload to array format
+    const normalizedPayload = Array.isArray(payload) ? payload : [payload];
+    state.pendingInsert = normalizedPayload;
     if (!db[state.table!]) db[state.table!] = [];
-    db[state.table!].push(...payload);
+    db[state.table!].push(...normalizedPayload);
     return qb;
   });
 
