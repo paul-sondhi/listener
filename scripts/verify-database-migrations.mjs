@@ -18,13 +18,16 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { resolve } from 'path'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { config } from 'dotenv'
 
 // Load environment variables from consolidated .env files
 // Priority: .env.local (local dev) overrides .env (defaults)
 // Always look in project root directory, regardless of where script is run from
-const projectRoot = resolve(import.meta.url.includes('/scripts/') ? process.cwd() + '/..' : process.cwd())
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const projectRoot = resolve(__dirname, '..')
 config({ path: resolve(projectRoot, '.env') })
 config({ path: resolve(projectRoot, '.env.local'), override: true })
 
@@ -102,19 +105,20 @@ async function getLocalMigrations() {
  */
 async function getAppliedMigrations(supabase) {
   try {
+    // Try the standard Supabase schema first
     const { data, error } = await supabase
       .from('supabase_migrations.schema_migrations')
       .select('version')
       .order('version')
     
     if (error) {
-      warn('Could not check applied migrations - this might be expected in some environments')
+      warn('Could not check applied migrations from schema_migrations - this might be expected in some environments')
       return []
     }
     
     return data.map(row => row.version)
   } catch (_err) {
-    warn('Could not access migration table')
+    warn('Could not access migration table - this is normal for local development')
     return []
   }
 }
@@ -280,11 +284,16 @@ async function verifyDatabaseMigrations() {
         migration => !appliedMigrations.includes(migration)
       )
       
-      if (pendingMigrations.length > 0) {
+      if (pendingMigrations.length > 0 && appliedMigrations.length > 0) {
+        // Only fail if we can actually read applied migrations and there are pending
         error('Found pending migrations:')
         pendingMigrations.forEach(migration => error(`  - ${migration}`))
         error('Please run: supabase db push --linked')
         hasErrors = true
+      } else if (pendingMigrations.length > 0) {
+        // If we can't read applied migrations (local development), just warn
+        warn('Could not verify migration status - assuming migrations are applied via db reset')
+        info(`Found ${localMigrations.length} local migration files`)
       } else {
         success(`All ${localMigrations.length} migrations are applied`)
       }

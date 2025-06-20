@@ -321,11 +321,11 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                         const fetchedRssUrl = await getFeedUrl(titleSlug);
                         if (fetchedRssUrl) {
                             rssUrl = fetchedRssUrl;
-                            if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SYNC === 'true') {
+                            if (process.env.DEBUG_SYNC === 'true') {
                                 console.log(`[SyncShows] Found RSS feed for ${show.name}: ${rssUrl}`);
                             }
                         } else {
-                            if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SYNC === 'true') {
+                            if (process.env.DEBUG_SYNC === 'true') {
                                 console.log(`[SyncShows] No RSS feed found for ${show.name}, using Spotify URL as fallback`);
                             }
                         }

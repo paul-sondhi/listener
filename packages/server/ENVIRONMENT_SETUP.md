@@ -18,7 +18,7 @@ Environment files (`.env`) configured for production URLs while running local Su
 **Solution:**
 Ensure your environment files match your development setup:
 
-#### Server Environment (`packages/server/.env`)
+#### Server Environment (consolidated to root `.env.local`)
 ```bash
 # ✅ For Local Development
 SUPABASE_URL=http://127.0.0.1:54321
@@ -29,7 +29,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhY
 # SUPABASE_SERVICE_ROLE_KEY=your-production-key
 ```
 
-#### Client Environment (`packages/client/.env`)
+#### Client Environment (consolidated to root `.env.local`)
 ```bash
 # ✅ For Local Development  
 VITE_SUPABASE_URL=http://127.0.0.1:54321

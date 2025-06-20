@@ -14,8 +14,7 @@ The app has migrated from a single `podcast_subscriptions` table to a two-table 
 - `packages/server/services/subscriptionRefreshService.ts` - ✅ Updated to use new schema
 
 ### Environment & Configuration
-- `packages/server/.env` - ✅ Updated for local development
-- `packages/client/.env` - ✅ Updated for local development
+- `.env.local` (root) - ✅ Updated for local development (consolidated from package-specific files)
 - `packages/server/ENVIRONMENT_SETUP.md` - ✅ New troubleshooting guide
 
 ## Files Still Using Old Schema (Need Updates) ⚠️

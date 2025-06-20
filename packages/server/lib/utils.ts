@@ -73,8 +73,8 @@ function getAuthHeaders(): AuthHeaders {
       .update(apiKey + apiSecret + apiHeaderTime.toString())
       .digest('hex');
     
-    // Only log debug info in development or when DEBUG_API is set
-    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_API === 'true') {
+    // Only log debug info when DEBUG_API is explicitly set
+    if (process.env.DEBUG_API === 'true') {
       console.log('DEBUG: Generated signature for timestamp:', apiHeaderTime);
       console.log('DEBUG: Signature preview:', signature.substring(0, 10) + '...');
     }
@@ -221,8 +221,8 @@ function verifyTaddyApiKey(): boolean {
         return false;
     }
     
-    // Log success in development or when DEBUG_API is set
-    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_API === 'true') {
+    // Log success when DEBUG_API is explicitly set
+    if (process.env.DEBUG_API === 'true') {
         console.log('DEBUG: TADDY_API_KEY loaded successfully:', taddyApiKey.substring(0, 8) + '...');
     }
     

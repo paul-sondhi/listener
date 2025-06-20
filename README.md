@@ -4,9 +4,11 @@ A podcast transcription service that integrates with Spotify.
 
 ## Quick Start
 
-**⚡ New to the project?** See [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) for a complete setup guide (10-15 minutes).
+**⚡ New to the project?** See [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) for a complete setup guide (5-10 minutes).
 
 **🔧 Environment Variables:** All configuration is now centralized in root-level `.env` files. No more package-specific environment files!
+
+**📦 Existing Team Members:** See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for migrating from the old package-specific environment structure.
 
 ## Project Structure
 

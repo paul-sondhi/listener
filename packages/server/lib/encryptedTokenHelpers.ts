@@ -101,8 +101,10 @@ function logEncryptedTokenOperation(
     ...(error && { error })
   };
   
-  // Log to stdout for monitoring systems to capture
-  console.log(`ENCRYPTED_TOKEN_OPERATION: ${JSON.stringify(logData)}`);
+  // Log to stdout for monitoring systems to capture (only in debug mode)
+  if (process.env.DEBUG_TOKENS === 'true') {
+    console.log(`ENCRYPTED_TOKEN_OPERATION: ${JSON.stringify(logData)}`);
+  }
 }
 
 /**
