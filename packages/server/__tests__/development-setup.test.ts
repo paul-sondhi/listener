@@ -141,7 +141,7 @@ describe('Development Setup Validation', () => {
       console.error('     2. Client gets 500 errors when calling APIs')
       console.error('     3. "Unexpected end of JSON input" errors in browser console')
       console.error('')
-      console.error('   Fix: Ensure packages/server/.env contains:')
+      console.error('   Fix: Ensure .env.local contains:')
       console.error('   SUPABASE_URL=http://127.0.0.1:54321')
       console.error('   SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...')
       
@@ -158,27 +158,27 @@ describe('Development Setup Validation', () => {
     const fs = await import('fs/promises')
     const path = await import('path')
 
-    // Server environment file should exist for server package to load variables
-    const serverEnvPath = path.resolve(process.cwd(), 'packages/server/.env')
+    // Consolidated environment file should exist for all environment variables
+    const localEnvPath = path.resolve(process.cwd(), '.env.local')
     
     try {
-      const serverEnvContent = await fs.readFile(serverEnvPath, 'utf-8')
+      const localEnvContent = await fs.readFile(localEnvPath, 'utf-8')
       
-      // Check if server .env has the critical variables
-      const hasSupabaseUrl = serverEnvContent.includes('SUPABASE_URL=')
-      const hasServiceRoleKey = serverEnvContent.includes('SUPABASE_SERVICE_ROLE_KEY=')
+      // Check if .env.local has the critical variables
+      const hasSupabaseUrl = localEnvContent.includes('SUPABASE_URL=')
+      const hasServiceRoleKey = localEnvContent.includes('SUPABASE_SERVICE_ROLE_KEY=')
       
       if (!hasSupabaseUrl || !hasServiceRoleKey) {
-        console.error('❌ Server .env file exists but missing critical variables')
+        console.error('❌ Local environment file exists but missing critical variables')
         console.error(`   Has SUPABASE_URL: ${hasSupabaseUrl}`)
         console.error(`   Has SUPABASE_SERVICE_ROLE_KEY: ${hasServiceRoleKey}`)
         
         expect(hasSupabaseUrl && hasServiceRoleKey).toBe(true)
       }
     } catch (_error) {
-      console.error('❌ Server .env file not found at packages/server/.env')
-      console.error('   The server looks for environment variables in ../../.env and packages/server/.env')
-      console.error('   Without packages/server/.env, the migration script may not find required variables')
+      console.error('❌ Local environment file not found at .env.local')
+      console.error('   All environment variables should be consolidated in .env.local')
+      console.error('   Without .env.local, the migration script may not find required variables')
       
       expect(false).toBe(true) // Fail the test
     }

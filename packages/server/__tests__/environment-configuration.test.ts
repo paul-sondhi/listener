@@ -77,7 +77,7 @@ describe('Environment Configuration', () => {
       const errorMessage = `❌ CRITICAL: Server will fail to start due to missing environment variables: ${missingCriticalVars.join(', ')}`
       console.error(errorMessage)
       console.error('   This will cause the migration verification script to fail during server startup.')
-      console.error('   Fix: Ensure packages/server/.env contains the required variables.')
+      console.error('   Fix: Ensure .env.local contains the required variables.')
       
       // Actually fail the test for critical variables that prevent server startup
       expect(missingCriticalVars).toEqual([])
@@ -137,8 +137,8 @@ describe('Environment Configuration', () => {
     }
   })
 
-  // **NEW**: Test to verify environment files exist where expected
-  it('should have environment files in the correct locations for development', async () => {
+  // **NEW**: Test to verify consolidated environment files exist where expected
+  it('should have consolidated environment files in the correct locations for development', async () => {
     if (process.env.NODE_ENV === 'test' || process.env.CI) {
       return
     }
@@ -146,23 +146,23 @@ describe('Environment Configuration', () => {
     const fs = await import('fs/promises')
     const path = await import('path')
     
-    const serverEnvPath = path.resolve(process.cwd(), 'packages/server/.env')
-    const clientEnvPath = path.resolve(process.cwd(), 'packages/client/.env')
+    const rootLocalEnvPath = path.resolve(process.cwd(), '.env.local')
+    const rootExampleEnvPath = path.resolve(process.cwd(), '.env.example')
     
     try {
-      await fs.access(serverEnvPath)
-      console.log('✅ Server .env file exists')
+      await fs.access(rootLocalEnvPath)
+      console.log('✅ Consolidated .env.local file exists')
     } catch {
-      console.error('❌ Server .env file missing at packages/server/.env')
-      console.error('   This is required for the server to find environment variables during startup.')
+      console.error('❌ Consolidated .env.local file missing at project root')
+      console.error('   This is required for all environment variables to be properly loaded.')
     }
     
     try {
-      await fs.access(clientEnvPath)
-      console.log('✅ Client .env file exists')
+      await fs.access(rootExampleEnvPath)
+      console.log('✅ Example environment file (.env.example) exists')
     } catch {
-      console.warn('⚠️  Client .env file missing at packages/client/.env')
-      console.warn('   The client may fall back to root .env, but a dedicated client .env is recommended.')
+      console.warn('⚠️  Example environment file (.env.example) missing')
+      console.warn('   Developers may have difficulty setting up their environment.')
     }
     
     expect(true).toBe(true)

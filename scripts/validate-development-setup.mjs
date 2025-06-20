@@ -14,9 +14,9 @@
 import { resolve } from 'path'
 import { config } from 'dotenv'
 
-// Load environment variables
+// Load environment variables from consolidated root files
 config({ path: resolve(process.cwd(), '.env') })
-config({ path: resolve(process.cwd(), 'packages/server/.env'), override: true })
+config({ path: resolve(process.cwd(), '.env.local'), override: true })
 
 // ANSI color codes for console output
 const colors = {
@@ -67,7 +67,7 @@ function checkCriticalEnvironmentVariables() {
     error('  3. Client gets 500 errors when calling APIs')
     error('  4. "Unexpected end of JSON input" errors in browser console')
     error('')
-    error('Fix: Ensure packages/server/.env contains:')
+    error('Fix: Ensure .env.local contains:')
     error('  SUPABASE_URL=http://127.0.0.1:54321')
     error('  SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...')
     return false
@@ -81,42 +81,42 @@ function checkCriticalEnvironmentVariables() {
  * Check environment file locations
  */
 async function checkEnvironmentFileLocations() {
-  info('Checking environment file locations...')
+  info('Checking consolidated environment file locations...')
   
   const fs = await import('fs/promises')
-  const serverEnvPath = resolve(process.cwd(), 'packages/server/.env')
-  const clientEnvPath = resolve(process.cwd(), 'packages/client/.env')
+  const localEnvPath = resolve(process.cwd(), '.env.local')
+  const exampleEnvPath = resolve(process.cwd(), '.env.example')
   
   let allGood = true
   
   try {
-    const serverEnvContent = await fs.readFile(serverEnvPath, 'utf-8')
-    success('Server .env file exists')
+    const localEnvContent = await fs.readFile(localEnvPath, 'utf-8')
+    success('Consolidated .env.local file exists')
     
-    // Check if server .env has the critical variables
-    const hasSupabaseUrl = serverEnvContent.includes('SUPABASE_URL=')
-    const hasServiceRoleKey = serverEnvContent.includes('SUPABASE_SERVICE_ROLE_KEY=')
+    // Check if .env.local has the critical variables
+    const hasSupabaseUrl = localEnvContent.includes('SUPABASE_URL=')
+    const hasServiceRoleKey = localEnvContent.includes('SUPABASE_SERVICE_ROLE_KEY=')
     
     if (!hasSupabaseUrl || !hasServiceRoleKey) {
-      error('Server .env file exists but missing critical variables:')
+      error('Local environment file exists but missing critical variables:')
       if (!hasSupabaseUrl) error('  - SUPABASE_URL')
       if (!hasServiceRoleKey) error('  - SUPABASE_SERVICE_ROLE_KEY')
       allGood = false
     } else {
-      success('Server .env file contains required variables')
+      success('Local environment file contains required variables')
     }
   } catch {
-    error('Server .env file not found at packages/server/.env')
-    error('The migration script may not find required variables without this file')
+    error('Local environment file not found at .env.local')
+    error('Environment variables may not be properly loaded without this file')
     allGood = false
   }
   
   try {
-    await fs.access(clientEnvPath)
-    success('Client .env file exists')
+    await fs.access(exampleEnvPath)
+    success('Example environment file (.env.example) exists for reference')
   } catch {
-    warn('Client .env file missing at packages/client/.env')
-    warn('Client may fall back to root .env, but dedicated client .env is recommended')
+    warn('Example environment file (.env.example) missing')
+    warn('Developers may have difficulty setting up their environment')
   }
   
   return allGood

@@ -17,7 +17,7 @@ import spotifyTokensRouter from '../spotifyTokens.js'
  *   • SUPABASE_SERVICE_ROLE_KEY
  *   • SUPABASE_DB_PASSWORD (for `update_encrypted_tokens` → pgcrypto)
  *
- * This test now requires a packages/server/.env.test file with credentials.
+ * This test now requires a .env.test file with credentials.
  */
 
 describe('Smoke Test: store-spotify-tokens', () => {
