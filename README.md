@@ -211,6 +211,42 @@ console.log('Available jobs: episode_sync, daily_subscription_refresh');
 - `POST /api/store-spotify-tokens` - Store Spotify authentication tokens
 - `POST /api/sync-spotify-shows` - Sync user's Spotify podcast subscriptions
 
+## Services
+
+### TranscriptService
+
+The `TranscriptService` provides a centralized interface for all transcript-related operations. Currently implemented as a stub that returns `null` for all requests.
+
+**Location**: `packages/server/lib/services/TranscriptService.ts`
+
+**Usage**:
+```typescript
+import { TranscriptService } from '../lib/services/TranscriptService.js';
+
+const transcriptService = new TranscriptService();
+
+// Get transcript by episode ID
+const transcript = await transcriptService.getTranscript('episode-uuid');
+
+// Get transcript by episode object (with show info)
+const transcript = await transcriptService.getTranscript(episodeWithShow);
+```
+
+**Features**:
+- **Overloaded Methods**: Supports both episode ID strings and full episode objects
+- **Edge Case Handling**: Automatically filters out deleted episodes and episodes without RSS URLs
+- **Comprehensive Logging**: Debug logging for eligibility checks and processing status
+- **Future-Ready**: Structured with TODO comments for upcoming provider integrations
+
+**Planned Provider Integration Order**:
+1. **Taddy Free Lookup** (GraphQL, no cost)
+2. **Taddy Business Pregenerated** (existing transcripts)  
+3. **On-demand Taddy Jobs** (async queue, costs credits)
+4. **Fallback ASR Providers** (Deepgram/Rev AI, direct cost)
+5. **Cost Tracking & Provenance** (metadata storage)
+
+**Testing**: Comprehensive unit tests with 7 test cases covering happy path and edge cases.
+
 ## Token Storage
 
 The application securely stores Spotify authentication tokens using encrypted column storage:
