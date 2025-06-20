@@ -203,4 +203,30 @@ function jaccardSimilarity(a: string, b: string): number {
     return union === 0 ? 0 : intersection / union;
 }
 
-export { getAuthHeaders, getTitleSlug, getFeedUrl, jaccardSimilarity }; 
+/**
+ * Verify that the Taddy API key is accessible from environment variables
+ * @returns {boolean} True if the API key is accessible, false otherwise
+ */
+function verifyTaddyApiKey(): boolean {
+    const taddyApiKey: string | undefined = process.env.TADDY_API_KEY;
+    
+    if (!taddyApiKey) {
+        console.warn('TADDY_API_KEY is not set in environment variables');
+        return false;
+    }
+    
+    // Basic validation: should be a non-empty string that looks like an API key
+    if (typeof taddyApiKey !== 'string' || taddyApiKey.length < 10) {
+        console.warn('TADDY_API_KEY appears to be invalid (too short or wrong type)');
+        return false;
+    }
+    
+    // Log success in development or when DEBUG_API is set
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_API === 'true') {
+        console.log('DEBUG: TADDY_API_KEY loaded successfully:', taddyApiKey.substring(0, 8) + '...');
+    }
+    
+    return true;
+}
+
+export { getAuthHeaders, getTitleSlug, getFeedUrl, jaccardSimilarity, verifyTaddyApiKey }; 

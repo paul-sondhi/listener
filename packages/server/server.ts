@@ -135,9 +135,15 @@ const initializeServer = async (): Promise<void> => {
         app.use(errorHandler);
 
         // Start the server with proper callback typing
-        app.listen(PORT, (): void => {
+        app.listen(PORT, async (): Promise<void> => {
             console.log(`Server running on http://localhost:${PORT}`);
             console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+            
+            // Verify environment variables are accessible
+            console.log('Verifying environment variables...');
+            const { verifyTaddyApiKey } = await import('./lib/utils.js');
+            const taddyKeyValid = verifyTaddyApiKey();
+            console.log(`TADDY_API_KEY validation: ${taddyKeyValid ? 'PASSED' : 'FAILED'}`);
             
             // Initialize background jobs after server starts
             console.log('Initializing background jobs...');
