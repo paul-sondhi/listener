@@ -47,13 +47,32 @@ function getSupabaseAdmin(): SupabaseClient<Database> {
 /**
  * Get encryption key from environment
  * @returns {string} The encryption key for pgcrypto
+ * @throws {Error} If TOKEN_ENC_KEY is not set in production environment
  */
 function getEncryptionKey(): string {
-  const key = process.env.TOKEN_ENC_KEY || 'default-dev-key-change-in-production';
-  if (process.env.NODE_ENV === 'production' && key === 'default-dev-key-change-in-production') {
-    throw new Error('TOKEN_ENC_KEY must be set in production environment');
+  const key = process.env.TOKEN_ENC_KEY;
+  const isProduction = process.env.NODE_ENV === 'production';
+  const defaultKey = 'default-dev-key-change-in-production';
+  
+  // In production, TOKEN_ENC_KEY must be explicitly set
+  if (isProduction) {
+    if (!key) {
+      throw new Error('TOKEN_ENC_KEY environment variable must be set in production environment. Please set this variable with a secure 32+ character encryption key.');
+    }
+    if (key === defaultKey) {
+      throw new Error('TOKEN_ENC_KEY cannot use the default development key in production environment. Please set a secure encryption key.');
+    }
+    return key;
   }
-  return key;
+  
+  // In development, use provided key or fallback to default with warning
+  if (key && key !== defaultKey) {
+    return key;
+  }
+  
+  // Development fallback with warning
+  console.warn('⚠️  Using default encryption key for development. Set TOKEN_ENC_KEY for production-like testing.');
+  return defaultKey;
 }
 
 /**

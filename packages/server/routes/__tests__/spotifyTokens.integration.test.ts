@@ -288,6 +288,85 @@ describe('POST /api/store-spotify-tokens - Integration Tests', () => {
     expect(error).toBeNull()
     expect(data).toBeDefined()
   })
+
+  describe('Production environment validation', () => {
+    it('should return 500 error when TOKEN_ENC_KEY is missing in production', async () => {
+      // Arrange: Mock production environment without TOKEN_ENC_KEY
+      const originalEnv = process.env.NODE_ENV;
+      const originalKey = process.env.TOKEN_ENC_KEY;
+      
+      process.env.NODE_ENV = 'production';
+      delete process.env.TOKEN_ENC_KEY;
+      
+      // Mock storeUserSecret to simulate the actual production error
+      mockStoreUserSecret.mockResolvedValue({
+        success: false,
+        error: 'TOKEN_ENC_KEY environment variable must be set in production environment. Please set this variable with a secure 32+ character encryption key.',
+        elapsed_ms: 5
+      });
+
+      // Act: Make request to store tokens
+      const response = await request(app)
+        .post('/api/store-spotify-tokens')
+        .set('Cookie', `sb-access-token=${testUser!.access_token}`)
+        .send({
+          access_token: 'test_access_token',
+          refresh_token: 'test_refresh_token',  
+          expires_at: Math.floor(Date.now() / 1000) + 3600
+        });
+
+      // Assert: Should return 500 error with secure token storage failure message
+      expect(response.status).toBe(500);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Failed to store tokens securely');
+      expect(mockStoreUserSecret).toHaveBeenCalledTimes(1);
+      
+      // Restore environment
+      process.env.NODE_ENV = originalEnv;
+      if (originalKey) {
+        process.env.TOKEN_ENC_KEY = originalKey;
+      }
+    });
+    
+    it('should return 500 error when TOKEN_ENC_KEY uses default value in production', async () => {
+      // Arrange: Mock production environment with default TOKEN_ENC_KEY
+      const originalEnv = process.env.NODE_ENV;
+      const originalKey = process.env.TOKEN_ENC_KEY;
+      
+      process.env.NODE_ENV = 'production';
+      process.env.TOKEN_ENC_KEY = 'default-dev-key-change-in-production';
+      
+      // Mock storeUserSecret to simulate the actual production error
+      mockStoreUserSecret.mockResolvedValue({
+        success: false,
+        error: 'TOKEN_ENC_KEY cannot use the default development key in production environment. Please set a secure encryption key.',
+        elapsed_ms: 5
+      });
+
+      // Act: Make request to store tokens
+      const response = await request(app)
+        .post('/api/store-spotify-tokens')
+        .set('Cookie', `sb-access-token=${testUser!.access_token}`)
+        .send({
+          access_token: 'test_access_token',
+          refresh_token: 'test_refresh_token',
+          expires_at: Math.floor(Date.now() / 1000) + 3600
+        });
+
+      // Assert: Should return 500 error
+      expect(response.status).toBe(500);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Failed to store tokens securely');
+      
+      // Restore environment
+      process.env.NODE_ENV = originalEnv;
+      if (originalKey) {
+        process.env.TOKEN_ENC_KEY = originalKey;
+      } else {
+        delete process.env.TOKEN_ENC_KEY;
+      }
+    });
+  });
 })
 
 /**
