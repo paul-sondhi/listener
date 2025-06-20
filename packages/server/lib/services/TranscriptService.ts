@@ -1,12 +1,8 @@
-import { DatabaseRow } from '../../../shared/src/types/supabase.js';
+import { DatabaseRow, EpisodeWithShow } from '../../../shared/src/types/supabase.js';
 import { Logger } from '../logger.js';
 
 // Use the database row type for podcast episodes
-// Note: Adding rss_url and deleted_at fields that exist in DB but may not be in current type definition
-type PodcastEpisodeRow = DatabaseRow<'podcast_episodes'> & {
-  rss_url?: string | null;
-  deleted_at?: string | null;
-};
+type PodcastEpisodeRow = DatabaseRow<'podcast_episodes'>;
 
 /**
  * TranscriptService - Central service for all transcript-related operations
@@ -39,17 +35,17 @@ export class TranscriptService {
    * Retrieve transcript for an episode object
    * Currently returns null (stub implementation)
    * 
-   * @param episode - Full episode row from database
+   * @param episode - Full episode row from database with show info
    * @returns Promise resolving to null (stub)
    */
-  async getTranscript(episode: PodcastEpisodeRow): Promise<null>;
+  async getTranscript(episode: EpisodeWithShow): Promise<null>;
 
   /**
    * Implementation signature - handles both overloads
    * @param arg - Either episode ID string or episode row object
    * @returns Promise resolving to null (stub)
    */
-  async getTranscript(arg: string | PodcastEpisodeRow): Promise<null> {
+  async getTranscript(arg: string | EpisodeWithShow): Promise<null> {
     // If caller passed an episode ID string, we need to fetch the episode row first
     if (typeof arg === 'string') {
       const episodeId = arg;
@@ -83,11 +79,11 @@ export class TranscriptService {
 
   /**
    * Private helper to check if an episode is eligible for transcript processing
-   * @param episode - The episode row to check
+   * @param episode - The episode row with show info to check
    * @returns true if episode is eligible, false otherwise
    * @private
    */
-  private isEpisodeEligible(episode: PodcastEpisodeRow): boolean {
+  private isEpisodeEligible(episode: EpisodeWithShow): boolean {
     // Episode is ineligible if it has been deleted
     if (episode.deleted_at !== null) {
       this.logger.debug('system', 'Episode ineligible for transcript processing: deleted', {
@@ -100,12 +96,13 @@ export class TranscriptService {
       return false;
     }
 
-    // Episode is ineligible if it doesn't have an RSS URL
-    if (!episode.rss_url || episode.rss_url.trim() === '') {
+    // Episode is ineligible if it doesn't have an RSS URL from its show
+    if (!episode.show?.rss_url || episode.show.rss_url.trim() === '') {
       this.logger.debug('system', 'Episode ineligible for transcript processing: missing RSS URL', {
         metadata: { 
           episode_id: episode.id, 
-          rss_url: episode.rss_url,
+          show_id: episode.show_id,
+          rss_url: episode.show?.rss_url,
           reason: 'missing_rss_url'
         }
       });
@@ -116,7 +113,8 @@ export class TranscriptService {
     this.logger.debug('system', 'Episode eligible for transcript processing', {
       metadata: { 
         episode_id: episode.id,
-        rss_url: episode.rss_url,
+        show_id: episode.show_id,
+        rss_url: episode.show?.rss_url,
         status: 'eligible'
       }
     });
@@ -124,27 +122,29 @@ export class TranscriptService {
   }
 
   /**
-   * Private helper to fetch episode by ID (stubbed implementation)
+   * Private helper to fetch episode by ID with show info (stubbed implementation)
    * @param episodeId - UUID of the episode to fetch
-   * @returns Promise resolving to a stubbed episode row
+   * @returns Promise resolving to a stubbed episode row with show info
    * @private
    */
-  private async fetchEpisodeById(episodeId: string): Promise<PodcastEpisodeRow> {
-    // TODO: Replace with actual Supabase database query
+  private async fetchEpisodeById(episodeId: string): Promise<EpisodeWithShow> {
+    // TODO: Replace with actual Supabase database query that joins with podcast_shows
     // For now, return a minimal stubbed episode object with all required fields
     return {
       id: episodeId,
       show_id: 'stub-show-id',
+      guid: 'stub-guid-' + episodeId,
+      episode_url: 'https://example.com/audio.mp3',
       title: 'Stubbed Episode Title',
       description: 'Stubbed episode description',
-      audio_url: 'https://example.com/audio.mp3',
-      duration: 3600, // 1 hour in seconds
-      published_at: new Date().toISOString(),
+      pub_date: new Date().toISOString(),
+      duration_sec: 3600, // 1 hour in seconds
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      // Fields needed for transcript service logic
-      rss_url: 'https://example.com/feed.xml', // Stubbed RSS URL
       deleted_at: null, // Not deleted
+      // Show information needed for transcript service logic
+      show: {
+        rss_url: 'https://example.com/feed.xml', // Stubbed RSS URL
+      }
     };
   }
 } 
