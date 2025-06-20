@@ -1,5 +1,12 @@
-// TODO: Import PodcastEpisodeRow type once it's defined in shared types
-type PodcastEpisodeRow = any; // Temporary placeholder
+import { DatabaseRow } from '../../../shared/src/types/supabase.js';
+import { Logger } from '../logger.js';
+
+// Use the database row type for podcast episodes
+// Note: Adding rss_url and deleted_at fields that exist in DB but may not be in current type definition
+type PodcastEpisodeRow = DatabaseRow<'podcast_episodes'> & {
+  rss_url?: string | null;
+  deleted_at?: string | null;
+};
 
 /**
  * TranscriptService - Central service for all transcript-related operations
@@ -14,6 +21,11 @@ type PodcastEpisodeRow = any; // Temporary placeholder
  * @todo Ticket #7: Add cost tracking and provenance metadata
  */
 export class TranscriptService {
+  private logger: Logger;
+
+  constructor() {
+    this.logger = new Logger();
+  }
   /**
    * Retrieve transcript for an episode by ID
    * Currently returns null (stub implementation)
@@ -53,7 +65,13 @@ export class TranscriptService {
     // If we reach here, arg is a PodcastEpisodeRow object
     const episode = arg;
     
-    // STUB BEHAVIOR: Always return null for now
+    // Check if episode is eligible for transcript processing
+    if (!this.isEpisodeEligible(episode)) {
+      // Short-circuit: return null for ineligible episodes
+      return null;
+    }
+    
+    // STUB BEHAVIOR: Always return null for now (for eligible episodes)
     // TODO: Future provider logic will be implemented here in the following order:
     // 1. Check if transcript already exists in database
     // 2. Try Taddy Free lookup (no cost)
@@ -64,6 +82,48 @@ export class TranscriptService {
   }
 
   /**
+   * Private helper to check if an episode is eligible for transcript processing
+   * @param episode - The episode row to check
+   * @returns true if episode is eligible, false otherwise
+   * @private
+   */
+  private isEpisodeEligible(episode: PodcastEpisodeRow): boolean {
+    // Episode is ineligible if it has been deleted
+    if (episode.deleted_at !== null) {
+      this.logger.debug('system', 'Episode ineligible for transcript processing: deleted', {
+        metadata: { 
+          episode_id: episode.id, 
+          deleted_at: episode.deleted_at,
+          reason: 'episode_deleted'
+        }
+      });
+      return false;
+    }
+
+    // Episode is ineligible if it doesn't have an RSS URL
+    if (!episode.rss_url || episode.rss_url.trim() === '') {
+      this.logger.debug('system', 'Episode ineligible for transcript processing: missing RSS URL', {
+        metadata: { 
+          episode_id: episode.id, 
+          rss_url: episode.rss_url,
+          reason: 'missing_rss_url'
+        }
+      });
+      return false;
+    }
+
+    // Episode is eligible if it passes all checks
+    this.logger.debug('system', 'Episode eligible for transcript processing', {
+      metadata: { 
+        episode_id: episode.id,
+        rss_url: episode.rss_url,
+        status: 'eligible'
+      }
+    });
+    return true;
+  }
+
+  /**
    * Private helper to fetch episode by ID (stubbed implementation)
    * @param episodeId - UUID of the episode to fetch
    * @returns Promise resolving to a stubbed episode row
@@ -71,12 +131,20 @@ export class TranscriptService {
    */
   private async fetchEpisodeById(episodeId: string): Promise<PodcastEpisodeRow> {
     // TODO: Replace with actual Supabase database query
-    // For now, return a minimal stubbed episode object
+    // For now, return a minimal stubbed episode object with all required fields
     return {
       id: episodeId,
+      show_id: 'stub-show-id',
+      title: 'Stubbed Episode Title',
+      description: 'Stubbed episode description',
+      audio_url: 'https://example.com/audio.mp3',
+      duration: 3600, // 1 hour in seconds
+      published_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      // Fields needed for transcript service logic
       rss_url: 'https://example.com/feed.xml', // Stubbed RSS URL
       deleted_at: null, // Not deleted
-      // Add other required fields as needed when proper type is defined
-    } as PodcastEpisodeRow;
+    };
   }
 } 
