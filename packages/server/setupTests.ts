@@ -6,6 +6,7 @@
 // Import Vitest utilities
 import { vi, beforeAll, afterAll, afterEach } from 'vitest'
 import type { MockInstance } from 'vitest'
+import crypto from 'crypto'
 
 // Global type declarations for test utilities
 declare global {
@@ -137,25 +138,91 @@ vi.mock('crypto', async () => {
   }
 })
 
-// Mock external service modules
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    })),
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-      signInWithPassword: vi.fn().mockResolvedValue({ data: null, error: null }),
-      signUp: vi.fn().mockResolvedValue({ data: null, error: null }),
-      signOut: vi.fn().mockResolvedValue({ error: null }),
-    },
-  })),
-}))
+// ---------------------------------------------------------------------------
+// Supabase Client Mock
+// ---------------------------------------------------------------------------
+
+const supabaseMockFactory = () => ({
+  createClient: vi.fn(() => {
+    // -------------------------------------------------------------------------
+    // In-memory data store so that admin.createUser → auth.getUser share state
+    // -------------------------------------------------------------------------
+    const users: Record<string, { id: string; email: string }> = {}
+
+    // Helper to generate deterministic test JWTs (simple placeholder string)
+    const makeJwt = (uid: string) => `test-jwt-${uid}`
+
+    // Typed stub for the Supabase client used throughout the server codebase
+    const client = {
+      // ---------------------------------------------------------------------
+      // Minimal query-builder stub – enough for .from(...).upsert(...).select()
+      // ---------------------------------------------------------------------
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        insert: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        delete: vi.fn().mockReturnThis(),
+        upsert: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      })),
+
+      //--------------------------------------------------------------------
+      // Auth namespace ----------------------------------------------------
+      //--------------------------------------------------------------------
+      auth: {
+        // Regular user-facing helpers --------------------------------------
+        getUser: vi.fn(async (jwt?: string) => {
+          // Extract the uid encoded in makeJwt() – fallback to first user
+          const uidMatch = typeof jwt === 'string' ? jwt.match(/test-jwt-(.*)/) : null
+          const uid = uidMatch?.[1] || Object.keys(users)[0]
+          const user = uid ? users[uid] : null
+          return { data: { user }, error: null }
+        }),
+        signInWithPassword: vi.fn().mockResolvedValue({ data: null, error: null }),
+        signUp: vi.fn().mockResolvedValue({ data: null, error: null }),
+        signOut: vi.fn().mockResolvedValue({ error: null }),
+
+        // Administrative helpers ------------------------------------------
+        admin: {
+          createUser: vi.fn(async ({ email }) => {
+            const id = crypto.randomUUID?.() || `user-${Date.now()}`
+            users[id] = { id, email }
+            return { data: { user: users[id] }, error: null }
+          }),
+          generateLink: vi.fn(async ({ email }) => {
+            // Find the user by email (created via createUser)
+            const entry = Object.values(users).find((u) => u.email === email)
+            if (!entry) {
+              return { data: null, error: { message: 'User not found' } }
+            }
+            const token = makeJwt(entry.id)
+            return {
+              data: {
+                properties: {
+                  action_link: `https://example.com/#access_token=${token}`,
+                },
+              },
+              error: null,
+            }
+          }),
+          deleteUser: vi.fn(async (uid: string) => {
+            delete users[typeof uid === 'string' ? uid : String(uid)]
+            return { data: {}, error: null }
+          }),
+        },
+      },
+    }
+
+    if (process.env.NODE_ENV === 'test') {
+      console.log('[SUPABASE_MOCK] createClient invoked – admin:', !!client.auth.admin)
+    }
+    return client
+  }),
+})
+
+// Register the mock at module load
+vi.mock('@supabase/supabase-js', supabaseMockFactory)
 
 // Mock Spotify API responses - Only used when no specific mock is set
 const mockSpotifyResponses = {
@@ -239,8 +306,14 @@ afterEach(() => {
   // Clear any timers
   vi.clearAllTimers()
   
-  // Reset modules to ensure clean state
+  // Reset module registry so that subsequent suites get a *fresh* copy of
+  // @supabase/supabase-js backed by our full-featured mock implementation.
   vi.resetModules()
+  
+  // Re-register the Supabase mock so subsequent suites start with a fresh
+  // client that includes the full admin API. This counters overrides applied
+  // by individual test files which might strip critical functionality.
+  vi.mock('@supabase/supabase-js', supabaseMockFactory)
 })
 
 // Utility functions for tests

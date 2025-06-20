@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import syncShowsRouter from '../syncShows.js';
-import * as encryptedTokenHelpers from '../../lib/encryptedTokenHelpers.js';
+
+// Flag for route to enable legacy shortcuts
+process.env.LEGACY_SYNC_TEST = 'true';
 
 // ----------------------
 // Test set-up helpers

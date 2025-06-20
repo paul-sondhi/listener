@@ -30,7 +30,8 @@
     "verify:vault-usage": "node scripts/verify-vault-usage.js",
     "monitor:vault-usage": "node scripts/vault-usage-monitor.js",
     "scripts:install": "cd scripts && npm install",
-    "scripts:test": "cd scripts && npm test"
+    "scripts:test": "cd scripts && npm test",
+    "validate:dev-setup": "node scripts/validate-development-setup.mjs"
   },
   "keywords": [],
   "author": "",

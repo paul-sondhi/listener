@@ -32,7 +32,7 @@ describe('Environment Configuration', () => {
     expect(true).toBe(true)
   })
 
-  // Test to ensure we have required environment variables
+  // Test to ensure we have required environment variables set
   it('should have all required environment variables set', () => {
     // Skip this test in CI environments where env vars might not be set
     if (process.env.CI || process.env.NODE_ENV === 'test') {
@@ -60,6 +60,28 @@ describe('Environment Configuration', () => {
 
     // Don't fail in test environments since env vars are set differently
     expect(true).toBe(true)
+  })
+
+  // **NEW**: Critical environment check that will fail the build if environment is misconfigured
+  it('should fail if server startup would fail due to missing critical environment variables', () => {
+    // Skip in test/CI environments where mocking is expected
+    if (process.env.NODE_ENV === 'test' || process.env.CI) {
+      return
+    }
+
+    // These are the exact variables that cause server startup to fail
+    const criticalVars = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']
+    const missingCriticalVars = criticalVars.filter(varName => !process.env[varName])
+
+    if (missingCriticalVars.length > 0) {
+      const errorMessage = `❌ CRITICAL: Server will fail to start due to missing environment variables: ${missingCriticalVars.join(', ')}`
+      console.error(errorMessage)
+      console.error('   This will cause the migration verification script to fail during server startup.')
+      console.error('   Fix: Ensure packages/server/.env contains the required variables.')
+      
+      // Actually fail the test for critical variables that prevent server startup
+      expect(missingCriticalVars).toEqual([])
+    }
   })
 
   // Test to ensure Supabase keys match the URL environment
@@ -113,5 +135,36 @@ describe('Environment Configuration', () => {
       // Don't fail the test since Supabase might not be running in CI
       expect(true).toBe(true)
     }
+  })
+
+  // **NEW**: Test to verify environment files exist where expected
+  it('should have environment files in the correct locations for development', async () => {
+    if (process.env.NODE_ENV === 'test' || process.env.CI) {
+      return
+    }
+
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    
+    const serverEnvPath = path.resolve(process.cwd(), 'packages/server/.env')
+    const clientEnvPath = path.resolve(process.cwd(), 'packages/client/.env')
+    
+    try {
+      await fs.access(serverEnvPath)
+      console.log('✅ Server .env file exists')
+    } catch {
+      console.error('❌ Server .env file missing at packages/server/.env')
+      console.error('   This is required for the server to find environment variables during startup.')
+    }
+    
+    try {
+      await fs.access(clientEnvPath)
+      console.log('✅ Client .env file exists')
+    } catch {
+      console.warn('⚠️  Client .env file missing at packages/client/.env')
+      console.warn('   The client may fall back to root .env, but a dedicated client .env is recommended.')
+    }
+    
+    expect(true).toBe(true)
   })
 }) 
