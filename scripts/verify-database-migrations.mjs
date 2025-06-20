@@ -21,8 +21,12 @@ import { createClient } from '@supabase/supabase-js'
 import { resolve } from 'path'
 import { config } from 'dotenv'
 
-// Load environment variables from .env file
-config({ path: resolve(process.cwd(), '.env') })
+// Load environment variables from consolidated .env files
+// Priority: .env.local (local dev) overrides .env (defaults)
+// Always look in project root directory, regardless of where script is run from
+const projectRoot = resolve(import.meta.url.includes('/scripts/') ? process.cwd() + '/..' : process.cwd())
+config({ path: resolve(projectRoot, '.env') })
+config({ path: resolve(projectRoot, '.env.local'), override: true })
 
 // Configuration
 const REQUIRED_ENV_VARS = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']
@@ -79,7 +83,7 @@ function checkEnvironmentVariables() {
  */
 async function getLocalMigrations() {
   try {
-    const migrationsDir = resolve(process.cwd(), 'supabase/migrations')
+    const migrationsDir = resolve(projectRoot, 'supabase/migrations')
     const fs = await import('fs/promises')
     const files = await fs.readdir(migrationsDir)
     
