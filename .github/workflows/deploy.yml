@@ -34,6 +34,7 @@ jobs:
         # Generate typed SDK for Taddy API before running tests
         env:
           TADDY_API_KEY: ${{ secrets.TADDY_API_KEY }}
+          TADDY_USER_ID: ${{ secrets.TADDY_USER_ID }}
         run: npm run codegen
 
       - name: Run All Tests
