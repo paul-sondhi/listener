@@ -33,9 +33,6 @@ export interface PodcastEpisode extends BaseEntity {
     created_at: string;
     updated_at: string;
 }
-export interface EpisodeWithShow extends PodcastEpisode {
-    show: PodcastShow;
-}
 export interface RssFeedItem {
     title: string;
     description: string;

@@ -40,10 +40,10 @@ export interface PodcastEpisode extends BaseEntity {
   updated_at: string;
 }
 
-// Episode with show information
-export interface EpisodeWithShow extends PodcastEpisode {
-  show: PodcastShow;
-}
+// Episode with show information (deprecated - use EpisodeWithShow from supabase.ts)
+// export interface EpisodeWithShow extends PodcastEpisode {
+//   show: PodcastShow;
+// }
 
 // RSS feed item structure
 export interface RssFeedItem {

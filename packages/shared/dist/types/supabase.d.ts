@@ -86,56 +86,38 @@ export interface DatabaseTables {
         Row: {
             id: string;
             show_id: string;
-            title: string;
-            description: string;
-            audio_url: string;
-            duration: number;
-            published_at: string;
-            episode_number?: number;
-            season_number?: number;
-            image_url?: string;
-            file_size?: number;
-            mime_type?: string;
-            transcript?: string;
-            transcript_confidence?: number;
+            guid: string;
+            episode_url: string;
+            title?: string;
+            description?: string;
+            pub_date?: string;
+            duration_sec?: number;
             created_at: string;
-            updated_at: string;
+            deleted_at?: string;
         };
         Insert: {
             id?: string;
             show_id: string;
-            title: string;
-            description: string;
-            audio_url: string;
-            duration: number;
-            published_at: string;
-            episode_number?: number;
-            season_number?: number;
-            image_url?: string;
-            file_size?: number;
-            mime_type?: string;
-            transcript?: string;
-            transcript_confidence?: number;
+            guid: string;
+            episode_url: string;
+            title?: string;
+            description?: string;
+            pub_date?: string;
+            duration_sec?: number;
             created_at?: string;
-            updated_at?: string;
+            deleted_at?: string;
         };
         Update: {
             id?: string;
             show_id?: string;
+            guid?: string;
+            episode_url?: string;
             title?: string;
             description?: string;
-            audio_url?: string;
-            duration?: number;
-            published_at?: string;
-            episode_number?: number;
-            season_number?: number;
-            image_url?: string;
-            file_size?: number;
-            mime_type?: string;
-            transcript?: string;
-            transcript_confidence?: number;
+            pub_date?: string;
+            duration_sec?: number;
             created_at?: string;
-            updated_at?: string;
+            deleted_at?: string;
         };
     };
     transcription_jobs: {
@@ -249,4 +231,9 @@ export interface Database {
         Tables: DatabaseTables;
     };
 }
+export type EpisodeWithShow = DatabaseRow<'podcast_episodes'> & {
+    show?: {
+        rss_url?: string | null;
+    };
+};
 //# sourceMappingURL=supabase.d.ts.map

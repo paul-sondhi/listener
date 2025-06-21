@@ -3,7 +3,7 @@
  * Mirrors the database schema for the transcripts table
  */
 import { BaseEntity } from './common.js';
-export type TranscriptStatus = 'pending' | 'available' | 'error';
+export type TranscriptStatus = 'full' | 'partial' | 'not_found' | 'no_match' | 'error';
 export interface Transcript extends BaseEntity {
     id: string;
     episode_id: string;

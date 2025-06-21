@@ -6,7 +6,7 @@
 import { BaseEntity } from './common.js';
 
 // Transcript status values (must match database check constraint)
-export type TranscriptStatus = 'pending' | 'available' | 'error';
+export type TranscriptStatus = 'full' | 'partial' | 'not_found' | 'no_match' | 'error';
 
 // Main transcript entity - mirrors the transcripts database table
 export interface Transcript extends BaseEntity {

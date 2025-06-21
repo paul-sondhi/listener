@@ -18,7 +18,41 @@ const supabase: SupabaseClient = createClient(
 );
 
 /**
- * Insert a new transcript record with 'pending' status
+ * Insert a new transcript record with specified status
+ * @param episodeId - UUID of the episode this transcript belongs to
+ * @param storagePath - Full path to the transcript file in storage bucket
+ * @param status - Transcript status (full, partial, not_found, no_match, error)
+ * @returns Promise<Transcript> The created transcript record
+ * @throws Error if insertion fails or episode_id doesn't exist
+ */
+export async function insertTranscript(
+  episodeId: string, 
+  storagePath: string,
+  status: TranscriptStatus
+): Promise<Transcript> {
+  const { data, error } = await supabase
+    .from('transcripts')
+    .insert({
+      episode_id: episodeId,
+      storage_path: storagePath,
+      status: status
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to insert transcript: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error('No data returned from transcript insertion');
+  }
+
+  return data as Transcript;
+}
+
+/**
+ * Insert a new transcript record with 'full' status (for backward compatibility)
  * @param episodeId - UUID of the episode this transcript belongs to
  * @param storagePath - Full path to the transcript file in storage bucket
  * @returns Promise<Transcript> The created transcript record
@@ -28,25 +62,7 @@ export async function insertPending(
   episodeId: string, 
   storagePath: string
 ): Promise<Transcript> {
-  const { data, error } = await supabase
-    .from('transcripts')
-    .insert({
-      episode_id: episodeId,
-      storage_path: storagePath,
-      status: 'pending' as TranscriptStatus
-    })
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to insert pending transcript: ${error.message}`);
-  }
-
-  if (!data) {
-    throw new Error('No data returned from transcript insertion');
-  }
-
-  return data as Transcript;
+  return insertTranscript(episodeId, storagePath, 'full');
 }
 
 /**
@@ -267,8 +283,10 @@ export async function getStatusCounts(
 
   // Count by status
   const counts: Record<TranscriptStatus, number> = {
-    pending: 0,
-    available: 0,
+    full: 0,
+    partial: 0,
+    not_found: 0,
+    no_match: 0,
     error: 0
   };
 
