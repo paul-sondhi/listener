@@ -27,7 +27,7 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
   maxDelay: 10000, // 10 seconds
   backoffMultiplier: 2,
   jitterFactor: 0.1,
-  shouldRetry: (error: unknown, attempt: number) => {
+  shouldRetry: (error: unknown, _attempt: number) => {
     // Retry on network errors and 5xx HTTP status codes
     if (error instanceof Error) {
       const message = error.message.toLowerCase();

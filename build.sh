@@ -25,6 +25,9 @@ cd "$PROJECT_ROOT"
 echo "📦 Installing dependencies..."
 npm install
 
+echo "🔄 Generating GraphQL types..."
+npm run codegen
+
 echo "🏗️ Building server package..."
 npm run build -w @listener/server
 

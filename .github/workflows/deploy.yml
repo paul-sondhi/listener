@@ -30,6 +30,12 @@ jobs:
         # If you have issues with npm install, consider switching to npm ci.
         run: npm install
 
+      - name: Generate GraphQL types
+        # Generate typed SDK for Taddy API before running tests
+        env:
+          TADDY_API_KEY: ${{ secrets.TADDY_API_KEY }}
+        run: npm run codegen
+
       - name: Run All Tests
         run: npm test # Runs all tests defined in your root package.json
 
