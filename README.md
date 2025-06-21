@@ -67,6 +67,14 @@ A podcast transcription service that integrates with Spotify.
    # Security
    JWT_SECRET=your_jwt_secret
    TOKEN_ENC_KEY=your_32_char_encryption_key
+   
+   # Transcript Worker (Optional - defaults provided)
+   TRANSCRIPT_WORKER_ENABLED=true        # Enable nightly transcript sync
+   TRANSCRIPT_WORKER_CRON=0 1 * * *      # Run at 1 AM daily
+   TRANSCRIPT_LOOKBACK=24                # Hours to scan for new episodes
+   TRANSCRIPT_MAX_REQUESTS=15            # Max API calls per run
+   TRANSCRIPT_CONCURRENCY=10             # Max simultaneous requests
+   TRANSCRIPT_ADVISORY_LOCK=true         # Prevent overlapping runs
    ```
 
 3. **Verify setup:**
@@ -215,11 +223,18 @@ import { runJob } from './services/backgroundJobs.js';
 await runJob('daily_subscription_refresh');
 "
 
+# Manually trigger transcript worker
+cd packages/server
+npx tsx -e "
+import { runJob } from './services/backgroundJobs.js';
+await runJob('transcript_worker');
+"
+
 # Check what jobs are available
 cd packages/server
 npx tsx -e "
 import { runJob } from './services/backgroundJobs.js';
-console.log('Available jobs: episode_sync, daily_subscription_refresh');
+console.log('Available jobs: episode_sync, daily_subscription_refresh, transcript_worker');
 "
 ```
 
@@ -510,6 +525,66 @@ await runJob('episode_sync');
 - Check application logs for `BACKGROUND_JOB` and `episode_sync` entries
 - Failed syncs are logged with detailed error information
 - Metrics are emitted for job duration and success/failure rates
+
+#### 6. Configure Transcript Worker Background Job
+
+The transcript worker runs nightly to discover and store episode transcripts from the Taddy API. This job processes episodes published in the last 24 hours and fetches available transcripts.
+
+```bash
+# Enable/disable the transcript worker (default: enabled)
+TRANSCRIPT_WORKER_ENABLED=true
+
+# Configure the schedule (default: 1 AM Pacific Time)
+TRANSCRIPT_WORKER_CRON=0 1 * * *
+
+# Configure lookback window (default: 24 hours)
+TRANSCRIPT_LOOKBACK=24
+
+# Configure API usage limits (defaults optimized for Free tier)
+TRANSCRIPT_MAX_REQUESTS=15            # Max Taddy API calls per run
+TRANSCRIPT_CONCURRENCY=10             # Max simultaneous requests
+
+# Enable advisory lock to prevent overlapping runs (default: enabled)
+TRANSCRIPT_ADVISORY_LOCK=true
+```
+
+**Job Schedule Examples:**
+```bash
+# Every night at 1 AM PT (default)
+TRANSCRIPT_WORKER_CRON=0 1 * * *
+
+# Every night at 3 AM ET  
+TRANSCRIPT_WORKER_CRON=0 3 * * *
+
+# Every 12 hours
+TRANSCRIPT_WORKER_CRON=0 */12 * * *
+
+# Disable the job entirely
+TRANSCRIPT_WORKER_ENABLED=false
+```
+
+**Manual Job Execution:**
+```bash
+# Trigger transcript worker manually (for testing or backfills)
+cd packages/server
+npx tsx -e "
+import { runJob } from './services/backgroundJobs.js';
+await runJob('transcript_worker');
+"
+```
+
+**API Usage & Limits:**
+- Uses Taddy Free API (500 requests/month limit)
+- Default configuration uses max 15 requests per night (≈450/month)
+- Respects rate limits with configurable concurrency
+- Only processes episodes without existing transcripts (idempotent)
+- Stores transcripts in Supabase Storage with metadata in `transcripts` table
+
+**Monitoring:**
+- Job execution logs include transcript counts and API usage
+- Check application logs for `BACKGROUND_JOB` and `transcript_worker` entries
+- Failed transcript fetches are logged with episode details
+- Advisory lock prevents overlapping runs in multi-instance deployments
 
 ### Post-Deployment Cleanup
 
