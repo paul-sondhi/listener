@@ -83,8 +83,6 @@ function isValidCronExpression(cronExpression: string): boolean {
   }
 
   // Each part should be either a number, *, or contain valid cron characters
-  const cronPartRegex = /^(\*|(\d+(-\d+)?(,\d+(-\d+)?)*)|(\*\/\d+))$/;
-  
   return parts.every((part, index) => {
     // Allow more complex patterns for each field
     if (part === '*') return true;

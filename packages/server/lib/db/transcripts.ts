@@ -3,7 +3,8 @@
  * Provides CRUD operations for the transcripts table with proper error handling
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { getSharedSupabaseClient } from './sharedSupabaseClient';
 import { 
   Transcript, 
   TranscriptStatus, 
@@ -16,13 +17,7 @@ let supabase: SupabaseClient | null = null;
 
 function getSupabaseClient(): SupabaseClient {
   if (!supabase) {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Missing required Supabase environment variables: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
-    }
-    supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    supabase = getSharedSupabaseClient();
   }
   return supabase;
 }
@@ -62,7 +57,7 @@ export async function insertTranscript(
 }
 
 /**
- * Insert a new transcript record with 'full' status (for backward compatibility)
+ * Insert a new transcript record with 'pending' status
  * @param episodeId - UUID of the episode this transcript belongs to
  * @param storagePath - Full path to the transcript file in storage bucket
  * @returns Promise<Transcript> The created transcript record
@@ -72,7 +67,7 @@ export async function insertPending(
   episodeId: string, 
   storagePath: string
 ): Promise<Transcript> {
-  return insertTranscript(episodeId, storagePath, 'full');
+  return insertTranscript(episodeId, storagePath, 'pending');
 }
 
 /**

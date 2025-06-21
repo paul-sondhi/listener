@@ -5,8 +5,13 @@
 
 import { BaseEntity } from './common.js';
 
-// Transcript status values (must match database check constraint)
-export type TranscriptStatus = 'full' | 'partial' | 'not_found' | 'no_match' | 'error';
+/**
+ * Valid transcript processing status values that match database constraints
+ * - pending: Transcript requested but not yet processed
+ * - available: Transcript successfully processed and stored
+ * - error: Transcript processing failed
+ */
+export type TranscriptStatus = 'pending' | 'available' | 'error';
 
 // Main transcript entity - mirrors the transcripts database table
 export interface Transcript extends BaseEntity {

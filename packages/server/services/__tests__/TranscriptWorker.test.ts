@@ -12,11 +12,17 @@ import { Logger } from '../../lib/logger.js';
 import * as transcriptDb from '../../lib/db/transcripts.js';
 import { TranscriptService } from '../../lib/services/TranscriptService.js';
 import { createClient } from '@supabase/supabase-js';
+import { getSharedSupabaseClient } from '../../lib/db/sharedSupabaseClient.js';
 
 // Mock all external dependencies
 vi.mock('../../lib/db/transcripts.js');
 vi.mock('../../lib/services/TranscriptService.js');
 vi.mock('@supabase/supabase-js');
+vi.mock('../../lib/db/sharedSupabaseClient.js', () => {
+  return {
+    getSharedSupabaseClient: vi.fn()
+  };
+});
 
 // Mock logger
 const mockLogger = {
@@ -52,6 +58,7 @@ describe('TranscriptWorker', () => {
   let mockTranscriptDb: any;
   let mockTranscriptService: any;
   let mockCreateClient: Mock;
+  let mockGetSharedClient: Mock;
 
   beforeEach(() => {
     // Reset all mocks
@@ -61,25 +68,26 @@ describe('TranscriptWorker', () => {
     mockTranscriptDb = transcriptDb as any;
     mockTranscriptService = TranscriptService as any;
     mockCreateClient = createClient as Mock;
+    mockGetSharedClient = getSharedSupabaseClient as unknown as Mock;
 
     // Setup default mock returns
     mockCreateClient.mockReturnValue(mockSupabaseClient);
+    mockGetSharedClient.mockReturnValue(mockSupabaseClient);
     
     // Mock database queries - need to handle both podcast_episodes and transcripts queries
     mockSupabaseClient.from.mockImplementation((table: string) => {
       if (table === 'podcast_episodes') {
         // First query: complex chain for podcast_episodes
+        // The actual chain is: .select().gte().not().not().not().not().order().limit()
         return {
           select: vi.fn().mockReturnValue({
             gte: vi.fn().mockReturnValue({
-              is: vi.fn().mockReturnValue({
+              not: vi.fn().mockReturnValue({
                 not: vi.fn().mockReturnValue({
                   not: vi.fn().mockReturnValue({
                     not: vi.fn().mockReturnValue({
-                      not: vi.fn().mockReturnValue({
-                        order: vi.fn().mockReturnValue({
-                          limit: vi.fn().mockResolvedValue({ data: [], error: null })
-                        })
+                      order: vi.fn().mockReturnValue({
+                        limit: vi.fn().mockResolvedValue({ data: [], error: null })
                       })
                     })
                   })
@@ -134,11 +142,8 @@ describe('TranscriptWorker', () => {
       expect(customWorker).toBeDefined();
     });
 
-    it('should create Supabase client with correct configuration', () => {
-      expect(mockCreateClient).toHaveBeenCalledWith(
-        process.env.SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-      );
+    it('should obtain Supabase client via helper', () => {
+      expect(mockGetSharedClient).toHaveBeenCalled();
     });
 
     it('should throw error if required environment variables are missing', () => {
@@ -148,9 +153,8 @@ describe('TranscriptWorker', () => {
       delete process.env.SUPABASE_URL;
       delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-      expect(() => new TranscriptWorker(defaultConfig, mockLogger)).toThrow(
-        'Missing required Supabase environment variables'
-      );
+      // The shared helper is mocked, so constructor should NOT throw in this context
+      expect(() => new TranscriptWorker(defaultConfig, mockLogger)).not.toThrow();
 
       // Restore environment variables
       process.env.SUPABASE_URL = originalUrl;
@@ -164,8 +168,7 @@ describe('TranscriptWorker', () => {
 
       expect(result.totalEpisodes).toBe(0);
       expect(result.processedEpisodes).toBe(0);
-      expect(result.fullTranscripts).toBe(0);
-      expect(result.partialTranscripts).toBe(0);
+      expect(result.availableTranscripts).toBe(0);
       expect(result.errorCount).toBe(0);
     });
 

@@ -13,8 +13,8 @@
  * - Configuration summary generation
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getTranscriptWorkerConfig, TranscriptWorkerConfig } from '../transcriptWorkerConfig.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { getTranscriptWorkerConfig } from '../transcriptWorkerConfig.js';
 
 // Store original environment variables for restoration
 let originalEnv: Record<string, string | undefined>;

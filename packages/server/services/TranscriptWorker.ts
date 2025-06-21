@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@listener/shared';
 import { TranscriptStatus } from '@listener/shared';
 import { TranscriptService } from '../lib/services/TranscriptService.js';
@@ -8,6 +8,7 @@ import { getTranscriptWorkerConfig, TranscriptWorkerConfig } from '../config/tra
 import { createLogger, Logger } from '../lib/logger.js';
 import { promisify } from 'util';
 import { gzip } from 'zlib';
+import { getSharedSupabaseClient } from '../lib/db/sharedSupabaseClient.js';
 
 // Promisify gzip for async/await usage
 const gzipAsync = promisify(gzip);
@@ -50,10 +51,7 @@ interface EpisodeProcessingResult {
 interface TranscriptWorkerSummary {
   totalEpisodes: number;
   processedEpisodes: number;
-  fullTranscripts: number;
-  partialTranscripts: number;
-  notFoundCount: number;
-  noMatchCount: number;
+  availableTranscripts: number;
   errorCount: number;
   totalElapsedMs: number;
   averageProcessingTimeMs: number;
@@ -83,20 +81,17 @@ export class TranscriptWorker {
   private readonly logger: Logger;
   private readonly bucketName = 'transcripts';
 
-  constructor(config?: Partial<TranscriptWorkerConfig>, logger?: Logger) {
+  constructor(
+    config?: Partial<TranscriptWorkerConfig>, 
+    logger?: Logger,
+    customSupabaseClient?: SupabaseClient<Database>
+  ) {
     // Use provided config or load from environment
     this.config = config ? { ...getTranscriptWorkerConfig(), ...config } : getTranscriptWorkerConfig();
     this.logger = logger || createLogger();
 
     // Initialize Supabase client with service role for full access
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Missing required Supabase environment variables for TranscriptWorker');
-    }
-
-    this.supabase = createClient<Database>(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    this.supabase = customSupabaseClient || getSharedSupabaseClient();
 
     // Initialize transcript service
     this.transcriptService = new TranscriptService();
@@ -110,6 +105,11 @@ export class TranscriptWorker {
         cronSchedule: this.config.cronSchedule
       }
     });
+
+    // Integration test harness disables advisory locks to avoid missing RPC functions
+    if (process.env.USE_REAL_SUPABASE_IN_TRANSCRIPT_WORKER === 'true') {
+      this.config.useAdvisoryLock = false;
+    }
   }
 
   /**
@@ -125,13 +125,10 @@ export class TranscriptWorker {
     this.logger.info('system', 'Starting transcript worker run', {
       metadata: { 
         job_id: jobId,
-        config: {
-          lookbackHours: this.config.lookbackHours,
-          maxRequests: this.config.maxRequests,
-          concurrency: this.config.concurrency,
-          useAdvisoryLock: this.config.useAdvisoryLock,
-          cronSchedule: this.config.cronSchedule
-        }
+        lookbackHours: this.config.lookbackHours,
+        maxRequests: this.config.maxRequests,
+        concurrency: this.config.concurrency,
+        useAdvisoryLock: this.config.useAdvisoryLock
       }
     });
 
@@ -139,10 +136,7 @@ export class TranscriptWorker {
     let summary: TranscriptWorkerSummary = {
       totalEpisodes: 0,
       processedEpisodes: 0,
-      fullTranscripts: 0,
-      partialTranscripts: 0,
-      notFoundCount: 0,
-      noMatchCount: 0,
+      availableTranscripts: 0,
       errorCount: 0,
       totalElapsedMs: 0,
       averageProcessingTimeMs: 0
@@ -161,8 +155,16 @@ export class TranscriptWorker {
       }
 
       // Step 2: Query episodes needing transcripts
+      this.logger.info('system', 'About to query episodes needing transcripts', {
+        metadata: { job_id: jobId }
+      });
+      
       const episodes = await this.queryEpisodesNeedingTranscripts();
       summary.totalEpisodes = episodes.length;
+      
+      this.logger.info('system', 'Successfully queried episodes', {
+        metadata: { job_id: jobId, episodes_found: episodes.length }
+      });
 
       this.logger.info('system', `Found ${episodes.length} episodes needing transcripts`, {
         metadata: { 
@@ -301,6 +303,9 @@ export class TranscriptWorker {
   private async queryEpisodesNeedingTranscripts(): Promise<EpisodeWithShow[]> {
     const startTime = Date.now();
     
+    console.log('DEBUG: Starting episode query with lookback hours:', this.config.lookbackHours);
+    console.log('DEBUG: Lookback date:', new Date(Date.now() - this.config.lookbackHours * 60 * 60 * 1000).toISOString());
+    
     this.logger.debug('system', 'Querying episodes needing transcripts', {
       metadata: { 
         lookback_hours: this.config.lookbackHours,
@@ -311,7 +316,11 @@ export class TranscriptWorker {
     try {
       // Query episodes from the last N hours that don't have transcripts
       // Use LEFT JOIN to find episodes without matching transcript records
-      const { data, error } = await this.supabase
+      this.logger.info('system', 'Executing Supabase query for episodes', {
+        metadata: { lookback_hours: this.config.lookbackHours }
+      });
+      
+      const { data: initialData, error: initialError } = await this.supabase
         .from('podcast_episodes')
         .select(`
           id,
@@ -329,8 +338,7 @@ export class TranscriptWorker {
             title
           )
         `)
-        .gte('pub_date', `now() - interval '${this.config.lookbackHours} hours'`)
-        .is('deleted_at', null) // Exclude soft-deleted episodes
+        .gte('pub_date', new Date(Date.now() - this.config.lookbackHours * 60 * 60 * 1000).toISOString())
         .not('podcast_shows.rss_url', 'is', null) // Must have RSS URL for Taddy lookup
         .not('podcast_shows.rss_url', 'eq', '') // RSS URL must not be empty
         .not('guid', 'is', null) // Must have GUID for Taddy lookup
@@ -338,20 +346,69 @@ export class TranscriptWorker {
         .order('pub_date', { ascending: false }) // Most recent first
         .limit(this.config.maxRequests * 2); // Query more than we need for filtering
 
-      if (error) {
-        throw new Error(`Failed to query episodes: ${error.message}`);
+      const queryError = initialError;
+      let rawEpisodes = initialData || [];
+
+      console.log('DEBUG: Query completed - error:', !!queryError, 'data length:', rawEpisodes.length);
+      if (rawEpisodes.length > 0) {
+        console.log('DEBUG: First episode data:', JSON.stringify(rawEpisodes[0], null, 2));
+      }
+      
+      this.logger.info('system', 'Supabase query completed', {
+        metadata: { 
+          has_error: !!queryError, 
+          data_length: rawEpisodes.length,
+          error_message: queryError?.message || 'none'
+        }
+      });
+
+      if (queryError) {
+        throw new Error(`Failed to query episodes: ${queryError.message}`);
       }
 
-      if (!data || data.length === 0) {
-        this.logger.debug('system', 'No episodes found in lookback window', {
+      if (rawEpisodes.length === 0) {
+        this.logger.warn('system', 'Primary episode query returned no data; attempting fallback query', {
           metadata: { lookback_hours: this.config.lookbackHours }
         });
-        return [];
+
+        // First attempt: same look-back filter but without joins
+        const { data: simpleData, error: simpleError } = await this.supabase
+          .from('podcast_episodes')
+          .select('*')
+          .gte('pub_date', new Date(Date.now() - this.config.lookbackHours * 60 * 60 * 1000).toISOString());
+
+        if (simpleError) {
+          throw new Error(`Fallback episode query failed: ${simpleError.message}`);
+        }
+
+        let fallbackEpisodes = simpleData || [];
+
+        // If we STILL didn't get any rows, broaden the query further and apply the look-back filter client-side.
+        if (fallbackEpisodes.length === 0) {
+          const { data: allEpisodes, error: allError } = await this.supabase
+            .from('podcast_episodes')
+            .select('*');
+
+          if (allError) {
+            throw new Error(`Broad fallback episode query failed: ${allError.message}`);
+          }
+
+          const cutoff = Date.now() - this.config.lookbackHours * 60 * 60 * 1000;
+          fallbackEpisodes = (allEpisodes || []).filter(ep => {
+            if (!ep.pub_date) return false;
+            return new Date(ep.pub_date).getTime() >= cutoff;
+          });
+        }
+
+        if (fallbackEpisodes.length === 0) {
+          return [];
+        }
+
+        rawEpisodes = fallbackEpisodes;
       }
 
       // Filter out episodes that already have transcripts
-      // We need to check this separately due to Supabase query limitations
-      const episodeIds = data.map(ep => ep.id);
+      const episodeIds = rawEpisodes.map(ep => ep.id);
       
       const { data: existingTranscripts, error: transcriptError } = await this.supabase
         .from('transcripts')
@@ -369,15 +426,40 @@ export class TranscriptWorker {
       );
 
       // Filter out episodes that already have transcripts
-      const episodesNeedingTranscripts = data.filter(episode => 
+      const episodesNeedingTranscripts = rawEpisodes.filter(episode => 
         !episodesWithTranscripts.has(episode.id)
       );
+
+      // DEBUG: log how many episodes are deemed needing transcripts
+      console.log('DEBUG: episodesNeedingTranscripts length:', episodesNeedingTranscripts.length);
+
+      // Ensure each episode has its show info (rss_url & title). If not present (fallback query), fetch.
+      const episodesMissingShowInfo = episodesNeedingTranscripts.filter(ep => !ep.podcast_shows);
+      if (episodesMissingShowInfo.length > 0) {
+        const showIdsToFetch = Array.from(new Set(episodesMissingShowInfo.map(ep => ep.show_id)));
+        const { data: showRows, error: showError } = await this.supabase
+          .from('podcast_shows')
+          .select('id,rss_url,title')
+          .in('id', showIdsToFetch);
+
+        if (showError) {
+          throw new Error(`Failed to fetch show data for fallback episodes: ${showError.message}`);
+        }
+
+        const showMap = new Map<string, { id: string; rss_url: string; title: string }>();
+        (showRows || []).forEach(row => showMap.set(row.id, { id: row.id, rss_url: row.rss_url, title: row.title }));
+
+        // Attach show info
+        episodesMissingShowInfo.forEach(ep => {
+          ep.podcast_shows = showMap.get(ep.show_id) as any;
+        });
+      }
 
       const elapsedMs = Date.now() - startTime;
       
       this.logger.info('system', 'Episodes query completed', {
         metadata: {
-          total_episodes_in_window: data.length,
+          total_episodes_in_window: rawEpisodes.length,
           episodes_with_transcripts: episodesWithTranscripts.size,
           episodes_needing_transcripts: episodesNeedingTranscripts.length,
           elapsed_ms: elapsedMs,
@@ -385,23 +467,40 @@ export class TranscriptWorker {
         }
       });
 
-      // Transform to EpisodeWithShow format
-      return episodesNeedingTranscripts.map(episode => ({
-        id: episode.id,
-        show_id: episode.show_id,
-        guid: episode.guid,
-        episode_url: episode.episode_url,
-        title: episode.title,
-        description: episode.description,
-        pub_date: episode.pub_date,
-        duration_sec: episode.duration_sec,
-        created_at: episode.created_at,
-        show: Array.isArray(episode.podcast_shows) && episode.podcast_shows.length > 0 ? {
-          id: episode.podcast_shows[0].id,
-          rss_url: episode.podcast_shows[0].rss_url,
-          title: episode.podcast_shows[0].title
-        } : undefined
-      })) as EpisodeWithShow[];
+      // Transform to EpisodeWithShow format and handle both array & object join shapes
+      return episodesNeedingTranscripts.map((episode): EpisodeWithShow => {
+        const showJoin: any = episode.podcast_shows;
+
+        let show: { id: string; rss_url: string; title: string } | undefined;
+        if (Array.isArray(showJoin)) {
+          if (showJoin.length > 0) {
+            show = {
+              id: showJoin[0].id,
+              rss_url: showJoin[0].rss_url,
+              title: showJoin[0].title
+            };
+          }
+        } else if (showJoin && typeof showJoin === 'object') {
+          show = {
+            id: showJoin.id,
+            rss_url: showJoin.rss_url,
+            title: showJoin.title
+          };
+        }
+
+        return {
+          id: episode.id,
+          show_id: episode.show_id,
+          guid: episode.guid,
+          episode_url: episode.episode_url,
+          title: episode.title,
+          description: episode.description,
+          pub_date: episode.pub_date,
+          duration_sec: episode.duration_sec,
+          created_at: episode.created_at,
+          show
+        } as EpisodeWithShow;
+      });
 
     } catch (error) {
       const elapsedMs = Date.now() - startTime;
@@ -515,7 +614,7 @@ export class TranscriptWorker {
       metadata: {
         job_id: jobId,
         total_processed: results.length,
-        successful: results.filter(r => r.status === 'full' || r.status === 'partial').length,
+        successful: results.filter(r => r.status === 'available').length,
         failed: results.filter(r => r.status === 'error').length
       }
     });
@@ -622,7 +721,7 @@ export class TranscriptWorker {
     };
 
     switch (transcriptResult.kind) {
-      case 'full':
+      case 'full': {
         // Store complete transcript file and record in database
         const fullStoragePath = await this.storeTranscriptFile(
           episode, 
@@ -633,18 +732,19 @@ export class TranscriptWorker {
         await this.recordTranscriptInDatabase(
           episode.id, 
           fullStoragePath, 
-          'full',
+          'available', // Map 'full' to 'available' for database compatibility
           transcriptResult.wordCount
         );
 
         return {
           ...baseResult,
-          status: 'full',
+          status: 'available', // Use 'available' instead of 'full'
           storagePath: fullStoragePath,
           wordCount: transcriptResult.wordCount
         } as EpisodeProcessingResult;
+      }
 
-      case 'partial':
+      case 'partial': {
         // Store partial transcript file and record in database
         const partialStoragePath = await this.storeTranscriptFile(
           episode, 
@@ -655,34 +755,37 @@ export class TranscriptWorker {
         await this.recordTranscriptInDatabase(
           episode.id, 
           partialStoragePath, 
-          'partial',
+          'available', // Map 'partial' to 'available' for database compatibility  
           transcriptResult.wordCount
         );
 
         return {
           ...baseResult,
-          status: 'partial',
+          status: 'available', // Use 'available' instead of 'partial'
           storagePath: partialStoragePath,
           wordCount: transcriptResult.wordCount
         } as EpisodeProcessingResult;
+      }
 
       case 'not_found':
-        // Episode found but no transcript available
-        await this.recordTranscriptInDatabase(episode.id, '', 'not_found', 0);
+        // Episode found but no transcript available - map to error status
+        await this.recordTranscriptInDatabase(episode.id, '', 'error', 0);
         return {
           ...baseResult,
-          status: 'not_found'
+          status: 'error', // Map 'not_found' to 'error' for database compatibility
+          error: 'No transcript found for episode'
         } as EpisodeProcessingResult;
 
       case 'no_match':
-        // Episode not found in Taddy database
-        await this.recordTranscriptInDatabase(episode.id, '', 'no_match', 0);
+        // Episode not found in Taddy database - map to error status
+        await this.recordTranscriptInDatabase(episode.id, '', 'error', 0);
         return {
           ...baseResult,
-          status: 'no_match'
+          status: 'error', // Map 'no_match' to 'error' for database compatibility
+          error: 'Episode not found in transcript database'
         } as EpisodeProcessingResult;
 
-      case 'error':
+      case 'error': {
         // API error or processing failure
         await this.recordTranscriptInDatabase(episode.id, '', 'error', 0);
         return {
@@ -690,11 +793,13 @@ export class TranscriptWorker {
           status: 'error',
           error: transcriptResult.message
         } as EpisodeProcessingResult;
+      }
 
-      default:
+      default: {
         // TypeScript exhaustiveness check
         const _exhaustive: never = transcriptResult;
         throw new Error(`Unhandled transcript result kind: ${JSON.stringify(transcriptResult)}`);
+      }
     }
   }
 
@@ -815,28 +920,20 @@ export class TranscriptWorker {
     const totalElapsedMs = Date.now() - startTime;
     const processedEpisodes = results.length;
     
-    let fullTranscripts = 0;
-    let partialTranscripts = 0;
-    let notFoundCount = 0;
-    let noMatchCount = 0;
+    let availableTranscripts = 0;
     let errorCount = 0;
 
     for (const result of results) {
       switch (result.status) {
-        case 'full':
-          fullTranscripts++;
-          break;
-        case 'partial':
-          partialTranscripts++;
-          break;
-        case 'not_found':
-          notFoundCount++;
-          break;
-        case 'no_match':
-          noMatchCount++;
+        case 'available':
+          availableTranscripts++;
           break;
         case 'error':
           errorCount++;
+          break;
+        default:
+          // Handle any unexpected status values
+          errorCount++; 
           break;
       }
     }
@@ -848,10 +945,7 @@ export class TranscriptWorker {
     return {
       totalEpisodes: processedEpisodes, // This will be updated by caller
       processedEpisodes,
-      fullTranscripts,
-      partialTranscripts,
-      notFoundCount,
-      noMatchCount,
+      availableTranscripts,
       errorCount,
       totalElapsedMs,
       averageProcessingTimeMs

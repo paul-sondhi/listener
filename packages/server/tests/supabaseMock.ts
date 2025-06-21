@@ -32,13 +32,15 @@ const db: Record<string, any[]> = {
   podcast_shows: [],
   user_podcast_subscriptions: [],
   podcast_episodes: [],
+  transcripts: [],
 
   // Information schema tables for debugging
   'information_schema.tables': [
     { table_name: 'users' },
     { table_name: 'podcast_shows' },
     { table_name: 'user_podcast_subscriptions' },
-    { table_name: 'podcast_episodes' }
+    { table_name: 'podcast_episodes' },
+    { table_name: 'transcripts' }
   ],
   'information_schema.columns': [
     // users table columns
@@ -79,7 +81,17 @@ const db: Record<string, any[]> = {
     { table_name: 'podcast_episodes', column_name: 'pub_date', data_type: 'timestamp with time zone', is_nullable: 'YES' },
     { table_name: 'podcast_episodes', column_name: 'duration_sec', data_type: 'integer', is_nullable: 'YES' },
     { table_name: 'podcast_episodes', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
-    { table_name: 'podcast_episodes', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' }
+    { table_name: 'podcast_episodes', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    
+    // transcripts table columns
+    { table_name: 'transcripts', column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
+    { table_name: 'transcripts', column_name: 'episode_id', data_type: 'uuid', is_nullable: 'NO' },
+    { table_name: 'transcripts', column_name: 'storage_path', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'transcripts', column_name: 'status', data_type: 'text', is_nullable: 'NO' },
+    { table_name: 'transcripts', column_name: 'word_count', data_type: 'integer', is_nullable: 'YES' },
+    { table_name: 'transcripts', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'transcripts', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'transcripts', column_name: 'deleted_at', data_type: 'timestamp with time zone', is_nullable: 'YES' }
   ]
 };
 
@@ -96,7 +108,10 @@ function buildQuery(table?: string) {
     whereIn: [] as [string, any[]][],
     selectColumns: undefined as string | string[] | undefined,
     selectOpts: undefined as any,
-    whereNotNull: [] as string[]
+    whereNotNull: [] as string[],
+    whereGte: [] as [string, any][],
+    whereLte: [] as [string, any][],
+    whereNot: [] as [string, string, any][]
   };
 
   const qb: any = {};
@@ -107,7 +122,7 @@ function buildQuery(table?: string) {
   const applyFilters = (rows: any[]): any[] => {
     let out = rows;
     
-    // Handle joins - if we're querying podcast_shows with user_podcast_subscriptions join
+    // Handle joins - Complex join logic for multiple table scenarios
     if (state.table === 'podcast_shows' && state.selectColumns && 
         typeof state.selectColumns === 'string' && 
         state.selectColumns.includes('user_podcast_subscriptions!inner')) {
@@ -121,6 +136,33 @@ function buildQuery(table?: string) {
       out = out.filter(show => showIdsWithActiveSubscriptions.includes(show.id));
     }
     
+    // Handle podcast_episodes with podcast_shows!inner join used by TranscriptWorker
+    if (state.table === 'podcast_episodes' && state.selectColumns && 
+        typeof state.selectColumns === 'string' && 
+        state.selectColumns.includes('podcast_shows!inner')) {
+      
+      // For podcast_episodes with inner join on podcast_shows,
+      // only return episodes that have associated shows with required fields
+      const shows = db['podcast_shows'] || [];
+      const validShows = shows.filter(show => 
+        show.rss_url && show.rss_url.trim() !== '' // RSS URL must exist and not be empty
+      );
+      const validShowIds = new Set(validShows.map(show => show.id));
+      
+      out = out.filter(episode => validShowIds.has(episode.show_id));
+      
+      // If we're selecting show data, we need to attach it
+      if (state.selectColumns.includes('podcast_shows!inner')) {
+        out = out.map(episode => {
+          const show = validShows.find(show => show.id === episode.show_id);
+          return {
+            ...episode,
+            podcast_shows: show ? [show] : []
+          };
+        });
+      }
+    }
+    
     // eq filters
     state.whereEq.forEach(([col, val]: [string, any]) => {
       // Handle joined table filters like 'user_podcast_subscriptions.status'
@@ -131,7 +173,13 @@ function buildQuery(table?: string) {
           return;
         }
       } else {
-        out = out.filter(r => r[col] === val);
+        // Handle negated conditions (from .not('col', 'eq', 'value'))
+        if (typeof val === 'string' && val.startsWith('NOT_')) {
+          const actualVal = val.substring(4); // Remove 'NOT_' prefix
+          out = out.filter(r => r[col] !== actualVal);
+        } else {
+          out = out.filter(r => r[col] === val);
+        }
       }
     });
     
@@ -143,6 +191,61 @@ function buildQuery(table?: string) {
     // not-null filters
     state.whereNotNull.forEach((col: string) => {
       out = out.filter(r => r[col] !== null && r[col] !== undefined);
+    });
+    
+    // gte filters (greater than or equal)
+    state.whereGte.forEach(([col, val]: [string, any]) => {
+      out = out.filter(r => {
+        if (r[col] && val) {
+          // Handle date comparisons
+          const rowDate = new Date(r[col]);
+          const filterDate = new Date(val);
+          return rowDate >= filterDate;
+        }
+        return false;
+      });
+    });
+    
+    // lte filters (less than or equal)
+    state.whereLte.forEach(([col, val]: [string, any]) => {
+      out = out.filter(r => {
+        if (r[col] && val) {
+          // Handle date comparisons
+          const rowDate = new Date(r[col]);
+          const filterDate = new Date(val);
+          return rowDate <= filterDate;
+        }
+        return false;
+      });
+    });
+    
+    // Handle complex .not() conditions used by TranscriptWorker
+    state.whereNot.forEach(([col, op, val]: [string, string, any]) => {
+      if (op === 'is' && val === null) {
+        // .not('column', 'is', null) means column must NOT be null
+        out = out.filter(r => r[col] !== null && r[col] !== undefined);
+      } else if (op === 'eq') {
+        // .not('column', 'eq', value) means column must NOT equal value
+        out = out.filter(r => r[col] !== val);
+      }
+      // Handle nested table filters for joins
+      if (col.includes('.')) {
+        const [tableName, columnName] = col.split('.');
+        if (tableName === 'podcast_shows' && state.table === 'podcast_episodes') {
+          // For episode queries with show filters, we need to check the joined show data
+          out = out.filter(episode => {
+            const shows = episode.podcast_shows || [];
+            if (shows.length === 0) return false; // No show data means it doesn't match
+            const show = shows[0];
+            if (op === 'is' && val === null) {
+              return show[columnName] !== null && show[columnName] !== undefined;
+            } else if (op === 'eq') {
+              return show[columnName] !== val;
+            }
+            return true;
+          });
+        }
+      }
     });
     
     return out;
@@ -224,11 +327,38 @@ function buildQuery(table?: string) {
   });
 
   qb.not = vi.fn((col: string, op: string, val: any) => {
-    if (op === 'is' && val === null) state.whereNotNull.push(col);
+    if (op === 'is' && val === null) {
+      state.whereNotNull.push(col);
+    } else if (op === 'eq') {
+      // Handle .not('column', 'eq', value) - exclude rows where column equals value
+      // For simplicity in tests, we'll track this as a negated equality condition
+      state.whereEq.push([col, `NOT_${val}`]); // Mark as negated
+    }
+    // Add support for more complex .not() conditions used by TranscriptWorker
+    // These get handled in the applyFilters function
+    if (!state.whereNot) state.whereNot = [];
+    state.whereNot.push([col, op, val]);
     return qb;
   });
 
   qb.is = qb.eq; // alias – sufficient for tests
+
+  // Add date comparison methods used in TranscriptWorker
+  qb.gte = vi.fn((col: string, val: any) => {
+    // Store the gte condition for potential filtering
+    // For test simplicity, we'll just track it but not apply complex filtering
+    if (!state.whereGte) state.whereGte = [];
+    state.whereGte.push([col, val]);
+    return qb; // Ensure we return the query builder for chaining
+  });
+
+  qb.lte = vi.fn((col: string, val: any) => {
+    // Store the lte condition for potential filtering  
+    // For test simplicity, we'll just track it but not apply complex filtering
+    if (!state.whereLte) state.whereLte = [];
+    state.whereLte.push([col, val]);
+    return qb; // Ensure we return the query builder for chaining
+  });
 
   qb.limit = vi.fn((_count: number) => qb);
 
@@ -316,10 +446,16 @@ function buildQuery(table?: string) {
 // Client Builder
 // ---------------------------------------------------------------------------
 function buildClient() {
-  return {
+  const client = {
     from: (tbl: string) => buildQuery(tbl),
     auth: {
       getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null })
+    },
+    storage: {
+      from: vi.fn((_bucketName: string) => ({
+        upload: vi.fn().mockResolvedValue({ error: null }),
+        uploadTranscript: vi.fn().mockResolvedValue({ error: null })
+      }))
     },
     // Add RPC support for database functions
     rpc: vi.fn((functionName: string, params?: any) => {
@@ -363,6 +499,7 @@ function buildClient() {
       })());
     })
   };
+  return client;
 }
 
 export const createClient = vi.fn((_url?: string, _key?: string, _opts?: any) => buildClient());
