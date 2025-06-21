@@ -1,53 +1,1614 @@
-# Taddy GraphQL API Schema (Placeholder)
-# This is a minimal schema for development purposes
-# Run `npm run codegen` with TADDY_API_KEY to fetch the real schema
+enum SortOrder {
+  LATEST
+  OLDEST
+  SEARCH
+}
 
-scalar DateTime
-scalar JSON
+enum SearchSortOrder {
+  POPULARITY
+  EXACTNESS
+}
 
-type Query {
-  # Podcast queries
-  getPodcastSeries(
-    name: String
-    iTunesId: String
-    podcastGuid: String
-  ): PodcastSeries
+enum SearchMatchType {
+  EXACT_PHRASE
+  ALL_TERMS
+  MOST_TERMS
+}
 
-  # Episode queries  
-  getPodcastEpisode(
-    podcastName: String
-    episodeGuid: String
-    podcastGuid: String
-  ): PodcastEpisode
+enum Country {
+  AFGHANISTAN
+  ALAND_ISLANDS
+  ALBANIA
+  ALGERIA
+  AMERICAN_SAMOA
+  ANDORRA
+  ANGOLA
+  ANGUILLA
+  ANTARCTICA
+  ANTIGUA_AND_BARBUDA
+  ARGENTINA
+  ARMENIA
+  ARUBA
+  AUSTRALIA
+  AUSTRIA
+  AZERBAIJAN
+  BAHAMAS
+  BAHRAIN
+  BANGLADESH
+  BARBADOS
+  BELARUS
+  BELGIUM
+  BELIZE
+  BENIN
+  BERMUDA
+  BHUTAN
+  BOLIVIA_PLURINATIONAL_STATE_OF
+  BONAIRE_SINT_EUSTATIUS_AND_SABA
+  BOSNIA_AND_HERZEGOVINA
+  BOTSWANA
+  BOUVET_ISLAND
+  BRAZIL
+  BRITISH_INDIAN_OCEAN_TERRITORY_THE
+  BRUNEI_DARUSSALAM
+  BULGARIA
+  BURKINA_FASO
+  BURUNDI
+  CABO_VERDE
+  CAMBODIA
+  CAMEROON
+  CANADA
+  CAYMAN_ISLANDS
+  CENTRAL_AFRICAN_REPUBLIC
+  CHAD
+  CHILE
+  CHINA
+  CHRISTMAS_ISLAND
+  COCOS_KEELING_ISLANDS
+  COLOMBIA
+  COMOROS
+  CONGO
+  CONGO_THE_DEMOCRATIC_REPUBLIC_OF
+  COOK_ISLANDS
+  COSTA_RICA
+  COTE_D_IVOIRE
+  CROATIA
+  CUBA
+  CURACAO
+  CYPRUS
+  CZECHIA
+  DENMARK
+  DJIBOUTI
+  DOMINICA
+  DOMINICAN_REPUBLIC
+  ECUADOR
+  EGYPT
+  EL_SALVADOR
+  EQUATORIAL_GUINEA
+  ERITREA
+  ESTONIA
+  ESWATINI
+  ETHIOPIA
+  FALKLAND_ISLANDS_THE_MALVINAS
+  FAROE_ISLANDS
+  FIJI
+  FINLAND
+  FRANCE
+  FRENCH_GUIANA
+  FRENCH_POLYNESIA
+  FRENCH_SOUTHERN_TERRITORIES
+  GABON
+  GAMBIA
+  GEORGIA
+  GERMANY
+  GHANA
+  GIBRALTAR
+  GREECE
+  GREENLAND
+  GRENADA
+  GUADELOUPE
+  GUAM
+  GUATEMALA
+  GUERNSEY
+  GUINEA
+  GUINEA_BISSAU
+  GUYANA
+  HAITI
+  HEARD_ISLAND_AND_MCDONALD_ISLANDS
+  HOLY_SEE
+  HONDURAS
+  HONG_KONG
+  HUNGARY
+  ICELAND
+  INDIA
+  INDONESIA
+  IRAN
+  IRAQ
+  IRELAND
+  ISLE_OF_MAN
+  ISRAEL
+  ITALY
+  JAMAICA
+  JAPAN
+  JERSEY
+  JORDAN
+  KAZAKHSTAN
+  KENYA
+  KIRIBATI
+  KOREA_NORTH
+  KOREA_SOUTH
+  KUWAIT
+  KYRGYZSTAN
+  LAO_PEOPLES_DEMOCRATIC_REPUBLIC_THE
+  LATVIA
+  LEBANON
+  LESOTHO
+  LIBERIA
+  LIBYA
+  LIECHTENSTEIN
+  LITHUANIA
+  LUXEMBOURG
+  MACAO
+  MADAGASCAR
+  MALAWI
+  MALAYSIA
+  MALDIVES
+  MALI
+  MALTA
+  MARSHALL_ISLANDS
+  MARTINIQUE
+  MAURITANIA
+  MAURITIUS
+  MAYOTTE
+  MEXICO
+  MICRONESIA_FEDERATED_STATES
+  MINOR_OUTLYING_ISLANDS_US
+  MOLDOVA_THE_REPUBLIC
+  MONACO
+  MONGOLIA
+  MONTENEGRO
+  MONTSERRAT
+  MOROCCO
+  MOZAMBIQUE
+  MYANMAR
+  NAMIBIA
+  NAURU
+  NEPAL
+  NETHERLANDS
+  NEW_CALEDONIA
+  NEW_ZEALAND
+  NICARAGUA
+  NIGER
+  NIGERIA
+  NIUE
+  NORFOLK_ISLAND
+  NORTH_MACEDONIA
+  NORTHERN_MARIANA_ISLANDS
+  NORWAY
+  OMAN
+  PAKISTAN
+  PALAU
+  PALESTINE_STATE
+  PANAMA
+  PAPUA_NEW_GUINEA
+  PARAGUAY
+  PERU
+  PHILIPPINES
+  PITCAIRN
+  POLAND
+  PORTUGAL
+  PUERTO_RICO
+  QATAR
+  REUNION
+  ROMANIA
+  RUSSIA
+  RWANDA
+  SAINT_BARTHELEMY
+  SAINT_HELENA_ASCENSION_AND_TRISTAN_DA_CUNHA
+  SAINT_KITTS_AND_NEVIS
+  SAINT_LUCIA
+  SAINT_MARTIN_FRENCH_PART
+  SAINT_PIERRE_AND_MIQUELON
+  SAINT_VINCENT_AND_THE_GRENADINES
+  SAMOA
+  SAN_MARINO
+  SAO_TOME_AND_PRINCIPE
+  SAUDI_ARABIA
+  SENEGAL
+  SERBIA
+  SEYCHELLES
+  SIERRA_LEONE
+  SINGAPORE
+  SINT_MAARTEN_DUTCH_PART
+  SLOVAKIA
+  SLOVENIA
+  SOLOMON_ISLANDS
+  SOMALIA
+  SOUTH_AFRICA
+  SOUTH_GEORGIA_AND_THE_SOUTH_SANDWICH_ISLANDS
+  SOUTH_SUDAN
+  SPAIN
+  SRI_LANKA
+  SUDAN
+  SURINAME
+  SVALBARD_AND_JAN_MAYEN
+  SWEDEN
+  SWITZERLAND
+  SYRIA
+  TAIWAN
+  TAJIKISTAN
+  TANZANIA
+  THAILAND
+  TIMOR_LESTE
+  TOGO
+  TOKELAU
+  TONGA
+  TRINIDAD_AND_TOBAGO
+  TUNISIA
+  TURKEY
+  TURKMENISTAN
+  TURKS_AND_CAICOS_ISLANDS
+  TUVALU
+  UGANDA
+  UKRAINE
+  UNITED_ARAB_EMIRATES
+  UNITED_KINGDOM
+  UNITED_STATES_OF_AMERICA
+  URUGUAY
+  UZBEKISTAN
+  VANUATU
+  VENEZUELA
+  VIETNAM
+  VIRGIN_ISLANDS_BRITISH
+  VIRGIN_ISLANDS_US
+  WALLIS_AND_FUTUNA
+  WESTERN_SAHARA
+  YEMEN
+  ZAMBIA
+  ZIMBABWE
+}
+
+enum Language {
+  ABKHAZIAN
+  AFAR
+  AFRIKAANS
+  AKAN
+  ALBANIAN
+  AMHARIC
+  ARABIC
+  ARAGONESE
+  ARMENIAN
+  ASSAMESE
+  AVARIC
+  AVESTAN
+  AYMARA
+  AZERBAIJANI
+  BAMBARA
+  BASHKIR
+  BASQUE
+  BELARUSIAN
+  BENGALI
+  BIHARI_LANGUAGES
+  BISLAMA
+  BOSNIAN
+  BRETON
+  BULGARIAN
+  BURMESE
+  CENTRAL_KHMER
+  CHAMORRO
+  CHECHEN
+  CHICHEWA_CHEWA_NYANJA
+  CHINESE
+  CHURCH_SLAVONIC
+  CHUVASH
+  CORNISH
+  CORSICAN
+  CREE
+  CROATIAN
+  CZECH
+  DANISH
+  DHIVEHI_MALDIVIAN
+  DUTCH_FLEMISH
+  DZONGKHA
+  ENGLISH
+  ESPERANTO
+  ESTONIAN
+  EWE
+  FAROESE
+  FARSI
+  FIJIAN
+  FINNISH
+  FRENCH
+  FULAH
+  GAELIC
+  GALICIAN
+  GANDA
+  GEORGIAN
+  GERMAN
+  GIKUYU
+  GREEK
+  GUARANI
+  GUJARATI
+  HAITIAN_CREOLE
+  HAUSA
+  HEBREW
+  HERERO
+  HINDI
+  HIRI_MOTU
+  HUNGARIAN
+  ICELANDIC
+  IDO
+  IGBO
+  INDONESIAN
+  INTERLINGUA
+  INTERLINGUE_OCCIDENTAL
+  INUKTITUT
+  INUPIAQ
+  IRISH
+  ITALIAN
+  JAPANESE
+  JAVANESE
+  KALAALLISUT_GREENLANDIC
+  KANNADA
+  KANURI
+  KASHMIRI
+  KAZAKH
+  KINYARWANDA
+  KOMI
+  KONGO
+  KOREAN
+  KURDISH
+  KWANYAMA
+  KYRGYZ
+  LAO
+  LATIN
+  LATVIAN
+  LETZEBURGESCH
+  LIMBURGISH
+  LINGALA
+  LITHUANIAN
+  LUBA_KATANGA
+  MACEDONIAN
+  MALAGASY
+  MALAY
+  MALAYALAM
+  MALTESE
+  MANX
+  MAORI
+  MARATHI
+  MARSHALLESE
+  MONGOLIAN
+  NAURU
+  NAVAJO
+  NDONGA
+  NEPALI
+  NORTH_NDEBELE
+  NORTHERN_SAMI
+  NORWEGIAN
+  NORWEGIAN_BOKMAL
+  NORWEGIAN_NYNORSK
+  NUOSU_SICHUAN_YI
+  OCCITAN
+  OJIBWA
+  ORIYA
+  OROMO
+  OSSETIAN
+  PALI
+  PASHTO
+  POLISH
+  PORTUGUESE
+  PUNJABI
+  QUECHUA
+  ROMANIAN_MOLDOVAN
+  ROMANSH
+  RUNDI
+  RUSSIAN
+  SAMOAN
+  SANGO
+  SANSKRIT
+  SARDINIAN
+  SERBIAN
+  SHONA
+  SINDHI
+  SINHALA
+  SLOVAK
+  SLOVENIAN
+  SOMALI
+  SOTHO
+  SOUTH_NDEBELE
+  SPANISH
+  SUNDANESE
+  SWAHILI
+  SWATI
+  SWEDISH
+  TAGALOG
+  TAHITIAN
+  TAJIK
+  TAMIL
+  TATAR
+  TELUGU
+  THAI
+  TIBETAN
+  TIGRINYA
+  TONGA
+  TSONGA
+  TSWANA
+  TURKISH
+  TURKMEN
+  TWI
+  UKRAINIAN
+  URDU
+  UYGHUR
+  UZBEK
+  VALENCIAN_CATALAN
+  VENDA
+  VIETNAMESE
+  VOLAPUK
+  WALLOON
+  WELSH
+  WESTERN_FRISIAN
+  WOLOF
+  XHOSA
+  YIDDISH
+  YORUBA
+  ZHUANG
+  ZULU
+}
+
+enum Genre {
+  PODCASTSERIES_ARTS
+  PODCASTSERIES_ARTS_BOOKS
+  PODCASTSERIES_ARTS_DESIGN
+  PODCASTSERIES_ARTS_FASHION_AND_BEAUTY
+  PODCASTSERIES_ARTS_FOOD
+  PODCASTSERIES_ARTS_PERFORMING_ARTS
+  PODCASTSERIES_ARTS_VISUAL_ARTS
+  PODCASTSERIES_BUSINESS
+  PODCASTSERIES_BUSINESS_CAREERS
+  PODCASTSERIES_BUSINESS_ENTREPRENEURSHIP
+  PODCASTSERIES_BUSINESS_INVESTING
+  PODCASTSERIES_BUSINESS_MANAGEMENT
+  PODCASTSERIES_BUSINESS_MARKETING
+  PODCASTSERIES_BUSINESS_NON_PROFIT
+  PODCASTSERIES_COMEDY
+  PODCASTSERIES_COMEDY_INTERVIEWS
+  PODCASTSERIES_COMEDY_IMPROV
+  PODCASTSERIES_COMEDY_STANDUP
+  PODCASTSERIES_EDUCATION
+  PODCASTSERIES_EDUCATION_COURSES
+  PODCASTSERIES_EDUCATION_HOW_TO
+  PODCASTSERIES_EDUCATION_LANGUAGE_LEARNING
+  PODCASTSERIES_EDUCATION_SELF_IMPROVEMENT
+  PODCASTSERIES_FICTION
+  PODCASTSERIES_FICTION_COMEDY_FICTION
+  PODCASTSERIES_FICTION_DRAMA
+  PODCASTSERIES_FICTION_SCIENCE_FICTION
+  PODCASTSERIES_GOVERNMENT
+  PODCASTSERIES_HISTORY
+  PODCASTSERIES_HEALTH_AND_FITNESS
+  PODCASTSERIES_HEALTH_AND_FITNESS_ALTERNATIVE_HEALTH
+  PODCASTSERIES_HEALTH_AND_FITNESS_FITNESS
+  PODCASTSERIES_HEALTH_AND_FITNESS_MEDICINE
+  PODCASTSERIES_HEALTH_AND_FITNESS_MENTAL_HEALTH
+  PODCASTSERIES_HEALTH_AND_FITNESS_NUTRITION
+  PODCASTSERIES_HEALTH_AND_FITNESS_SEXUALITY
+  PODCASTSERIES_KIDS_AND_FAMILY
+  PODCASTSERIES_KIDS_AND_FAMILY_EDUCATION_FOR_KIDS
+  PODCASTSERIES_KIDS_AND_FAMILY_PARENTING
+  PODCASTSERIES_KIDS_AND_FAMILY_PETS_AND_ANIMALS
+  PODCASTSERIES_KIDS_AND_FAMILY_STORIES_FOR_KIDS
+  PODCASTSERIES_LEISURE
+  PODCASTSERIES_LEISURE_ANIMATION_AND_MANGA
+  PODCASTSERIES_LEISURE_AUTOMOTIVE
+  PODCASTSERIES_LEISURE_AVIATION
+  PODCASTSERIES_LEISURE_CRAFTS
+  PODCASTSERIES_LEISURE_GAMES
+  PODCASTSERIES_LEISURE_HOBBIES
+  PODCASTSERIES_LEISURE_HOME_AND_GARDEN
+  PODCASTSERIES_LEISURE_VIDEO_GAMES
+  PODCASTSERIES_MUSIC
+  PODCASTSERIES_MUSIC_COMMENTARY
+  PODCASTSERIES_MUSIC_HISTORY
+  PODCASTSERIES_MUSIC_INTERVIEWS
+  PODCASTSERIES_NEWS
+  PODCASTSERIES_NEWS_BUSINESS
+  PODCASTSERIES_NEWS_DAILY_NEWS
+  PODCASTSERIES_NEWS_ENTERTAINMENT
+  PODCASTSERIES_NEWS_COMMENTARY
+  PODCASTSERIES_NEWS_POLITICS
+  PODCASTSERIES_NEWS_SPORTS
+  PODCASTSERIES_NEWS_TECH
+  PODCASTSERIES_RELIGION_AND_SPIRITUALITY
+  PODCASTSERIES_RELIGION_AND_SPIRITUALITY_BUDDHISM
+  PODCASTSERIES_RELIGION_AND_SPIRITUALITY_CHRISTIANITY
+  PODCASTSERIES_RELIGION_AND_SPIRITUALITY_HINDUISM
+  PODCASTSERIES_RELIGION_AND_SPIRITUALITY_ISLAM
+  PODCASTSERIES_RELIGION_AND_SPIRITUALITY_JUDAISM
+  PODCASTSERIES_RELIGION_AND_SPIRITUALITY_RELIGION
+  PODCASTSERIES_RELIGION_AND_SPIRITUALITY_SPIRITUALITY
+  PODCASTSERIES_SCIENCE
+  PODCASTSERIES_SCIENCE_ASTRONOMY
+  PODCASTSERIES_SCIENCE_CHEMISTRY
+  PODCASTSERIES_SCIENCE_EARTH_SCIENCES
+  PODCASTSERIES_SCIENCE_LIFE_SCIENCES
+  PODCASTSERIES_SCIENCE_MATHEMATICS
+  PODCASTSERIES_SCIENCE_NATURAL_SCIENCES
+  PODCASTSERIES_SCIENCE_NATURE
+  PODCASTSERIES_SCIENCE_PHYSICS
+  PODCASTSERIES_SCIENCE_SOCIAL_SCIENCES
+  PODCASTSERIES_SOCIETY_AND_CULTURE
+  PODCASTSERIES_SOCIETY_AND_CULTURE_DOCUMENTARY
+  PODCASTSERIES_SOCIETY_AND_CULTURE_PERSONAL_JOURNALS
+  PODCASTSERIES_SOCIETY_AND_CULTURE_PHILOSOPHY
+  PODCASTSERIES_SOCIETY_AND_CULTURE_PLACES_AND_TRAVEL
+  PODCASTSERIES_SOCIETY_AND_CULTURE_RELATIONSHIPS
+  PODCASTSERIES_SPORTS
+  PODCASTSERIES_SPORTS_BASEBALL
+  PODCASTSERIES_SPORTS_BASKETBALL
+  PODCASTSERIES_SPORTS_CRICKET
+  PODCASTSERIES_SPORTS_FANTASY_SPORTS
+  PODCASTSERIES_SPORTS_FOOTBALL
+  PODCASTSERIES_SPORTS_GOLF
+  PODCASTSERIES_SPORTS_HOCKEY
+  PODCASTSERIES_SPORTS_RUGBY
+  PODCASTSERIES_SPORTS_RUNNING
+  PODCASTSERIES_SPORTS_SOCCER
+  PODCASTSERIES_SPORTS_SWIMMING
+  PODCASTSERIES_SPORTS_TENNIS
+  PODCASTSERIES_SPORTS_VOLLEYBALL
+  PODCASTSERIES_SPORTS_WILDERNESS
+  PODCASTSERIES_SPORTS_WRESTLING
+  PODCASTSERIES_TECHNOLOGY
+  PODCASTSERIES_TRUE_CRIME
+  PODCASTSERIES_TV_AND_FILM
+  PODCASTSERIES_TV_AND_FILM_AFTER_SHOWS
+  PODCASTSERIES_TV_AND_FILM_HISTORY
+  PODCASTSERIES_TV_AND_FILM_INTERVIEWS
+  PODCASTSERIES_TV_AND_FILM_FILM_REVIEWS
+  PODCASTSERIES_TV_AND_FILM_TV_REVIEWS
+  COMICSERIES_ACTION
+  COMICSERIES_COMEDY
+  COMICSERIES_CRIME
+  COMICSERIES_DRAMA
+  COMICSERIES_DYSTOPIA
+  COMICSERIES_EDUCATIONAL
+  COMICSERIES_FANTASY
+  COMICSERIES_HIGH_SCHOOL
+  COMICSERIES_HISTORICAL
+  COMICSERIES_HORROR
+  COMICSERIES_HAREM
+  COMICSERIES_ISEKAI
+  COMICSERIES_MYSTERY
+  COMICSERIES_ROMANCE
+  COMICSERIES_SCI_FI
+  COMICSERIES_SLICE_OF_LIFE
+  COMICSERIES_SUPERHERO
+  COMICSERIES_SUPERNATURAL
+  COMICSERIES_BL
+  COMICSERIES_GL
+  COMICSERIES_LGBTQ
+  COMICSERIES_THRILLER
+  COMICSERIES_ZOMBIES
+  COMICSERIES_POST_APOCALYPTIC
+  COMICSERIES_SPORTS
+  COMICSERIES_ANIMALS
+  COMICSERIES_GAMING
+}
+
+enum ContentRating {
+  COMICSERIES_BABY
+  COMICSERIES_KIDS
+  COMICSERIES_TEENS
+  COMICSERIES_MATURE_TEENS
+  COMICSERIES_ADULTS
+  COMICSERIES_PORNOGRAPHY
+  COMICSERIES_EROTICA
+}
+
+enum ContentRole {
+  COMICSERIES_ARTIST
+  COMICSERIES_ARTIST_PENCILER
+  COMICSERIES_ARTIST_INKER
+  COMICSERIES_ARTIST_COLORIST
+  COMICSERIES_ARTIST_LETTERER
+  COMICSERIES_WRITER
+  COMICSERIES_PRODUCER
+  COMICSERIES_EDITOR
+  COMICSERIES_TRANSLATOR
+  PODCASTSERIES_DIRECTOR
+  PODCASTSERIES_ASSISTANT_DIRECTOR
+  PODCASTSERIES_EXECUTIVE_PRODUCER
+  PODCASTSERIES_SENIOR_PRODUCER
+  PODCASTSERIES_PRODUCER
+  PODCASTSERIES_ASSOCIATE_PRODUCER
+  PODCASTSERIES_DEVELOPMENT_PRODUCER
+  PODCASTSERIES_CREATIVE_DIRECTOR
+  PODCASTSERIES_HOST
+  PODCASTSERIES_CO_HOST
+  PODCASTSERIES_GUEST_HOST
+  PODCASTSERIES_GUEST
+  PODCASTSERIES_VOICE_ACTOR
+  PODCASTSERIES_NARRATOR
+  PODCASTSERIES_ANNOUNCER
+  PODCASTSERIES_REPORTER
+  PODCASTSERIES_AUTHOR
+  PODCASTSERIES_EDITORIAL_DIRECTOR
+  PODCASTSERIES_CO_WRITER
+  PODCASTSERIES_WRITER
+  PODCASTSERIES_SONGWRITER
+  PODCASTSERIES_GUEST_WRITER
+  PODCASTSERIES_STORY_EDITOR
+  PODCASTSERIES_MANAGING_EDITOR
+  PODCASTSERIES_SCRIPT_EDITOR
+  PODCASTSERIES_SCRIPT_COORDINATOR
+  PODCASTSERIES_RESEARCHER
+  PODCASTSERIES_EDITOR
+  PODCASTSERIES_FACT_CHECKER
+  PODCASTSERIES_TRANSLATOR
+  PODCASTSERIES_TRANSCRIBER
+  PODCASTSERIES_LOGGER
+  PODCASTSERIES_STUDIO_COORDINATOR
+  PODCASTSERIES_TECHNICAL_DIRECTOR
+  PODCASTSERIES_TECHNICAL_MANAGER
+  PODCASTSERIES_AUDIO_ENGINEER
+  PODCASTSERIES_REMOTE_RECORDING_ENGINEER
+  PODCASTSERIES_POST_PRODUCTION_ENGINEER
+  PODCASTSERIES_AUDIO_EDITOR
+  PODCASTSERIES_SOUND_DESIGNER
+  PODCASTSERIES_FOLEY_ARTIST
+  PODCASTSERIES_COMPOSER
+  PODCASTSERIES_THEME_MUSIC
+  PODCASTSERIES_MUSIC_PRODUCTION
+  PODCASTSERIES_MUSIC_CONTRIBUTOR
+  PODCASTSERIES_PRODUCTION_COORDINATOR
+  PODCASTSERIES_BOOKING_COORDINATOR
+  PODCASTSERIES_PRODUCTION_ASSISTANT
+  PODCASTSERIES_CONTENT_MANAGER
+  PODCASTSERIES_MARKETING_MANAGER
+  PODCASTSERIES_SALES_REPRESENTATIVE
+  PODCASTSERIES_SALES_MANAGER
+  PODCASTSERIES_GRAPHIC_DESIGNER
+  PODCASTSERIES_COVER_ART_DESIGNER
+  PODCASTSERIES_SOCIAL_MEDIA_MANAGER
+  PODCASTSERIES_MISC_CONSULTANT
+  PODCASTSERIES_MISC_INTERN
+  PODCASTSERIES_CAMERA_OPERATOR
+  PODCASTSERIES_LIGHTING_DESIGNER
+  PODCASTSERIES_CAMERA_GRIP
+  PODCASTSERIES_ASSISTANT_CAMERA
+  PODCASTSERIES_ASSISTANT_EDITOR
+}
+
+enum SearchContentType {
+  PODCASTSERIES
+  PODCASTEPISODE
+  COMICSERIES
+  CREATOR
+}
+
+enum TaddyType {
+  PODCASTSERIES
+  PODCASTEPISODE
+  COMICSERIES
+  COMICISSUE
+  CREATOR
+}
+
+enum InternalSeriesType {
+  INTERNAL_COMICSERIES
+  INTERNAL_CREATOR
+}
+
+enum InternalPublishStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+}
+
+enum InternalPublishImageStatus {
+  PROCESSING
+  COMPLETE
+}
+
+enum ImageVariant {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum SeriesStatus {
+  ONGOING
+  HIATUS
+  COMPLETED
+  CANCELLED
+  ANNOUNCED
+  UNDER_REVISION
+}
+
+enum PopularityRank {
+  TOP_200
+  TOP_1000
+  TOP_2000
+  TOP_3000
+  TOP_4000
+  TOP_5000
+  TOP_10000
+  TOP_20000
+  TOP_50000
+  TOP_100000
+  TOP_200000
+}
+
+enum PodcastSeriesType {
+  SERIAL
+  EPISODIC
+}
+
+enum PodcastContentType {
+  AUDIO
+  VIDEO
+}
+
+enum PodcastSeriesTranscriptionStatus {
+  NOT_TRANSCRIBING
+  TRANSCRIBING
+  CREATOR_ASKED_NOT_TO_TRANSCRIBE
+}
+
+enum PodcastEpisodeType {
+  TRAILER
+  BONUS
+  FULL
+}
+
+enum PodcastEpisodeTranscriptionStatus {
+  NOT_TRANSCRIBING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum TranscriptItemStyle {
+  UTTERANCE
+  PARAGRAPH
+}
+
+enum ComicSeriesType {
+  WEBTOON
+  MANGA
+  MANHWA
+  MANHUA
+  AMERICAN_STYLE_COMIC
+  ANTHOLOGY
+  GRAPHIC_NOVEL
+  ONE_SHOT
+}
+
+enum ComicSeriesLayout {
+  VERTICAL_SCROLL_TOP_TO_BOTTOM
+  RIGHT_TO_LEFT
+  LEFT_TO_RIGHT
+  PAGE
+}
+
+enum LinkType {
+  INSTAGRAM
+  YOUTUBE
+  TIKTOK
+  PATREON
+  EMAIL
+  TWITTER
+  MASTODON
+  FACEBOOK
+  WEBSITE
+  MERCH_STORE
+  TWITCH
+  SNAPCHAT
+  REDDIT
+  DISCORD
+  TELEGRAM
+  PINTEREST
+  TUMBLR
+  SPOTIFY
+  SOUNDCLOUD
+  BANDCAMP
+  VIMEO
+  WECHAT
+  WHATSAPP
+  KO_FI
+  ETSY
+  LINKTREE
+  BLUESKY
+}
+
+enum SearchResultBoostType {
+  BOOST_EXACT_TERM
+  BOOST_EXACT_PHRASE
+  BOOST_POPULARITY_A_LOT
+  BOOST_POPULARITY_A_LITTLE
+}
+
+enum SearchOperator {
+  EXACT_PHRASE
+  AND
+  OR
+}
+
+enum WebhookEventActionType {
+  created
+  updated
+  deleted
+  new_episodes_released
+}
+
+enum FeedRefreshPriority {
+  WEBSUB
+  HIGH
+  MEDIUM
+  REGULAR
+  INACTIVE
+  LOW
+  NEVER
+}
+
+enum FeedRefreshPriorityReason {
+  INACTIVE_FOR_OVER_1_YEAR
+  DUPLICATE_FEED
+  ERROR_PARSING_FEED
+  FEED_URL_NOT_WORKING
+}
+
+enum InternalPaymentRuleType {
+  FREE
+  PAID
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
+
+enum UserPermission {
+  OWNER
+  ADMIN
+  CONTRIBUTOR
+  VIEWER
+}
+
+enum Platform {
+  PATREON
+}
+
+enum PlatformPriceInterval {
+  PER_ITEM
+  MONTHLY
+  YEARLY
+}
+
+enum PaymentRuleType {
+  LAST_X
+  GROUP
+}
+
+enum PaymentRuleStatus {
+  PROCESSING
+  ACTIVE
+  INACTIVE
+}
+
+enum TopChartsSource {
+  APPLE_PODCASTS
+}
+
+enum TopChartsType {
+  GENRE
+  COUNTRY
 }
 
 type PodcastSeries {
-  uuid: String!
-  name: String!
-  itunesId: String
-  podcastGuid: String
-  rssUrl: String
+  uuid: ID
+  datePublished: Int
+  name: String
   description: String
-  episodes: [PodcastEpisode!]
+  descriptionLinks: [String]
+  imageUrl: String
+  itunesId: Int
+  hash: String
+  childrenHash: String
+  episodes: [PodcastEpisode]
+  totalEpisodesCount: Int
+  genres: [Genre]
+  itunesInfo: iTunesInfo
+  seriesType: PodcastSeriesType
+  language: Language
+  contentType: PodcastContentType
+  isExplicitContent: Boolean
+  copyright: String
+  websiteUrl: String
+  rssUrl: String
+  rssOwnerName: String
+  rssOwnerPublicEmail: String
+  authorName: String
+  feedRefreshDetails: FeedRefreshDetails
+  taddyTranscribeStatus: PodcastSeriesTranscriptionStatus
+  popularityRank: PopularityRank
+  persons: [Person]
+  isCompleted: Boolean
+  isComplete: Boolean
+  isBlocked: Boolean
+}
+
+type Person {
+  uuid: ID
+  name: String
+  role: ContentRole
+  url: String
+  imageUrl: String
+  isAutoGenerated: Boolean
 }
 
 type PodcastEpisode {
-  uuid: String!
-  name: String!
-  guid: String!
-  datePublished: DateTime
+  uuid: ID
+  datePublished: Int
+  name: String
   description: String
+  descriptionLinks: [String]
+  imageUrl: String
+  hash: String
+  guid: String
+  subtitle: String
   audioUrl: String
-  transcripts: [Transcript!]
+  videoUrl: String
+  fileLength: Int
+  fileType: String
+  duration: Int
+  episodeType: PodcastEpisodeType
+  seasonNumber: Int
+  episodeNumber: Int
+  websiteUrl: String
+  isExplicitContent: Boolean
+  isRemoved: Boolean
+  isBlocked: Boolean
+  podcastSeries: PodcastSeries
+  persons: [Person]
+  taddyTranscribeStatus: PodcastEpisodeTranscriptionStatus
+  transcript: [String]
+  transcriptUrls: [String]
+  transcriptUrlsWithDetails: [TranscriptLink]
+  transcriptWithSpeakersAndTimecodes: [TranscriptItem]
+  chapters: [Chapter]
+  chaptersUrls: [String]
+  chaptersUrlsWithDetails: [ChapterLink]
+}
+
+type TranscriptItem {
+  id: ID
+  text: String
+  speaker: String
+  startTimecode: Int
+  endTimecode: Int
+}
+
+type Chapter {
+  id: ID
+  title: String
+  startTimecode: Int
+}
+
+type TranscriptLink {
+  url: String
+  type: String
+  isTaddyExclusive: Boolean
+  language: String
+  hasTimecodes: Boolean
+}
+
+type ChapterLink {
+  url: String
+  type: String
+  isTaddyExclusive: Boolean
+}
+
+type ComicSeries {
+  uuid: ID
+  datePublished: Int
+  name: String
+  description: String
+  status: SeriesStatus
+  coverImageUrl: String
+  bannerImageUrl: String
+  thumbnailImageUrl: String
+  coverImageAsString: String
+  bannerImageAsString: String
+  thumbnailImageAsString: String
+  hash: String
+  issuesHash: String
+  issues: [ComicIssue]
+  totalIssuesCount: Int
+  tags: [String]
+  genres: [Genre]
+  language: Language
+  creators: [Creator]
+  seriesType: ComicSeriesType
+  seriesLayout: ComicSeriesLayout
+  contentRating: ContentRating
+  sssUrl: String
+  sssOwnerName: String
+  sssOwnerPublicEmail: String
+  copyright: String
+  feedRefreshDetails: FeedRefreshDetails
+  hostingProvider: HostingProvider
+  scopesForExclusiveContent: [String]
+  isCompleted: Boolean
+  isBlocked: Boolean
+}
+
+type ComicIssue {
+  uuid: ID
+  seriesUuid: ID
+  datePublished: Int
+  name: String
+  creatorNote: String
+  pushNotificationMessage: String
+  hash: String
+  storiesHash: String
+  bannerImageUrl: String
+  thumbnailImageUrl: String
+  bannerImageAsString: String
+  thumbnailImageAsString: String
+  storyImageUrls: [String]
+  stories: [ComicStory]
+  position: Int
+  isRemoved: Boolean
+  scopesForExclusiveContent: [String]
+  dateExclusiveContentIsAvailable: Int
+  isBlocked: Boolean
+  comicSeries: ComicSeries
+}
+
+type ComicStory {
+  uuid: ID
+  issueUuid: ID
+  seriesUuid: ID
+  hash: String
+  storyImageUrl: String
+  storyImageAsString: String
+  isRemoved: Boolean
+  comicIssue: ComicIssue
+  comicSeries: ComicSeries
+}
+
+type Creator {
+  uuid: ID
+  datePublished: Int
+  name: String
+  bio: String
+  avatarImageUrl: String
+  avatarImageAsString: String
+  hash: String
+  contentHash: String
+  content: [CreatorContent]
+  totalContentCount: Int
+  tags: [String]
+  linksAsString: String
+  links: [LinkDetails]
+  country: Country
+  sssUrl: String
+  sssOwnerName: String
+  sssOwnerPublicEmail: String
+  copyright: String
+  feedRefreshDetails: FeedRefreshDetails
+  isBlocked: Boolean
+}
+
+type LinkDetails {
+  type: LinkType
+  url: String
+}
+
+type CreatorContent {
+  uuid: ID
+  hash: String
+  creatorUuid: ID
+  contentUuid: ID
+  contentType: TaddyType
+  roles: [ContentRole]
+  position: Int
+  contentPosition: Int
+}
+
+type iTunesInfo {
+  uuid: ID
+  hash: String
+  subtitle: String
+  summary: String
+  baseArtworkUrl: String
+  baseArtworkUrlOf: String
+  publisherId: Int
+  publisherName: String
+  country: Country
   podcastSeries: PodcastSeries
 }
 
-type Transcript {
-  uuid: String!
-  text: String!
-  isPartial: Boolean!
-  percentComplete: Float
-  wordCount: Int
-  language: String
-  createdAt: DateTime!
-} 
+type SearchResults {
+  searchId: ID!
+  podcastSeries: [PodcastSeries]
+  podcastEpisodes: [PodcastEpisode]
+  comicSeries: [ComicSeries]
+  comicIssues: [ComicIssue]
+  creators: [Creator]
+  rankingDetails: [SearchRankingDetails]
+  responseDetails: [SearchResponseDetails]
+  queryResponseInfo: SearchQueryResponseInfo
+}
+
+type SearchResponseDetails {
+  id: ID!
+  type: SearchContentType
+  totalCount: Int
+  pagesCount: Int
+}
+
+type SearchRankingDetails {
+  id: ID!
+  uuid: ID
+  type: SearchContentType
+  rankingScore: Int
+  rankingScoreDetailsAsString: String
+}
+
+type SearchQueryResponseInfo {
+  searchId: ID!
+  took: Int
+  responseInfoDetails: [SearchQueryResponseInfoDetails]
+}
+
+type SearchQueryResponseInfoDetails {
+  searchId: ID!
+  type: TaddyType
+  totalCount: Int
+  pagesCount: Int
+}
+
+type Webhook {
+  id: ID!
+  createdAt: Int
+  user: User
+  endpointUrl: String
+  webhookSecret: String
+  isVerified: Boolean
+  isActive: Boolean
+  events: [String]
+}
+
+type UserWebhooks {
+  userId: ID
+  webhooks: [Webhook]
+}
+
+type WebhookEvent {
+  uuid: ID
+  action: WebhookEventActionType
+  taddyType: String
+  timestamp: Float
+  podcastSeries: PodcastSeries
+  podcastEpisode: PodcastEpisode
+  itunesInfo: iTunesInfo
+}
+
+type Documentation {
+  id: ID
+  text: String
+}
+
+type DevApp {
+  id: ID
+  apiKey: String
+  name: String
+  description: String
+  logoUrl: String
+  callbackUrl: String
+}
+
+type PublicClientDetails {
+  id: ID
+  name: String
+  description: String
+  logoUrl: String
+}
+
+type UserDevApps {
+  userId: ID
+  devApps: [DevApp]
+}
+
+type User {
+  id: ID
+  createdAt: Int
+  myDeveloperDetails: UserDeveloperDetails
+  myDeveloperBillingPlanDetails: UserDeveloperBillingPlanDetails
+}
+
+type UserDeveloperDetails {
+  userId: ID
+  isBusinessPlan: Boolean
+  currentApiUsage: Int
+  currentPopularEpisodeTranscriptsUsage: Int
+  currentOnDemandTranscriptsUsage: Int
+  allowedApiCallsLimit: Int
+  allowedPopularEpisodeTranscriptsLimit: Int
+  allowedOnDemandTranscriptsLimit: Int
+  allowedDevAppsLimit: Int
+  allowedWebhookLimit: Int
+}
+
+type UserDeveloperBillingPlanDetails {
+  userId: ID
+  currentPeriodEnd: Float
+  endedAt: Float
+  cancelAt: Float
+  primaryProduct: String
+  addons: [String]
+}
+
+type FeedRefreshDetails {
+  uuid: ID
+  priority: FeedRefreshPriority
+  priorityReason: FeedRefreshPriorityReason
+  dateLastRefreshed: Int
+  websubDetails: WebsubDetails
+}
+
+type WebsubDetails {
+  uuid: ID
+  topicUrl: String
+  websubHubUrl: String
+  isVerified: Boolean
+}
+
+type InternalComicSeries {
+  id: ID
+  uuid: ID
+  datePublished: Int
+  status: InternalPublishStatus
+  imagesStatus: InternalPublishImageStatus
+  name: String
+  description: String
+  coverImageUrl: String
+  bannerImageUrl: String
+  thumbnailImageUrl: String
+  seriesType: ComicSeriesType
+  seriesLayout: ComicSeriesLayout
+  seriesStatus: SeriesStatus
+  genre1: Genre
+  genre2: Genre
+  genre3: Genre
+  language: Language
+  rating: ContentRating
+  tags: [String]
+  copyright: String
+  sssOwnerName: String
+  sssOwnerPublicEmail: String
+  issues: [InternalComicIssue]
+  isCompleted: Boolean
+  isBlocked: Boolean
+  blockedReason: String
+  counts: InternalSeriesCounts
+  creatorRoles: [InternalCreatorRoles]
+}
+
+type UserInternalSeriesList {
+  userId: ID
+  internalcomicseries: [InternalComicSeries]
+  internalcreators: [InternalCreator]
+}
+
+type InternalSeriesCounts {
+  contentUuid: ID!
+  contentType: String
+  creators: Int
+  issues: Int
+}
+
+type ContentInternalSeriesList {
+  contentUuid: ID
+  contentType: String
+  internalcomicseries: [InternalComicSeries]
+  internalcreators: [InternalCreator]
+}
+
+type InternalComicIssue {
+  id: ID
+  uuid: ID
+  createdAt: Int
+  publishAt: Int
+  datePublished: Int
+  status: InternalPublishStatus
+  imagesStatus: InternalPublishImageStatus
+  name: String
+  description: String
+  pushNotificationMessage: String
+  bannerImageUrl: String
+  thumbnailImageUrl: String
+  imageUrls: [String]
+  imageUrlsProcessing: [String]
+  seriesUuid: ID
+  series: InternalComicSeries
+  stories: [InternalComicStory]
+  paymentRuleType: InternalPaymentRuleType
+  isBlocked: Boolean
+  blockedReason: String
+  dateExclusiveContentIsAvailable: Int
+}
+
+type InternalComicStory {
+  id: ID
+  uuid: ID
+  imageUrl: String
+  position: Int
+}
+
+type InternalCreator {
+  id: ID
+  uuid: ID
+  datePublished: Int
+  status: InternalPublishStatus
+  imagesStatus: InternalPublishImageStatus
+  name: String
+  bio: String
+  avatarImageUrl: String
+  country: Country
+  links: [String]
+  tags: [String]
+  copyright: String
+  sssOwnerName: String
+  sssOwnerPublicEmail: String
+  isBlocked: Boolean
+}
+
+type TeamInternalCreatorRoles {
+  contentUuid: ID
+  contentType: String
+  creatorRoles: [InternalCreatorRoles]
+  internalCreators: [InternalCreator]
+}
+
+type InternalCreatorRoles {
+  id: ID
+  contentUuid: ID
+  creatorUuid: ID
+  roles: [ContentRole]
+  isApproved: Boolean
+}
+
+type TeamInternalInvitations {
+  contentUuid: ID
+  contentType: String
+  invitations: [InternalInvitation]
+}
+
+type InternalInvitation {
+  id: ID
+  contentUuid: ID
+  contentType: String
+  email: String
+  permission: UserPermission
+  status: InvitationStatus
+}
+
+type InternalGroupForContent {
+  contentUuid: ID!
+  contentType: String!
+  groups: [InternalGroup]
+}
+
+type InternalGroup {
+  id: ID
+  uuid: ID
+  contentUuid: ID
+  contentType: String
+  name: String
+  items: [String]
+  isCurrent: Boolean
+}
+
+type WebtoonSeriesData {
+  id: ID
+  name: String
+  description: String
+  genre1: Genre
+  genre2: Genre
+  language: Language
+}
+
+type PlatformDetailsForContent {
+  contentUuid: ID!
+  contentType: String!
+  details: [PlatformDetails]
+  plans: [PlatformPlan]
+  prices: [PlatformPrice]
+}
+
+type PaymentRulesForContent {
+  contentUuid: ID!
+  contentType: String!
+  rules: [PaymentRule]
+}
+
+type PlatformPlan {
+  id: ID!
+  name: String
+  description: String
+  prices: [PlatformPrice]
+  platform: Platform
+  platformUserId: String
+}
+
+type PlatformPrice {
+  id: ID!
+  name: String
+  amountInCents: Int
+  currency: String
+  interval: PlatformPriceInterval
+  platform: Platform
+  platformUserId: String
+  planId: ID
+  priceId: ID
+}
+
+type PlatformDetails {
+  id: ID!
+  name: String
+  url: String
+  platform: Platform
+  platformUserId: String
+}
+
+type PaymentRule {
+  id: ID!
+  createdAt: Int
+  updatedAt: Int
+  contentUuid: ID!
+  contentType: String!
+  status: PaymentRuleStatus
+  platform: Platform
+  platformUserId: String
+  platformPlanId: ID
+  platformPriceId: ID
+  groupId: ID
+  group: InternalGroup
+  ruleType: PaymentRuleType
+  ruleValue: Int
+}
+
+type PublicContentDetails {
+  uuid: ID!
+  taddyType: String
+  name: String
+  creators: [PublicCreatorDetails]
+}
+
+type PublicCreatorDetails {
+  uuid: ID!
+  name: String
+  avatarImageAsString: String
+  avatarImageUrl: String
+}
+
+type HostingProvider {
+  uuid: ID
+  datePublished: Int
+  hash: String
+  oauthAsString: String
+  oauth: OAuthDetails
+  sssUrl: String
+  sssOwnerName: String
+  sssOwnerPublicEmail: String
+  isBlocked: Boolean
+}
+
+type OAuthDetails {
+  uuid: ID
+  signupUrl: String
+  authorizeUrl: String
+  tokenUrl: String
+  newAccessTokenUrl: String
+  newRefreshTokenUrl: String
+  newContentTokenUrl: String
+  instructionsUrl: String
+  publicKey: String
+}
+
+type TopChartsResults {
+  topChartsId: ID!
+  taddyType: TaddyType
+  by: TopChartsType
+  source: TopChartsSource
+  country: Country
+  genre: Genre
+  podcastSeries: [PodcastSeries]
+  podcastEpisodes: [PodcastEpisode]
+}
+
+type PopularityResult {
+  popularityRankId: ID!
+  podcastSeries: [PodcastSeries]
+}
+
+type Query {
+  getPodcastSeries: PodcastSeries
+  getMultiplePodcastSeries: [PodcastSeries]
+  getPodcastEpisode: PodcastEpisode
+  getMultiplePodcastEpisodes: [PodcastEpisode]
+  getEpisodeTranscript: [TranscriptItem]
+  getEpisodeChapters: [Chapter]
+  getLatestPodcastEpisodes: [PodcastEpisode]
+  getComicSeries: ComicSeries
+  getMultipleComicSeries: [ComicSeries]
+  getComicIssue: ComicIssue
+  getMultipleComicIssues: [ComicIssue]
+  getComicStory: ComicStory
+  getMultipleComicStories: [ComicStory]
+  getCreator: Creator
+  getMultipleCreators: [Creator]
+  getCreatorContent: CreatorContent
+  searchForTerm: SearchResults
+  search: SearchResults
+  getDocumenation: Documentation
+  getMyDeveloperApplications: UserDevApps
+  getPublicClientDetails: PublicClientDetails
+  getMyDeveloperWebhooks: UserWebhooks
+  me: User
+  getItunesInfo: iTunesInfo
+  getMyInternalSeries: UserInternalSeriesList
+  getPreviewDetailsForSeries: ContentInternalSeriesList
+  getInternalComicForUser: InternalComicSeries
+  getInternalComicIssue: InternalComicIssue
+  getInternalCreatorForUser: InternalCreator
+  getInternalCreatorsForUser: [InternalCreator]
+  getInternalCreatorsForContent: [InternalCreator]
+  getInternalCreatorRolesForContent: TeamInternalCreatorRoles
+  getInternalInvitationsForContent: TeamInternalInvitations
+  getGroupsForContent: InternalGroupForContent
+  getPermissionForItem: UserPermission
+  getWebtoonsSeriesData: WebtoonSeriesData
+  getPlatformsForContent: PlatformDetailsForContent
+  getPaymentRulesForContent: PaymentRulesForContent
+  getPublicContentDetails: PublicContentDetails
+  getHostingProvider: HostingProvider
+  getTopCharts: TopChartsResults
+  getTopChartsByCountry: TopChartsResults
+  getTopChartsByGenres: TopChartsResults
+  getPopularContent: PopularityResult
+}
+
+type Mutation {
+  generateWebhookEventsFromIds: [WebhookEvent]
+  addWebhookUrlForUser: Webhook
+  updateWebhookForUser: Webhook
+  deleteWebhookForUser: ID
+  addNewDevApp: DevApp
+  updateDevClient: DevApp
+  addInternalComicForUser: InternalComicSeries
+  updateInternalComicForUser: InternalComicSeries
+  deleteInternalComicForUser: ID
+  updateStatusForInternalComicSeries: InternalComicSeries
+  addInternalComicIssueForUser: InternalComicIssue
+  updateInternalComicIssueForUser: InternalComicIssue
+  deleteInternalComicIssueForUser: ID
+  addInternalCreatorForUser: InternalCreator
+  updateInternalCreatorForUser: InternalCreator
+  deleteInternalCreatorForUser: ID
+  updateStatusForInternalCreator: InternalCreator
+  addOrUpdateInternalCreatorRolesForContent: TeamInternalCreatorRoles
+  addInternalInvitationForContent: TeamInternalInvitations
+  expireInternalInvitationForContent: TeamInternalInvitations
+  addGroupForContent: InternalGroup
+  updateGroupForContent: InternalGroup
+  deleteGroupForContent: ID
+  addWebtoonsSeriesData: Boolean
+  addPaymentRuleForContent: PaymentRule
+  updatePaymentRuleForContent: PaymentRule
+  deletePaymentRuleForContent: ID
+}
+

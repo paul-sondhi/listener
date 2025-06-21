@@ -15,13 +15,17 @@ config();
  * 
  * Environment Variables Required:
  * - TADDY_API_KEY: Your Taddy API key for Free tier access
+ * - TADDY_USER_ID: Your Taddy user ID (required by the API for all requests)
  */
 async function fetchTaddySchema(): Promise<void> {
   const apiKey = process.env.TADDY_API_KEY;
+  const userId = process.env.TADDY_USER_ID;
   
-  if (!apiKey) {
-    console.error('❌ TADDY_API_KEY environment variable is required');
-    console.error('   Add it to your .env file or environment');
+  if (!apiKey || !userId) {
+    console.error('❌ TADDY_API_KEY and TADDY_USER_ID environment variables are required');
+    console.error('   Add them to your .env file or environment');
+    if (!apiKey) console.error('   ⚠️  Missing: TADDY_API_KEY');
+    if (!userId) console.error('   ⚠️  Missing: TADDY_USER_ID');
     process.exit(1);
   }
 
@@ -131,6 +135,7 @@ async function fetchTaddySchema(): Promise<void> {
       headers: {
         'Content-Type': 'application/json',
         'X-API-KEY': apiKey,
+        'X-USER-ID': userId,
         'User-Agent': 'listener-app/1.0.0 (GraphQL Schema Fetch)'
       },
       body: JSON.stringify({
@@ -153,7 +158,7 @@ async function fetchTaddySchema(): Promise<void> {
     }
 
     // Convert introspection result to SDL (Schema Definition Language)
-    const schema = introspectionToSDL(result.data);
+    const schema = introspectionToSDL(result.data.__schema);
     
     // Write schema to file
     fs.writeFileSync(outputPath, schema, 'utf8');
