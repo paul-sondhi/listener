@@ -892,6 +892,7 @@ describe('initializeBackgroundJobs', () => {
   it('should initialize all background jobs in production environment', () => {
     // Arrange: Set production environment
     process.env.NODE_ENV = 'production';
+    process.env.TRANSCRIPT_WORKER_ENABLED = 'true'; // Enable transcript worker for this test
 
     // Mock cron schedule function
     const mockScheduleTask = {
@@ -925,8 +926,18 @@ describe('initializeBackgroundJobs', () => {
       })
     );
 
-    // Assert: Verify total number of scheduled jobs (daily refresh, episode sync) - 2 jobs after removing vault functionality
-    expect(mockCronSchedule).toHaveBeenCalledTimes(2);
+    // Assert: Verify transcript worker job was scheduled third
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '0 1 * * *', // 1:00 AM PT (same time as episode sync by default)
+      expect.any(Function),
+      expect.objectContaining({
+        scheduled: true,
+        timezone: 'America/Los_Angeles'
+      })
+    );
+
+    // Assert: Verify total number of scheduled jobs (daily refresh, episode sync, transcript worker) - 3 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
 
     // Assert: Verify success logging
     expect(console.log).toHaveBeenCalledWith(
@@ -992,6 +1003,7 @@ describe('initializeBackgroundJobs', () => {
     // Arrange: Disable daily refresh
     process.env.NODE_ENV = 'production'; // Set production environment
     process.env.DAILY_REFRESH_ENABLED = 'false';
+    process.env.TRANSCRIPT_WORKER_ENABLED = 'true'; // Enable transcript worker for this test
 
     // Mock cron schedule function
     const mockScheduleTask = {
@@ -1011,15 +1023,15 @@ describe('initializeBackgroundJobs', () => {
     );
     expect(dailyRefreshCalls).toHaveLength(0);
 
-    // Assert: Verify other jobs were still scheduled
+    // Assert: Verify other jobs were still scheduled (episode sync and transcript worker)
     expect(mockCronSchedule).toHaveBeenCalledWith(
       '0 1 * * *', // Episode sync should still be scheduled at 1:00 AM PT
       expect.any(Function),
       expect.any(Object)
     );
 
-    // Assert: Verify total number of scheduled jobs (episode sync) when daily refresh is disabled - 1 job after removing vault functionality
-    expect(mockCronSchedule).toHaveBeenCalledTimes(1);
+    // Assert: Verify total number of scheduled jobs (episode sync, transcript worker) when daily refresh is disabled - 2 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(2);
   });
 
   /**
@@ -1079,6 +1091,7 @@ describe('initializeBackgroundJobs', () => {
     // Arrange: Disable episode sync
     process.env.NODE_ENV = 'production'; // Set production environment
     process.env.EPISODE_SYNC_ENABLED = 'false';
+    process.env.TRANSCRIPT_WORKER_ENABLED = 'true'; // Enable transcript worker for this test
 
     // Mock cron schedule function
     const mockScheduleTask = {
@@ -1092,21 +1105,63 @@ describe('initializeBackgroundJobs', () => {
     // Act: Initialize background jobs
     initializeBackgroundJobs();
 
-    // Assert: Verify episode sync was not scheduled
-    const episodeSyncCalls = mockCronSchedule.mock.calls.filter(call => 
-      call[0] === '0 1 * * *' // Episode sync cron schedule
-    );
-    expect(episodeSyncCalls).toHaveLength(0);
+    // Assert: Verify episode sync was not scheduled by checking that only 2 jobs are scheduled
+    // (Note: Both episode sync and transcript worker use '0 1 * * *' by default, so we can't distinguish by cron pattern)
+    // We verify by ensuring total job count is 2 (daily refresh + transcript worker) instead of 3
 
-    // Assert: Verify other jobs were still scheduled
+    // Assert: Verify other jobs were still scheduled (daily refresh and transcript worker)
     expect(mockCronSchedule).toHaveBeenCalledWith(
       '30 0 * * *', // Daily refresh should still be scheduled at 12:30 AM PT
       expect.any(Function),
       expect.any(Object)
     );
 
-    // Assert: Verify total number of scheduled jobs (daily refresh) when episode sync is disabled - 1 job after removing vault functionality
-    expect(mockCronSchedule).toHaveBeenCalledTimes(1);
+    // Assert: Verify total number of scheduled jobs (daily refresh, transcript worker) when episode sync is disabled - 2 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * Test transcript worker disabling
+   * Verifies that transcript worker can be disabled via environment variable
+   */
+  it('should disable transcript worker when TRANSCRIPT_WORKER_ENABLED is false', () => {
+    // Arrange: Disable transcript worker
+    process.env.NODE_ENV = 'production'; // Set production environment
+    process.env.TRANSCRIPT_WORKER_ENABLED = 'false';
+
+    // Mock cron schedule function
+    const mockScheduleTask = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      getStatus: vi.fn().mockReturnValue('scheduled')
+    };
+    mockCronSchedule.mockReturnValue(mockScheduleTask);
+
+    // Act: Initialize background jobs
+    initializeBackgroundJobs();
+
+    // Assert: Verify daily refresh was scheduled
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '30 0 * * *', // Daily refresh should still be scheduled at 12:30 AM PT
+      expect.any(Function),
+      expect.any(Object)
+    );
+
+    // Assert: Verify episode sync was scheduled
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '0 1 * * *', // Episode sync should still be scheduled at 1:00 AM PT
+      expect.any(Function),
+      expect.any(Object)
+    );
+
+    // Assert: Verify total number of scheduled jobs (daily refresh, episode sync) when transcript worker is disabled - 2 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(2);
+
+    // Assert: Verify transcript worker disabled logging
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('- Transcript worker: DISABLED')
+    );
   });
 
   /**
