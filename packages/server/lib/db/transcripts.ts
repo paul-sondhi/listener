@@ -11,11 +11,21 @@ import {
   TranscriptFilters 
 } from '@listener/shared';
 
-// Initialize Supabase client for database operations
-const supabase: SupabaseClient = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy initialization of Supabase client for database operations
+let supabase: SupabaseClient | null = null;
+
+function getSupabaseClient(): SupabaseClient {
+  if (!supabase) {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('Missing required Supabase environment variables: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+    }
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return supabase;
+}
 
 /**
  * Insert a new transcript record with specified status
@@ -30,7 +40,7 @@ export async function insertTranscript(
   storagePath: string,
   status: TranscriptStatus
 ): Promise<Transcript> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('transcripts')
     .insert({
       episode_id: episodeId,
@@ -84,7 +94,7 @@ export async function markAvailable(
     updateData.word_count = wordCount;
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('transcripts')
     .update(updateData)
     .eq('episode_id', episodeId)
@@ -119,7 +129,7 @@ export async function markError(
     console.error(`Transcript error for episode ${episodeId}: ${reason}`);
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('transcripts')
     .update({ status: 'error' as TranscriptStatus })
     .eq('episode_id', episodeId)
@@ -145,7 +155,7 @@ export async function markError(
  * @throws Error if soft delete fails or transcript not found
  */
 export async function softDelete(id: string): Promise<Transcript> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('transcripts')
     .update({ 
       deleted_at: new Date().toISOString() 
@@ -177,7 +187,7 @@ export async function getByEpisodeId(
   episodeId: string, 
   includeDeleted: boolean = false
 ): Promise<Transcript | null> {
-  let query = supabase
+  let query = getSupabaseClient()
     .from('transcripts')
     .select()
     .eq('episode_id', episodeId);
@@ -207,7 +217,7 @@ export async function getByEpisodeId(
  * @throws Error if query fails
  */
 export async function getTranscripts(filters?: TranscriptFilters): Promise<Transcript[]> {
-  let query = supabase.from('transcripts').select();
+  let query = getSupabaseClient().from('transcripts').select();
 
   // Apply filters if provided
   if (filters) {
@@ -266,7 +276,7 @@ export async function getTranscripts(filters?: TranscriptFilters): Promise<Trans
 export async function getStatusCounts(
   includeDeleted: boolean = false
 ): Promise<Record<TranscriptStatus, number>> {
-  let query = supabase
+  let query = getSupabaseClient()
     .from('transcripts')
     .select('status');
 

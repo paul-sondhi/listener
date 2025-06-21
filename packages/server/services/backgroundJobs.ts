@@ -13,6 +13,9 @@ import {
 // Import episode sync service
 import { EpisodeSyncService } from './episodeSyncService.js';
 
+// Import transcript worker
+import { TranscriptWorker } from './TranscriptWorker.js';
+
 // Import enhanced logging
 import { log } from '../lib/logger.js';
 
@@ -335,8 +338,139 @@ export async function episodeSyncJob(): Promise<void> {
 }
 
 /**
+ * Nightly transcript worker job
+ * Fetches and stores podcast episode transcripts from Taddy Free API
+ * Runs at 1:00 AM PT (Pacific Time) daily, after episode sync
+ */
+export async function transcriptWorkerJob(): Promise<void> {
+  const startTime = Date.now();
+  const jobName = 'transcript_worker';
+  const jobId = `transcript-worker-${new Date().toISOString()}`;
+  let recordsProcessed = 0;
+  
+  log.info('scheduler', `Starting ${jobName} job`, {
+    job_id: jobId,
+    component: 'background_jobs'
+  });
+  
+  try {
+    // Initialize transcript worker with default configuration
+    const transcriptWorker = new TranscriptWorker();
+    
+    // Execute the transcript worker to fetch and store transcripts
+    log.info('scheduler', 'Executing nightly transcript worker for recent episodes', {
+      job_id: jobId,
+      component: 'transcript_worker'
+    });
+    
+    const result = await transcriptWorker.run();
+    
+    const elapsedMs = Date.now() - startTime;
+    recordsProcessed = result.processedEpisodes;
+    
+    // Enhanced logging with structured data
+    log.info('scheduler', `Transcript worker processed ${result.processedEpisodes} episodes`, {
+      job_id: jobId,
+      total_episodes: result.totalEpisodes,
+      processed_episodes: result.processedEpisodes,
+      full_transcripts: result.fullTranscripts,
+      partial_transcripts: result.partialTranscripts,
+      not_found_count: result.notFoundCount,
+      no_match_count: result.noMatchCount,
+      error_count: result.errorCount,
+      success_rate: result.processedEpisodes > 0 ? 
+        ((result.fullTranscripts + result.partialTranscripts) / result.processedEpisodes * 100).toFixed(1) : '0',
+      duration_ms: elapsedMs,
+      avg_processing_time_ms: result.averageProcessingTimeMs
+    });
+    
+    if (result.errorCount > 0) {
+      log.warn('scheduler', 'Transcript worker completed with some failures', {
+        job_id: jobId,
+        error_count: result.errorCount,
+        success_count: result.fullTranscripts + result.partialTranscripts,
+        percentage: result.processedEpisodes > 0 ? (result.errorCount / result.processedEpisodes * 100).toFixed(1) : '0'
+      });
+    }
+    
+    // Determine overall success (no unhandled exceptions, some transcripts processed)
+    const success = result.processedEpisodes > 0 || result.totalEpisodes === 0;
+    
+    // Log execution details
+    const execution: JobExecution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: success,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs,
+      ...((!success || result.errorCount > 0) && { 
+        error: result.errorCount > 0 ? `${result.errorCount} episodes failed to process` : 'Transcript worker failed'
+      })
+    };
+    
+    logJobExecution(execution);
+    emitJobMetric(jobName, success, recordsProcessed, elapsedMs);
+    
+    if (success) {
+      log.info('scheduler', `Transcript worker completed successfully`, {
+        job_id: jobId,
+        component: 'background_jobs',
+        duration_ms: elapsedMs,
+        episodes_processed: recordsProcessed,
+        transcripts_stored: result.fullTranscripts + result.partialTranscripts,
+        success_rate: result.processedEpisodes > 0 ? 
+          ((result.fullTranscripts + result.partialTranscripts) / result.processedEpisodes * 100).toFixed(1) : '100'
+      });
+    } else {
+      log.error('scheduler', `Transcript worker completed with issues`, {
+        job_id: jobId,
+        component: 'background_jobs', 
+        duration_ms: elapsedMs,
+        episodes_processed: recordsProcessed,
+        error_count: result.errorCount,
+        full_transcripts: result.fullTranscripts,
+        partial_transcripts: result.partialTranscripts
+      });
+    }
+    
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const err = error as Error;
+    
+    log.error('scheduler', `Transcript worker job failed with exception`, {
+      job_id: jobId,
+      component: 'background_jobs',
+      duration_ms: elapsedMs,
+      episodes_processed: recordsProcessed,
+      error: err.message,
+      stack_trace: err?.stack,
+      job_name: jobName
+    });
+    
+    // Log failed execution
+    const execution: JobExecution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: false,
+      error: errorMessage,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs
+    };
+    
+    logJobExecution(execution);
+    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
+    
+    // Re-throw to ensure non-zero exit code
+    throw error;
+  }
+}
+
+/**
  * Initialize background job scheduling
- * Sets up cron jobs for daily subscription refresh and episode sync
+ * Sets up cron jobs for daily subscription refresh, episode sync, and transcript worker
  */
 export function initializeBackgroundJobs(): void {
   console.log('BACKGROUND_JOBS: Initializing scheduled jobs');
@@ -388,6 +522,25 @@ export function initializeBackgroundJobs(): void {
     console.log('  - Episode sync: DISABLED');
   }
   
+  // Transcript worker job configuration
+  const transcriptWorkerEnabled = process.env.TRANSCRIPT_WORKER_ENABLED !== 'false';
+  const transcriptWorkerCron = process.env.TRANSCRIPT_WORKER_CRON || '0 1 * * *'; // Default: 1:00 AM PT
+  
+  if (transcriptWorkerEnabled) {
+    // Nightly transcript worker at configured time and timezone
+    // Cron format: minute hour day-of-month month day-of-week
+    cron.schedule(transcriptWorkerCron, async () => {
+      console.log('BACKGROUND_JOBS: Starting scheduled transcript worker job');
+      await transcriptWorkerJob();
+    }, {
+      scheduled: true,
+      timezone: cronTimezone
+    });
+    console.log(`  - Transcript worker: ${transcriptWorkerCron} ${cronTimezone}`);
+  } else {
+    console.log('  - Transcript worker: DISABLED');
+  }
+  
   console.log('BACKGROUND_JOBS: Background jobs scheduled successfully');
 }
 
@@ -405,6 +558,10 @@ export async function runJob(jobName: string): Promise<void> {
       break;
     case 'episode_sync':
       await episodeSyncJob();
+      break;
+    case 'transcript_worker':
+    case 'transcript':
+      await transcriptWorkerJob();
       break;
     default:
       console.error(`BACKGROUND_JOBS: Unknown job name: ${jobName}`);
