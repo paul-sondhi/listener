@@ -3332,7 +3332,7 @@ import { GraphQLClient } from "graphql-request";
 
 // generated/taddy.ts
 var defaultWrapper = (action, _operationName, _operationType, _variables) => action();
-function getSdk(client, _withWrapper = defaultWrapper) {
+function getSdk(client, withWrapper = defaultWrapper) {
   return {};
 }
 
