@@ -1,5 +1,6 @@
 import { EpisodeWithShow } from '../../../shared/src/types/supabase.js';
 import { createLogger, Logger } from '../logger.js';
+import { TaddyFreeClient, TranscriptResult } from '../clients/taddyFreeClient.js';
 
 /**
  * TranscriptService - Central service for all transcript-related operations
@@ -15,34 +16,49 @@ import { createLogger, Logger } from '../logger.js';
  */
 export class TranscriptService {
   private logger: Logger;
+  private taddyClient: TaddyFreeClient | null;
+  private podcastIdCache: Map<string, string> = new Map(); // In-memory cache for podcast IDs
 
   constructor() {
     this.logger = createLogger();
+    
+    // Initialize Taddy Free client if API key is available
+    const taddyApiKey = process.env.TADDY_API_KEY;
+    if (taddyApiKey) {
+      this.taddyClient = new TaddyFreeClient({ apiKey: taddyApiKey });
+      this.logger.debug('system', 'Taddy Free client initialized', {
+        metadata: { hasApiKey: true }
+      });
+    } else {
+      this.logger.warn('system', 'TADDY_API_KEY not found - Taddy Free lookup disabled', {
+        metadata: { hasApiKey: false }
+      });
+             // No client available - will skip Taddy lookup
+       this.taddyClient = null;
+    }
   }
   /**
    * Retrieve transcript for an episode by ID
-   * Currently returns null (stub implementation)
    * 
    * @param episodeId - UUID of the episode
-   * @returns Promise resolving to null (stub)
+   * @returns Promise resolving to TranscriptResult discriminated union
    */
-  async getTranscript(episodeId: string): Promise<null>;
+  async getTranscript(episodeId: string): Promise<TranscriptResult>;
 
   /**
    * Retrieve transcript for an episode object
-   * Currently returns null (stub implementation)
    * 
    * @param episode - Full episode row from database with show info
-   * @returns Promise resolving to null (stub)
+   * @returns Promise resolving to TranscriptResult discriminated union
    */
-  async getTranscript(episode: EpisodeWithShow): Promise<null>;
+  async getTranscript(episode: EpisodeWithShow): Promise<TranscriptResult>;
 
   /**
    * Implementation signature - handles both overloads
    * @param arg - Either episode ID string or episode row object
-   * @returns Promise resolving to null (stub)
+   * @returns Promise resolving to TranscriptResult discriminated union
    */
-  async getTranscript(arg: string | EpisodeWithShow): Promise<null> {
+  async getTranscript(arg: string | EpisodeWithShow): Promise<TranscriptResult> {
     // If caller passed an episode ID string, we need to fetch the episode row first
     if (typeof arg === 'string') {
       const episodeId = arg;
@@ -60,18 +76,59 @@ export class TranscriptService {
     
     // Check if episode is eligible for transcript processing
     if (!this.isEpisodeEligible(episode)) {
-      // Short-circuit: return null for ineligible episodes
-      return null;
+      // Short-circuit: return error for ineligible episodes
+      return { kind: 'error', message: 'Episode is not eligible for transcript processing' };
     }
     
-    // STUB BEHAVIOR: Always return null for now (for eligible episodes)
-    // TODO: Future provider logic will be implemented here in the following order:
-    // 1. Check if transcript already exists in database
-    // 2. Try Taddy Free lookup (no cost)
-    // 3. Try Taddy Business pregenerated retrieval (if available)
-    // 4. Fall back to on-demand ASR providers (Deepgram/Rev AI)
-    // 5. Store result in database with cost/provenance metadata
-    return null;
+    // Try Taddy Free lookup if client is available
+    if (this.taddyClient && episode.show?.rss_url && episode.guid) {
+      this.logger.debug('system', 'Attempting Taddy Free transcript lookup', {
+        metadata: { 
+          episode_id: episode.id,
+          rss_url: episode.show.rss_url,
+          guid: episode.guid
+        }
+      });
+      
+      try {
+        const result = await this.taddyClient.fetchTranscript(episode.show.rss_url, episode.guid);
+        
+        this.logger.info('system', 'Taddy Free lookup completed', {
+          metadata: { 
+            episode_id: episode.id,
+            result_kind: result.kind,
+            has_text: 'text' in result && result.text.length > 0
+          }
+        });
+        
+        return result;
+      } catch (error) {
+        this.logger.error('system', 'Taddy Free lookup failed', {
+          metadata: { 
+            episode_id: episode.id,
+            error: error instanceof Error ? error.message : String(error)
+          }
+        });
+        
+        return { 
+          kind: 'error', 
+          message: `Taddy lookup failed: ${error instanceof Error ? error.message : String(error)}` 
+        };
+      }
+    }
+    
+    // No Taddy client available or missing required data
+    this.logger.debug('system', 'Taddy Free lookup skipped', {
+      metadata: { 
+        episode_id: episode.id,
+        has_client: !!this.taddyClient,
+        has_rss_url: !!episode.show?.rss_url,
+        has_guid: !!episode.guid,
+        reason: !this.taddyClient ? 'no_client' : !episode.show?.rss_url ? 'no_rss_url' : 'no_guid'
+      }
+    });
+    
+    return { kind: 'not_found' };
   }
 
   /**
@@ -82,7 +139,7 @@ export class TranscriptService {
    */
   private isEpisodeEligible(episode: EpisodeWithShow): boolean {
     // Episode is ineligible if it has been deleted
-    if (episode.deleted_at !== null) {
+    if (episode.deleted_at) {
       this.logger.debug('system', 'Episode ineligible for transcript processing: deleted', {
         metadata: { 
           episode_id: episode.id, 
@@ -137,7 +194,7 @@ export class TranscriptService {
       pub_date: new Date().toISOString(),
       duration_sec: 3600, // 1 hour in seconds
       created_at: new Date().toISOString(),
-      deleted_at: null, // Not deleted
+      deleted_at: undefined, // Not deleted
       // Show information needed for transcript service logic
       show: {
         rss_url: 'https://example.com/feed.xml', // Stubbed RSS URL

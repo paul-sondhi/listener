@@ -31,7 +31,7 @@ describe('TaddyFreeClient', () => {
   let mockSdk: any;
   let mockWithHttpRetry: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Reset all mocks
     vi.clearAllMocks();
     

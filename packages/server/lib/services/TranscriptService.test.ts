@@ -13,7 +13,7 @@ const createMockEpisode = (overrides: Partial<EpisodeWithShow> = {}): EpisodeWit
   pub_date: new Date().toISOString(),
   duration_sec: 1800,
   created_at: new Date().toISOString(),
-  deleted_at: null,
+  deleted_at: undefined,
   show: {
     rss_url: 'https://example.com/feed.xml',
   },
@@ -51,34 +51,46 @@ describe('TranscriptService', () => {
   });
 
   describe('getTranscript with an episode object', () => {
-    it('should return null for a valid, eligible episode (happy path)', async () => {
+    it('should return not_found for a valid, eligible episode when no Taddy client is available', async () => {
       const mockEpisode = createMockEpisode();
       const result = await transcriptService.getTranscript(mockEpisode);
-      expect(result).toBeNull();
+      expect(result).toEqual({ kind: 'not_found' });
     });
 
-    it('should return null for an episode with a null rss_url', async () => {
+    it('should return error for an episode with a null rss_url', async () => {
       const mockEpisode = createMockEpisode({ show: { rss_url: null } });
       const result = await transcriptService.getTranscript(mockEpisode);
-      expect(result).toBeNull();
+      expect(result).toEqual({ 
+        kind: 'error', 
+        message: 'Episode is not eligible for transcript processing' 
+      });
     });
 
-    it('should return null for an episode with an empty rss_url', async () => {
+    it('should return error for an episode with an empty rss_url', async () => {
       const mockEpisode = createMockEpisode({ show: { rss_url: '' } });
       const result = await transcriptService.getTranscript(mockEpisode);
-      expect(result).toBeNull();
+      expect(result).toEqual({ 
+        kind: 'error', 
+        message: 'Episode is not eligible for transcript processing' 
+      });
     });
 
-    it('should return null for an episode with a whitespace-only rss_url', async () => {
+    it('should return error for an episode with a whitespace-only rss_url', async () => {
       const mockEpisode = createMockEpisode({ show: { rss_url: '   ' } });
       const result = await transcriptService.getTranscript(mockEpisode);
-      expect(result).toBeNull();
+      expect(result).toEqual({ 
+        kind: 'error', 
+        message: 'Episode is not eligible for transcript processing' 
+      });
     });
 
-    it('should return null for an episode with a deleted_at timestamp', async () => {
+    it('should return error for an episode with a deleted_at timestamp', async () => {
       const mockEpisode = createMockEpisode({ deleted_at: new Date().toISOString() });
       const result = await transcriptService.getTranscript(mockEpisode);
-      expect(result).toBeNull();
+      expect(result).toEqual({ 
+        kind: 'error', 
+        message: 'Episode is not eligible for transcript processing' 
+      });
     });
   });
 
