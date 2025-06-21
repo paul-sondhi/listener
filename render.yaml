@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: listener-server
+    env: node
+    plan: starter
+    buildCommand: ./build.sh
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production 

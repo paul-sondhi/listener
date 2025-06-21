@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "concurrently \"supabase start\" \"npm run dev -w @listener/server\" \"npm run dev -w @listener/client\"",
     "build": "./build.sh",
-    "start": "cd packages/server && npm run start",
+    "start": "node packages/server/dist/server.js",
     "test": "npm run test -ws --if-present",
     "test:quiet": "npm run test:quiet -ws --if-present",
     "test:summary": "npm run test:summary -ws --if-present",
