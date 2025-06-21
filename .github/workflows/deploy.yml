@@ -40,6 +40,13 @@ jobs:
       - name: Run All Tests
         run: npm test # Runs all tests defined in your root package.json
 
+      - name: Run Transcript Worker Tests
+        # Explicitly run transcript worker tests to ensure they pass
+        run: |
+          echo "🧪 Running transcript worker unit tests..."
+          cd packages/server
+          npm test -- --run config/__tests__/transcriptWorkerConfig.test.ts services/__tests__/TranscriptWorker.test.ts
+
   # NEW: Backup-Restore Migration Tests
   migration-tests:
     name: Migration & Vault Tests
