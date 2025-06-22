@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GraphQLClient } from 'graphql-request';
-import { TaddyFreeClient, TranscriptResult as _TranscriptResult } from '../taddyFreeClient.js';
+import { TaddyFreeClient } from '../taddyFreeClient.js';
+import { TranscriptResult } from '../../../../shared/src/types/index.js';
 import * as retryModule from '../../utils/retry.js';
 
 // Mock the generated SDK

@@ -2,7 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@listener/shared';
 import { TranscriptStatus } from '@listener/shared';
 import { TranscriptService } from '../lib/services/TranscriptService.js';
-import { TranscriptResult } from '../lib/clients/taddyFreeClient.js';
+import { TranscriptResult } from '../../shared/src/types/index.js';
 import { insertTranscript } from '../lib/db/transcripts.js';
 import { getTranscriptWorkerConfig, TranscriptWorkerConfig } from '../config/transcriptWorkerConfig.js';
 import { createLogger, Logger } from '../lib/logger.js';

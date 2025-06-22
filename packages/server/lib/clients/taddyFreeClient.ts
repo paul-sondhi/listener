@@ -1,18 +1,8 @@
 import { GraphQLClient } from 'graphql-request';
 import { getSdk, TaddyPodcastEpisode, TaddyTranscript } from '../../generated/taddy.js';
+import { TranscriptResult } from '../../../shared/src/types/index.js';
 import { logger } from '../logger.js';
 import { withHttpRetry } from '../utils/retry.js';
-
-/**
- * Discriminated union representing the result of a transcript lookup
- * This type allows downstream code to handle all possible outcomes
- */
-export type TranscriptResult =
-  | { kind: 'full'; text: string; wordCount: number }
-  | { kind: 'partial'; text: string; wordCount: number }
-  | { kind: 'not_found' }
-  | { kind: 'no_match' }
-  | { kind: 'error'; message: string };
 
 /**
  * Configuration for the TaddyFreeClient

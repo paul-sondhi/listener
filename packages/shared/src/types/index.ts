@@ -18,6 +18,9 @@ export * from './supabase.js';
 // Transcript types
 export * from './transcript.js';
 
+// Transcript Result types (shared across all transcript providers)
+export * from './TranscriptResult.js';
+
 // Common types (primary source for PaginationParams, SortParams)
 export * from './common.js';
 

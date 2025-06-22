@@ -1,11 +1,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TranscriptService } from '../TranscriptService.js';
-import { TaddyFreeClient, TranscriptResult } from '../../clients/taddyFreeClient.js';
-import { EpisodeWithShow } from '../../../../shared/src/types/supabase.js';
+import { TaddyFreeClient } from '../../clients/taddyFreeClient.js';
+import { TaddyBusinessClient, BusinessTranscriptResult } from '../../clients/taddyBusinessClient.js';
+import { EpisodeWithShow, TranscriptResult, ExtendedTranscriptResult } from '../../../../shared/src/types/index.js';
 
 // Mock the TaddyFreeClient
 vi.mock('../../clients/taddyFreeClient.js', () => ({
   TaddyFreeClient: vi.fn(),
+}));
+
+// Mock the TaddyBusinessClient
+vi.mock('../../clients/taddyBusinessClient.js', () => ({
+  TaddyBusinessClient: vi.fn(),
+}));
+
+// Mock transcript worker config
+vi.mock('../../../config/transcriptWorkerConfig.js', () => ({
+  getTranscriptWorkerConfig: vi.fn(() => ({
+    tier: 'free', // Default to free tier for tests
+    enabled: true,
+    cronSchedule: '0 1 * * *',
+    lookbackHours: 24,
+    maxRequests: 15,
+    concurrency: 10,
+    useAdvisoryLock: true,
+  })),
 }));
 
 // Mock logger
@@ -16,11 +35,19 @@ vi.mock('../../logger.js', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 describe('TranscriptService', () => {
   let service: TranscriptService;
-  let mockTaddyClient: any;
+  let mockTaddyFreeClient: any;
+  let mockTaddyBusinessClient: any;
+  let mockGetConfig: any;
   let originalEnv: string | undefined;
 
   const createMockEpisode = (overrides: Partial<EpisodeWithShow> = {}): EpisodeWithShow => ({
@@ -40,20 +67,32 @@ describe('TranscriptService', () => {
     ...overrides,
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Save original environment
     originalEnv = process.env.TADDY_API_KEY;
     
     // Reset mocks
     vi.clearAllMocks();
     
-    // Create mock Taddy client
-    mockTaddyClient = {
+    // Create mock Taddy Free client
+    mockTaddyFreeClient = {
+      fetchTranscript: vi.fn(),
+    };
+    
+    // Create mock Taddy Business client
+    mockTaddyBusinessClient = {
       fetchTranscript: vi.fn(),
     };
     
     // Mock the TaddyFreeClient constructor
-    (TaddyFreeClient as any).mockImplementation(() => mockTaddyClient);
+    (TaddyFreeClient as any).mockImplementation(() => mockTaddyFreeClient);
+    
+    // Mock the TaddyBusinessClient constructor
+    (TaddyBusinessClient as any).mockImplementation(() => mockTaddyBusinessClient);
+    
+    // Get the config mock
+    const { getTranscriptWorkerConfig } = await import('../../../config/transcriptWorkerConfig.js');
+    mockGetConfig = getTranscriptWorkerConfig as any;
   });
 
   afterEach(() => {
@@ -66,26 +105,98 @@ describe('TranscriptService', () => {
   });
 
   describe('constructor', () => {
-    it('should initialize with Taddy client when API key is available', () => {
+    it('should initialize with Free client when tier is free and API key is available', () => {
       process.env.TADDY_API_KEY = 'test-api-key';
+      mockGetConfig.mockReturnValue({ tier: 'free' });
       
       service = new TranscriptService();
       
       expect(TaddyFreeClient).toHaveBeenCalledWith({ apiKey: 'test-api-key' });
+      expect(TaddyBusinessClient).not.toHaveBeenCalled();
+    });
+
+    it('should initialize with Business client when tier is business and API key is available', () => {
+      process.env.TADDY_API_KEY = 'test-api-key';
+      mockGetConfig.mockReturnValue({ tier: 'business' });
+      
+      service = new TranscriptService();
+      
+      expect(TaddyBusinessClient).toHaveBeenCalledWith({ apiKey: 'test-api-key' });
+      expect(TaddyFreeClient).not.toHaveBeenCalled();
     });
 
     it('should initialize without Taddy client when API key is missing', () => {
       delete process.env.TADDY_API_KEY;
+      mockGetConfig.mockReturnValue({ tier: 'free' });
       
       service = new TranscriptService();
       
       expect(TaddyFreeClient).not.toHaveBeenCalled();
+      expect(TaddyBusinessClient).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getTranscript with Business tier', () => {
+    beforeEach(() => {
+      process.env.TADDY_API_KEY = 'test-api-key';
+      mockGetConfig.mockReturnValue({ tier: 'business' }); // Use business tier
+      service = new TranscriptService();
+    });
+
+    it('should return processing when Business client returns processing', async () => {
+      const episode = createMockEpisode();
+      const businessResult: BusinessTranscriptResult = {
+        kind: 'processing',
+        creditsConsumed: 1
+      };
+      
+      mockTaddyBusinessClient.fetchTranscript.mockResolvedValue(businessResult);
+
+      const result = await service.getTranscript(episode);
+
+      expect(result).toEqual({ 
+        kind: 'processing',
+        source: 'taddy',
+        creditsConsumed: 1
+      });
+      expect(mockTaddyBusinessClient.fetchTranscript).toHaveBeenCalledWith(
+        'https://example.com/feed.xml',
+        'episode-guid-789'
+      );
+    });
+
+    it('should return full transcript from Business client', async () => {
+      const episode = createMockEpisode();
+      const businessResult: BusinessTranscriptResult = {
+        kind: 'full',
+        text: 'This is a business tier transcript.',
+        wordCount: 6,
+        source: 'taddy',
+        creditsConsumed: 1
+      };
+      
+      mockTaddyBusinessClient.fetchTranscript.mockResolvedValue(businessResult);
+
+      const result = await service.getTranscript(episode);
+
+      expect(result).toEqual({
+        kind: 'full',
+        text: 'This is a business tier transcript.',
+        wordCount: 6,
+        source: 'taddy',
+        creditsConsumed: 1
+      });
+      expect(mockTaddyBusinessClient.fetchTranscript).toHaveBeenCalledWith(
+        'https://example.com/feed.xml',
+        'episode-guid-789'
+      );
     });
   });
 
   describe('getTranscript with episode object', () => {
     beforeEach(() => {
       process.env.TADDY_API_KEY = 'test-api-key';
+      mockGetConfig.mockReturnValue({ tier: 'free' }); // Default to free tier for existing tests
       service = new TranscriptService();
     });
 
@@ -99,8 +210,10 @@ describe('TranscriptService', () => {
       expect(result).toEqual({
         kind: 'error',
         message: 'Episode is not eligible for transcript processing',
+        source: 'taddy',
+        creditsConsumed: 0
       });
-      expect(mockTaddyClient.fetchTranscript).not.toHaveBeenCalled();
+      expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
 
     it('should return error for episodes without RSS URL', async () => {
@@ -114,7 +227,7 @@ describe('TranscriptService', () => {
         kind: 'error',
         message: 'Episode is not eligible for transcript processing',
       });
-      expect(mockTaddyClient.fetchTranscript).not.toHaveBeenCalled();
+      expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
 
     it('should return error for episodes with empty RSS URL', async () => {
@@ -128,7 +241,7 @@ describe('TranscriptService', () => {
         kind: 'error',
         message: 'Episode is not eligible for transcript processing',
       });
-      expect(mockTaddyClient.fetchTranscript).not.toHaveBeenCalled();
+      expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
 
     it('should return full transcript from Taddy when available', async () => {
@@ -139,12 +252,12 @@ describe('TranscriptService', () => {
         wordCount: 6,
       };
       
-      mockTaddyClient.fetchTranscript.mockResolvedValue(taddyResult);
+      mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
 
       const result = await service.getTranscript(episode);
 
       expect(result).toEqual(taddyResult);
-      expect(mockTaddyClient.fetchTranscript).toHaveBeenCalledWith(
+      expect(mockTaddyFreeClient.fetchTranscript).toHaveBeenCalledWith(
         'https://example.com/feed.xml',
         'episode-guid-789'
       );
@@ -159,12 +272,12 @@ describe('TranscriptService', () => {
         reason: 'Transcript incomplete',
       };
       
-      mockTaddyClient.fetchTranscript.mockResolvedValue(taddyResult);
+      mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
 
       const result = await service.getTranscript(episode);
 
       expect(result).toEqual(taddyResult);
-      expect(mockTaddyClient.fetchTranscript).toHaveBeenCalledWith(
+      expect(mockTaddyFreeClient.fetchTranscript).toHaveBeenCalledWith(
         'https://example.com/feed.xml',
         'episode-guid-789'
       );
@@ -174,12 +287,12 @@ describe('TranscriptService', () => {
       const episode = createMockEpisode();
       const taddyResult: TranscriptResult = { kind: 'not_found' };
       
-      mockTaddyClient.fetchTranscript.mockResolvedValue(taddyResult);
+      mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
 
       const result = await service.getTranscript(episode);
 
       expect(result).toEqual(taddyResult);
-      expect(mockTaddyClient.fetchTranscript).toHaveBeenCalledWith(
+      expect(mockTaddyFreeClient.fetchTranscript).toHaveBeenCalledWith(
         'https://example.com/feed.xml',
         'episode-guid-789'
       );
@@ -192,12 +305,12 @@ describe('TranscriptService', () => {
         reason: 'Episode not found in podcast',
       };
       
-      mockTaddyClient.fetchTranscript.mockResolvedValue(taddyResult);
+      mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
 
       const result = await service.getTranscript(episode);
 
       expect(result).toEqual(taddyResult);
-      expect(mockTaddyClient.fetchTranscript).toHaveBeenCalledWith(
+      expect(mockTaddyFreeClient.fetchTranscript).toHaveBeenCalledWith(
         'https://example.com/feed.xml',
         'episode-guid-789'
       );
@@ -207,15 +320,15 @@ describe('TranscriptService', () => {
       const episode = createMockEpisode();
       const error = new Error('Network timeout');
       
-      mockTaddyClient.fetchTranscript.mockRejectedValue(error);
+      mockTaddyFreeClient.fetchTranscript.mockRejectedValue(error);
 
       const result = await service.getTranscript(episode);
 
       expect(result).toEqual({
         kind: 'error',
-        message: 'Taddy lookup failed: Network timeout',
+        message: 'Taddy Free lookup failed: Network timeout',
       });
-      expect(mockTaddyClient.fetchTranscript).toHaveBeenCalledWith(
+      expect(mockTaddyFreeClient.fetchTranscript).toHaveBeenCalledWith(
         'https://example.com/feed.xml',
         'episode-guid-789'
       );
@@ -224,13 +337,13 @@ describe('TranscriptService', () => {
     it('should return error when Taddy client throws non-Error exception', async () => {
       const episode = createMockEpisode();
       
-      mockTaddyClient.fetchTranscript.mockRejectedValue('String error');
+      mockTaddyFreeClient.fetchTranscript.mockRejectedValue('String error');
 
       const result = await service.getTranscript(episode);
 
       expect(result).toEqual({
         kind: 'error',
-        message: 'Taddy lookup failed: String error',
+        message: 'Taddy Free lookup failed: String error',
       });
     });
 
@@ -244,7 +357,7 @@ describe('TranscriptService', () => {
       const result = await service.getTranscript(episode);
 
       expect(result).toEqual({ kind: 'not_found' });
-      expect(mockTaddyClient.fetchTranscript).not.toHaveBeenCalled();
+      expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
 
     it('should return not_found when episode is missing GUID', async () => {
@@ -255,13 +368,14 @@ describe('TranscriptService', () => {
       const result = await service.getTranscript(episodeWithoutGuid);
 
       expect(result).toEqual({ kind: 'not_found' });
-      expect(mockTaddyClient.fetchTranscript).not.toHaveBeenCalled();
+      expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
   });
 
   describe('getTranscript with episode ID', () => {
     beforeEach(() => {
       process.env.TADDY_API_KEY = 'test-api-key';
+      mockGetConfig.mockReturnValue({ tier: 'free' }); // Default to free tier for existing tests
       service = new TranscriptService();
     });
 
@@ -273,13 +387,13 @@ describe('TranscriptService', () => {
         wordCount: 6,
       };
       
-      mockTaddyClient.fetchTranscript.mockResolvedValue(taddyResult);
+      mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
 
       const result = await service.getTranscript(episodeId);
 
       expect(result).toEqual(taddyResult);
       // Should use the stubbed episode data
-      expect(mockTaddyClient.fetchTranscript).toHaveBeenCalledWith(
+      expect(mockTaddyFreeClient.fetchTranscript).toHaveBeenCalledWith(
         'https://example.com/feed.xml',
         `stub-guid-${episodeId}`
       );
@@ -293,7 +407,7 @@ describe('TranscriptService', () => {
         wordCount: 6,
       };
       
-      mockTaddyClient.fetchTranscript.mockResolvedValue(taddyResult);
+      mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
 
       // The stubbed implementation should still work
       const result = await service.getTranscript(episodeId);
@@ -305,6 +419,7 @@ describe('TranscriptService', () => {
   describe('edge cases', () => {
     beforeEach(() => {
       process.env.TADDY_API_KEY = 'test-api-key';
+      mockGetConfig.mockReturnValue({ tier: 'free' }); // Default to free tier for existing tests
       service = new TranscriptService();
     });
 
