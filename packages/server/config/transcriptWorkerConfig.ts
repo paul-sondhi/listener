@@ -8,6 +8,8 @@ export interface TranscriptWorkerConfig {
   enabled: boolean;
   /** Cron schedule string (e.g., '0 1 * * *' for 1 AM daily) */
   cronSchedule: string;
+  /** Taddy API tier to use ('free' or 'business') */
+  tier: 'free' | 'business';
   /** Hours to look back for new episodes */
   lookbackHours: number;
   /** Maximum Taddy API requests per run */
@@ -32,6 +34,13 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
   if (!isValidCronExpression(cronSchedule)) {
     throw new Error(`Invalid TRANSCRIPT_WORKER_CRON: "${cronSchedule}". Must be a valid cron expression.`);
   }
+
+  // Parse and validate tier
+  const tierString = process.env.TRANSCRIPT_TIER || 'business';
+  if (tierString !== 'free' && tierString !== 'business') {
+    throw new Error(`Invalid TRANSCRIPT_TIER: "${tierString}". Must be either 'free' or 'business'.`);
+  }
+  const tier = tierString as 'free' | 'business';
 
   // Parse lookback hours with validation
   const lookbackHours = parseInt(process.env.TRANSCRIPT_LOOKBACK || '24', 10);
@@ -62,6 +71,7 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
   return {
     enabled,
     cronSchedule,
+    tier,
     lookbackHours,
     maxRequests,
     concurrency,
@@ -113,6 +123,7 @@ export function getConfigSummary(config: TranscriptWorkerConfig): Record<string,
   return {
     enabled: config.enabled,
     schedule: config.cronSchedule,
+    tier: config.tier,
     lookback_hours: config.lookbackHours,
     max_requests_per_run: config.maxRequests,
     max_concurrent: config.concurrency,

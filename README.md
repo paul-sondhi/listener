@@ -71,6 +71,7 @@ A podcast transcription service that integrates with Spotify.
    # Transcript Worker (Optional - defaults provided)
    TRANSCRIPT_WORKER_ENABLED=true        # Enable nightly transcript sync
    TRANSCRIPT_WORKER_CRON=0 1 * * *      # Run at 1 AM daily
+   TRANSCRIPT_TIER=business              # Taddy API tier ('free' or 'business')
    TRANSCRIPT_LOOKBACK=24                # Hours to scan for new episodes
    TRANSCRIPT_MAX_REQUESTS=15            # Max API calls per run
    TRANSCRIPT_CONCURRENCY=10             # Max simultaneous requests
