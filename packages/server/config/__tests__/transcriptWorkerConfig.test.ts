@@ -31,6 +31,7 @@ describe('Transcript Worker Configuration', () => {
     delete process.env.TRANSCRIPT_WORKER_ENABLED;
     delete process.env.TRANSCRIPT_WORKER_CRON;
     delete process.env.TRANSCRIPT_ADVISORY_LOCK;
+    delete process.env.TRANSCRIPT_TIER;
   });
 
   afterEach(() => {
@@ -48,6 +49,7 @@ describe('Transcript Worker Configuration', () => {
         concurrency: 10,
         enabled: true,
         cronSchedule: '0 1 * * *',
+        tier: 'business',
         useAdvisoryLock: true
       });
     });
@@ -68,6 +70,7 @@ describe('Transcript Worker Configuration', () => {
       expect(config.concurrency).toBe(10);
       expect(config.enabled).toBe(true);
       expect(config.cronSchedule).toBe('0 1 * * *');
+      expect(config.tier).toBe('business');
       expect(config.useAdvisoryLock).toBe(true);
     });
   });
@@ -79,6 +82,7 @@ describe('Transcript Worker Configuration', () => {
       process.env.TRANSCRIPT_CONCURRENCY = '15';
       process.env.TRANSCRIPT_WORKER_ENABLED = 'true';
       process.env.TRANSCRIPT_WORKER_CRON = '30 2 * * *';
+      process.env.TRANSCRIPT_TIER = 'free';
       process.env.TRANSCRIPT_ADVISORY_LOCK = 'false';
 
       const config = getTranscriptWorkerConfig();
@@ -88,6 +92,7 @@ describe('Transcript Worker Configuration', () => {
       expect(config.concurrency).toBe(15);
       expect(config.enabled).toBe(true);
       expect(config.cronSchedule).toBe('30 2 * * *');
+      expect(config.tier).toBe('free');
       expect(config.useAdvisoryLock).toBe(false);
     });
 
@@ -252,6 +257,117 @@ describe('Transcript Worker Configuration', () => {
       });
     });
 
+    describe('Tier Validation', () => {
+      it('should accept valid tier values', () => {
+        // Test 'free' tier
+        process.env.TRANSCRIPT_TIER = 'free';
+        let config = getTranscriptWorkerConfig();
+        expect(config.tier).toBe('free');
+
+        // Test 'business' tier
+        process.env.TRANSCRIPT_TIER = 'business';
+        config = getTranscriptWorkerConfig();
+        expect(config.tier).toBe('business');
+      });
+
+      it('should default to business tier when TRANSCRIPT_TIER is not set', () => {
+        delete process.env.TRANSCRIPT_TIER;
+        
+        const config = getTranscriptWorkerConfig();
+        expect(config.tier).toBe('business');
+      });
+
+      it('should default to business tier when TRANSCRIPT_TIER is empty string', () => {
+        process.env.TRANSCRIPT_TIER = '';
+        
+        const config = getTranscriptWorkerConfig();
+        expect(config.tier).toBe('business');
+      });
+
+      it('should reject invalid tier values', () => {
+        const invalidTiers = [
+          'premium',
+          'enterprise',
+          'basic',
+          'standard',
+          'pro',
+          'FREE',
+          'BUSINESS',
+          'Free',
+          'Business',
+          'invalid',
+          '123',
+          'free business',
+          'business-tier'
+        ];
+
+        for (const invalidTier of invalidTiers) {
+          process.env.TRANSCRIPT_TIER = invalidTier;
+          expect(() => getTranscriptWorkerConfig()).toThrow(
+            `Invalid TRANSCRIPT_TIER: "${invalidTier}". Must be either 'free' or 'business'.`
+          );
+        }
+      });
+
+      it('should handle whitespace in tier values', () => {
+        // Leading/trailing whitespace should be rejected
+        const whitespaceValues = [
+          ' free',
+          'free ',
+          ' free ',
+          '\tfree',
+          'free\n',
+          ' business',
+          'business ',
+          ' business ',
+          '\tbusiness',
+          'business\n'
+        ];
+
+        for (const tierValue of whitespaceValues) {
+          process.env.TRANSCRIPT_TIER = tierValue;
+          expect(() => getTranscriptWorkerConfig()).toThrow(
+            `Invalid TRANSCRIPT_TIER: "${tierValue}". Must be either 'free' or 'business'.`
+          );
+        }
+      });
+
+      it('should reject null and undefined explicitly set values', () => {
+        // Test explicit undefined
+        process.env.TRANSCRIPT_TIER = 'undefined';
+        expect(() => getTranscriptWorkerConfig()).toThrow(
+          `Invalid TRANSCRIPT_TIER: "undefined". Must be either 'free' or 'business'.`
+        );
+
+        // Test explicit null
+        process.env.TRANSCRIPT_TIER = 'null';
+        expect(() => getTranscriptWorkerConfig()).toThrow(
+          `Invalid TRANSCRIPT_TIER: "null". Must be either 'free' or 'business'.`
+        );
+      });
+
+      it('should handle case sensitivity strictly', () => {
+        // Only lowercase 'free' and 'business' should be accepted
+        const caseSensitiveValues = [
+          'FREE',
+          'BUSINESS',
+          'Free',
+          'Business',
+          'fReE',
+          'bUsInEsS',
+          'frEE',
+          'BUSINESS'
+        ];
+
+        for (const tierValue of caseSensitiveValues) {
+          process.env.TRANSCRIPT_TIER = tierValue;
+          expect(() => getTranscriptWorkerConfig()).toThrow(
+            `Invalid TRANSCRIPT_TIER: "${tierValue}". Must be either 'free' or 'business'.`
+          );
+        }
+      });
+    });
+
     describe('Cross-Validation Rules', () => {
       it('should reject concurrency greater than max requests', () => {
         process.env.TRANSCRIPT_MAX_REQUESTS = '10';
@@ -343,6 +459,7 @@ describe('Transcript Worker Configuration', () => {
       expect(config.maxRequests).toBe(15);
       expect(config.concurrency).toBe(10);
       expect(config.cronSchedule).toBe('0 1 * * *'); // Default cron
+      expect(config.tier).toBe('business'); // Default tier
     });
 
     it('should handle whitespace-only environment variables', () => {
@@ -382,6 +499,7 @@ describe('Transcript Worker Configuration', () => {
       process.env.TRANSCRIPT_CONCURRENCY = '10';
       process.env.TRANSCRIPT_WORKER_ENABLED = 'true';
       process.env.TRANSCRIPT_WORKER_CRON = '0 1 * * *';
+      process.env.TRANSCRIPT_TIER = 'business';
       process.env.TRANSCRIPT_ADVISORY_LOCK = 'true';
 
       const config = getTranscriptWorkerConfig();
@@ -392,6 +510,7 @@ describe('Transcript Worker Configuration', () => {
         concurrency: 10,
         enabled: true,
         cronSchedule: '0 1 * * *',
+        tier: 'business',
         useAdvisoryLock: true
       });
     });
@@ -402,6 +521,7 @@ describe('Transcript Worker Configuration', () => {
       process.env.TRANSCRIPT_CONCURRENCY = '2';
       process.env.TRANSCRIPT_WORKER_ENABLED = 'false';
       process.env.TRANSCRIPT_WORKER_CRON = '*/5 * * * *';
+      process.env.TRANSCRIPT_TIER = 'free';
       process.env.TRANSCRIPT_ADVISORY_LOCK = 'false';
 
       const config = getTranscriptWorkerConfig();
@@ -412,6 +532,7 @@ describe('Transcript Worker Configuration', () => {
         concurrency: 2,
         enabled: false,
         cronSchedule: '*/5 * * * *',
+        tier: 'free',
         useAdvisoryLock: false
       });
     });

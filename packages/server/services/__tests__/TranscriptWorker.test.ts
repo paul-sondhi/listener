@@ -50,7 +50,8 @@ const defaultConfig: TranscriptWorkerConfig = {
   concurrency: 10,
   enabled: true,
   cronSchedule: '0 1 * * *',
-  useAdvisoryLock: true
+  useAdvisoryLock: true,
+  tier: 'business'
 };
 
 describe('TranscriptWorker', () => {
@@ -106,9 +107,11 @@ describe('TranscriptWorker', () => {
           })
         };
       }
-      // Default fallback
+      // Default fallback for podcast_shows table
       return {
-        select: vi.fn().mockResolvedValue({ data: [], error: null })
+        select: vi.fn().mockReturnValue({
+          in: vi.fn().mockResolvedValue({ data: [], error: null })
+        })
       };
     });
 
@@ -119,7 +122,8 @@ describe('TranscriptWorker', () => {
     mockTranscriptService.mockImplementation(() => ({
       getTranscript: vi.fn().mockResolvedValue({
         kind: 'not_found',
-        message: 'No transcript found'
+        source: 'taddy',
+        creditsConsumed: 0
       })
     }));
 
@@ -251,6 +255,274 @@ describe('TranscriptWorker', () => {
         expect.objectContaining({
           metadata: expect.objectContaining({
             job_id: expect.stringMatching(/transcript-worker-/)
+          })
+        })
+      );
+    });
+  });
+
+  describe('Processing Status Handling', () => {
+    it('should include processingCount in summary metrics', async () => {
+      const result = await worker.run();
+
+      expect(result).toHaveProperty('processingCount');
+      expect(typeof result.processingCount).toBe('number');
+      expect(result.processingCount).toBe(0); // No episodes processed in basic test
+    });
+
+    it('should handle processing status from transcript service', async () => {
+      // Mock episodes data with proper structure including joined podcast_shows
+      const mockEpisodes = [{
+        id: 'episode-1',
+        show_id: 'show-1',
+        guid: 'guid-1',
+        episode_url: 'https://example.com/episode1',
+        title: 'Test Episode',
+        description: 'Test description',
+        pub_date: new Date().toISOString(),
+        duration_sec: 3600,
+        created_at: new Date().toISOString(),
+        deleted_at: null,
+        podcast_shows: {
+          id: 'show-1',
+          rss_url: 'https://example.com/rss',
+          title: 'Test Show'
+        }
+      }];
+
+      // Mock database to return episodes
+      mockSupabaseClient.from.mockImplementation((table: string) => {
+        if (table === 'podcast_episodes') {
+          return {
+            select: vi.fn().mockReturnValue({
+              gte: vi.fn().mockReturnValue({
+                not: vi.fn().mockReturnValue({
+                  not: vi.fn().mockReturnValue({
+                    not: vi.fn().mockReturnValue({
+                      not: vi.fn().mockReturnValue({
+                        order: vi.fn().mockReturnValue({
+                          limit: vi.fn().mockResolvedValue({ data: mockEpisodes, error: null })
+                        })
+                      })
+                    })
+                  })
+                })
+              })
+            })
+          };
+        } else if (table === 'transcripts') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                is: vi.fn().mockResolvedValue({ data: [], error: null })
+              })
+            })
+          };
+        } else if (table === 'podcast_shows') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ data: [], error: null })
+            })
+          };
+        }
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      });
+
+      // Mock transcript service to return processing status
+      const mockTranscriptServiceInstance = {
+        getTranscript: vi.fn().mockResolvedValue({
+          kind: 'processing',
+          source: 'taddy',
+          creditsConsumed: 1
+        })
+      };
+      mockTranscriptService.mockImplementation(() => mockTranscriptServiceInstance);
+
+      const result = await worker.run();
+
+      // Debug logging
+      console.log('Test result:', JSON.stringify(result, null, 2));
+      console.log('Mock calls to getTranscript:', mockTranscriptServiceInstance.getTranscript.mock.calls);
+      console.log('Mock calls to insertTranscript:', mockTranscriptDb.insertTranscript.mock.calls);
+      console.log('Logger info calls:', mockLogger.info.mock.calls.map(call => call[1]));
+      console.log('Logger warn calls:', mockLogger.warn.mock.calls.map(call => call[1]));
+
+      expect(result.processingCount).toBe(1);
+      expect(result.availableTranscripts).toBe(0);
+      expect(result.errorCount).toBe(0);
+      expect(mockTranscriptDb.insertTranscript).toHaveBeenCalledWith(
+        'episode-1',
+        '',
+        'processing',
+        'taddy'
+      );
+    });
+  });
+
+  describe('Quota Exhaustion Handling', () => {
+    it('should detect quota exhaustion from HTTP 429 error', async () => {
+      // Mock episodes data with proper structure including joined podcast_shows
+      const mockEpisodes = [{
+        id: 'episode-1',
+        show_id: 'show-1',
+        guid: 'guid-1',
+        episode_url: 'https://example.com/episode1',
+        title: 'Test Episode',
+        description: 'Test description',
+        pub_date: new Date().toISOString(),
+        duration_sec: 3600,
+        created_at: new Date().toISOString(),
+        deleted_at: null,
+        podcast_shows: {
+          id: 'show-1',
+          rss_url: 'https://example.com/rss',
+          title: 'Test Show'
+        }
+      }];
+
+      // Mock database to return episodes
+      mockSupabaseClient.from.mockImplementation((table: string) => {
+        if (table === 'podcast_episodes') {
+          return {
+            select: vi.fn().mockReturnValue({
+              gte: vi.fn().mockReturnValue({
+                not: vi.fn().mockReturnValue({
+                  not: vi.fn().mockReturnValue({
+                    not: vi.fn().mockReturnValue({
+                      not: vi.fn().mockReturnValue({
+                        order: vi.fn().mockReturnValue({
+                          limit: vi.fn().mockResolvedValue({ data: mockEpisodes, error: null })
+                        })
+                      })
+                    })
+                  })
+                })
+              })
+            })
+          };
+        } else if (table === 'transcripts') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                is: vi.fn().mockResolvedValue({ data: [], error: null })
+              })
+            })
+          };
+        } else if (table === 'podcast_shows') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ data: [], error: null })
+            })
+          };
+        }
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      });
+
+      // Mock transcript service to return quota exhaustion error
+      const mockTranscriptServiceInstance = {
+        getTranscript: vi.fn().mockResolvedValue({
+          kind: 'error',
+          message: 'HTTP 429: Too Many Requests - quota exceeded',
+          source: 'taddy',
+          creditsConsumed: 0
+        })
+      };
+      mockTranscriptService.mockImplementation(() => mockTranscriptServiceInstance);
+
+      await worker.run();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'system',
+        'Taddy API quota exhausted - aborting remaining episodes',
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            episode_id: 'episode-1',
+            error_message: 'HTTP 429: Too Many Requests - quota exceeded',
+            source: 'taddy'
+          })
+        })
+      );
+    });
+
+    it('should detect quota exhaustion from credits exceeded error', async () => {
+      // Mock episodes data with proper structure including joined podcast_shows
+      const mockEpisodes = [{
+        id: 'episode-1',
+        show_id: 'show-1',
+        guid: 'guid-1',
+        episode_url: 'https://example.com/episode1',
+        title: 'Test Episode',
+        description: 'Test description',
+        pub_date: new Date().toISOString(),
+        duration_sec: 3600,
+        created_at: new Date().toISOString(),
+        deleted_at: null,
+        podcast_shows: {
+          id: 'show-1',
+          rss_url: 'https://example.com/rss',
+          title: 'Test Show'
+        }
+      }];
+
+      // Mock database to return episodes
+      mockSupabaseClient.from.mockImplementation((table: string) => {
+        if (table === 'podcast_episodes') {
+          return {
+            select: vi.fn().mockReturnValue({
+              gte: vi.fn().mockReturnValue({
+                not: vi.fn().mockReturnValue({
+                  not: vi.fn().mockReturnValue({
+                    not: vi.fn().mockReturnValue({
+                      not: vi.fn().mockReturnValue({
+                        order: vi.fn().mockReturnValue({
+                          limit: vi.fn().mockResolvedValue({ data: mockEpisodes, error: null })
+                        })
+                      })
+                    })
+                  })
+                })
+              })
+            })
+          };
+        } else if (table === 'transcripts') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                is: vi.fn().mockResolvedValue({ data: [], error: null })
+              })
+            })
+          };
+        } else if (table === 'podcast_shows') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ data: [], error: null })
+            })
+          };
+        }
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      });
+
+      // Mock transcript service to return credits exceeded error
+      const mockTranscriptServiceInstance = {
+        getTranscript: vi.fn().mockResolvedValue({
+          kind: 'error',
+          message: 'CREDITS_EXCEEDED: Monthly credits limit reached',
+          source: 'taddy',
+          creditsConsumed: 0
+        })
+      };
+      mockTranscriptService.mockImplementation(() => mockTranscriptServiceInstance);
+
+      await worker.run();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'system',
+        'Taddy API quota exhausted - aborting remaining episodes',
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            episode_id: 'episode-1',
+            error_message: 'CREDITS_EXCEEDED: Monthly credits limit reached',
+            source: 'taddy'
           })
         })
       );

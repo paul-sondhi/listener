@@ -25,23 +25,36 @@ function getSupabaseClient(): SupabaseClient {
 /**
  * Insert a new transcript record with specified status
  * @param episodeId - UUID of the episode this transcript belongs to
- * @param storagePath - Full path to the transcript file in storage bucket
- * @param status - Transcript status (full, partial, not_found, no_match, error)
+ * @param storagePath - Full path to the transcript file in storage bucket (can be empty for processing status)
+ * @param status - Transcript status (available, processing, error, etc.)
+ * @param source - Optional source of the transcript ('taddy' or 'podcaster')
  * @returns Promise<Transcript> The created transcript record
  * @throws Error if insertion fails or episode_id doesn't exist
  */
 export async function insertTranscript(
   episodeId: string, 
   storagePath: string,
-  status: TranscriptStatus
+  status: TranscriptStatus,
+  source?: 'taddy' | 'podcaster'
 ): Promise<Transcript> {
+  const insertData: any = {
+    episode_id: episodeId,
+    status: status
+  };
+
+  // Only include storage_path if it's not empty (processing status allows NULL)
+  if (storagePath) {
+    insertData.storage_path = storagePath;
+  }
+
+  // Include source if provided
+  if (source) {
+    insertData.source = source;
+  }
+
   const { data, error } = await getSupabaseClient()
     .from('transcripts')
-    .insert({
-      episode_id: episodeId,
-      storage_path: storagePath,
-      status: status
-    })
+    .insert(insertData)
     .select()
     .single();
 
@@ -288,10 +301,8 @@ export async function getStatusCounts(
 
   // Count by status
   const counts: Record<TranscriptStatus, number> = {
-    full: 0,
-    partial: 0,
-    not_found: 0,
-    no_match: 0,
+    available: 0,
+    processing: 0,
     error: 0
   };
 

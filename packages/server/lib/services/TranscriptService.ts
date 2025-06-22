@@ -305,6 +305,7 @@ export class TranscriptService {
           kind: 'partial',
           text: businessResult.text,
           wordCount: businessResult.wordCount,
+          reason: businessResult.reason,
           ...metadata
         };
       
@@ -323,6 +324,7 @@ export class TranscriptService {
       case 'no_match':
         return { 
           kind: 'no_match',
+          reason: businessResult.reason,
           ...metadata
         };
       

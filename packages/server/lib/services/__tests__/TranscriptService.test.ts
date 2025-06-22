@@ -74,7 +74,7 @@ describe('TranscriptService', () => {
     // Reset mocks
     vi.clearAllMocks();
     
-    // Create mock Taddy Free client
+    // Create mock Taddy Free client that returns ExtendedTranscriptResult
     mockTaddyFreeClient = {
       fetchTranscript: vi.fn(),
     };
@@ -191,6 +191,89 @@ describe('TranscriptService', () => {
         'episode-guid-789'
       );
     });
+
+    it('should return partial transcript from Business client', async () => {
+      const episode = createMockEpisode();
+      const businessResult: BusinessTranscriptResult = {
+        kind: 'partial',
+        text: 'This is a business tier partial transcript.',
+        wordCount: 7,
+        reason: 'Still processing',
+        source: 'taddy',
+        creditsConsumed: 1
+      };
+      
+      mockTaddyBusinessClient.fetchTranscript.mockResolvedValue(businessResult);
+
+      const result = await service.getTranscript(episode);
+
+      expect(result).toEqual({
+        kind: 'partial',
+        text: 'This is a business tier partial transcript.',
+        wordCount: 7,
+        reason: 'Still processing',
+        source: 'taddy',
+        creditsConsumed: 1
+      });
+    });
+
+    it('should return not_found from Business client', async () => {
+      const episode = createMockEpisode();
+      const businessResult: BusinessTranscriptResult = {
+        kind: 'not_found',
+        creditsConsumed: 1
+      };
+      
+      mockTaddyBusinessClient.fetchTranscript.mockResolvedValue(businessResult);
+
+      const result = await service.getTranscript(episode);
+
+      expect(result).toEqual({
+        kind: 'not_found',
+        source: 'taddy',
+        creditsConsumed: 1
+      });
+    });
+
+    it('should return no_match from Business client', async () => {
+      const episode = createMockEpisode();
+      const businessResult: BusinessTranscriptResult = {
+        kind: 'no_match',
+        reason: 'Podcast not found in Taddy database',
+        creditsConsumed: 1
+      };
+      
+      mockTaddyBusinessClient.fetchTranscript.mockResolvedValue(businessResult);
+
+      const result = await service.getTranscript(episode);
+
+      expect(result).toEqual({
+        kind: 'no_match',
+        reason: 'Podcast not found in Taddy database',
+        source: 'taddy',
+        creditsConsumed: 1
+      });
+    });
+
+    it('should return error from Business client', async () => {
+      const episode = createMockEpisode();
+      const businessResult: BusinessTranscriptResult = {
+        kind: 'error',
+        message: 'API quota exceeded',
+        creditsConsumed: 0
+      };
+      
+      mockTaddyBusinessClient.fetchTranscript.mockResolvedValue(businessResult);
+
+      const result = await service.getTranscript(episode);
+
+      expect(result).toEqual({
+        kind: 'error',
+        message: 'API quota exceeded',
+        source: 'taddy',
+        creditsConsumed: 0
+      });
+    });
   });
 
   describe('getTranscript with episode object', () => {
@@ -202,7 +285,7 @@ describe('TranscriptService', () => {
 
     it('should return error for deleted episodes', async () => {
       const deletedEpisode = createMockEpisode({
-        deleted_at: '2024-01-01T00:00:00Z',
+        deleted_at: '2024-01-02T00:00:00Z',
       });
 
       const result = await service.getTranscript(deletedEpisode);
@@ -211,7 +294,7 @@ describe('TranscriptService', () => {
         kind: 'error',
         message: 'Episode is not eligible for transcript processing',
         source: 'taddy',
-        creditsConsumed: 0
+        creditsConsumed: 0,
       });
       expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
@@ -226,6 +309,8 @@ describe('TranscriptService', () => {
       expect(result).toEqual({
         kind: 'error',
         message: 'Episode is not eligible for transcript processing',
+        source: 'taddy',
+        creditsConsumed: 0,
       });
       expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
@@ -240,16 +325,20 @@ describe('TranscriptService', () => {
       expect(result).toEqual({
         kind: 'error',
         message: 'Episode is not eligible for transcript processing',
+        source: 'taddy',
+        creditsConsumed: 0,
       });
       expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
 
     it('should return full transcript from Taddy when available', async () => {
       const episode = createMockEpisode();
-      const taddyResult: TranscriptResult = {
+      const taddyResult: ExtendedTranscriptResult = {
         kind: 'full',
         text: 'This is the full transcript text.',
         wordCount: 6,
+        source: 'taddy',
+        creditsConsumed: 0,
       };
       
       mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
@@ -265,11 +354,13 @@ describe('TranscriptService', () => {
 
     it('should return partial transcript from Taddy when available', async () => {
       const episode = createMockEpisode();
-      const taddyResult: TranscriptResult = {
+      const taddyResult: ExtendedTranscriptResult = {
         kind: 'partial',
         text: 'This is partial transcript text.',
         wordCount: 5,
         reason: 'Transcript incomplete',
+        source: 'taddy',
+        creditsConsumed: 0,
       };
       
       mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
@@ -285,7 +376,11 @@ describe('TranscriptService', () => {
 
     it('should return not_found when Taddy returns not_found', async () => {
       const episode = createMockEpisode();
-      const taddyResult: TranscriptResult = { kind: 'not_found' };
+      const taddyResult: ExtendedTranscriptResult = { 
+        kind: 'not_found',
+        source: 'taddy',
+        creditsConsumed: 0,
+      };
       
       mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
 
@@ -300,9 +395,11 @@ describe('TranscriptService', () => {
 
     it('should return no_match when Taddy returns no_match', async () => {
       const episode = createMockEpisode();
-      const taddyResult: TranscriptResult = { 
+      const taddyResult: ExtendedTranscriptResult = { 
         kind: 'no_match',
         reason: 'Episode not found in podcast',
+        source: 'taddy',
+        creditsConsumed: 0,
       };
       
       mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
@@ -327,6 +424,8 @@ describe('TranscriptService', () => {
       expect(result).toEqual({
         kind: 'error',
         message: 'Taddy Free lookup failed: Network timeout',
+        source: 'taddy',
+        creditsConsumed: 0,
       });
       expect(mockTaddyFreeClient.fetchTranscript).toHaveBeenCalledWith(
         'https://example.com/feed.xml',
@@ -344,6 +443,8 @@ describe('TranscriptService', () => {
       expect(result).toEqual({
         kind: 'error',
         message: 'Taddy Free lookup failed: String error',
+        source: 'taddy',
+        creditsConsumed: 0,
       });
     });
 
@@ -356,7 +457,11 @@ describe('TranscriptService', () => {
 
       const result = await service.getTranscript(episode);
 
-      expect(result).toEqual({ kind: 'not_found' });
+      expect(result).toEqual({ 
+        kind: 'not_found',
+        source: 'taddy',
+        creditsConsumed: 0,
+      });
       expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
 
@@ -367,7 +472,11 @@ describe('TranscriptService', () => {
 
       const result = await service.getTranscript(episodeWithoutGuid);
 
-      expect(result).toEqual({ kind: 'not_found' });
+      expect(result).toEqual({ 
+        kind: 'not_found',
+        source: 'taddy',
+        creditsConsumed: 0,
+      });
       expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
   });
@@ -381,10 +490,12 @@ describe('TranscriptService', () => {
 
     it('should fetch episode by ID and delegate to episode object overload', async () => {
       const episodeId = 'test-episode-id';
-      const taddyResult: TranscriptResult = {
+      const taddyResult: ExtendedTranscriptResult = {
         kind: 'full',
         text: 'This is the full transcript text.',
         wordCount: 6,
+        source: 'taddy',
+        creditsConsumed: 0,
       };
       
       mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
@@ -401,10 +512,12 @@ describe('TranscriptService', () => {
 
     it('should handle errors in episode ID lookup', async () => {
       const episodeId = 'test-episode-id';
-      const taddyResult: TranscriptResult = {
+      const taddyResult: ExtendedTranscriptResult = {
         kind: 'full',
         text: 'This is the full transcript text.',
         wordCount: 6,
+        source: 'taddy',
+        creditsConsumed: 0,
       };
       
       mockTaddyFreeClient.fetchTranscript.mockResolvedValue(taddyResult);
@@ -419,13 +532,13 @@ describe('TranscriptService', () => {
   describe('edge cases', () => {
     beforeEach(() => {
       process.env.TADDY_API_KEY = 'test-api-key';
-      mockGetConfig.mockReturnValue({ tier: 'free' }); // Default to free tier for existing tests
+      mockGetConfig.mockReturnValue({ tier: 'free' });
       service = new TranscriptService();
     });
 
     it('should handle episode with null show object', async () => {
       const episodeWithNullShow = createMockEpisode({
-        show: undefined,
+        show: null as any,
       });
 
       const result = await service.getTranscript(episodeWithNullShow);
@@ -433,12 +546,15 @@ describe('TranscriptService', () => {
       expect(result).toEqual({
         kind: 'error',
         message: 'Episode is not eligible for transcript processing',
+        source: 'taddy',
+        creditsConsumed: 0,
       });
+      expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
 
     it('should handle episode with null RSS URL in show', async () => {
       const episodeWithNullRss = createMockEpisode({
-        show: { rss_url: null },
+        show: { rss_url: null as any },
       });
 
       const result = await service.getTranscript(episodeWithNullRss);
@@ -446,7 +562,10 @@ describe('TranscriptService', () => {
       expect(result).toEqual({
         kind: 'error',
         message: 'Episode is not eligible for transcript processing',
+        source: 'taddy',
+        creditsConsumed: 0,
       });
+      expect(mockTaddyFreeClient.fetchTranscript).not.toHaveBeenCalled();
     });
   });
 }); 
