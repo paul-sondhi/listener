@@ -102,6 +102,8 @@ describe('TranscriptService', () => {
     } else {
       delete process.env.TADDY_API_KEY;
     }
+    // Clean up TADDY_USER_ID
+    delete process.env.TADDY_USER_ID;
   });
 
   describe('constructor', () => {
@@ -117,11 +119,15 @@ describe('TranscriptService', () => {
 
     it('should initialize with Business client when tier is business and API key is available', () => {
       process.env.TADDY_API_KEY = 'test-api-key';
+      process.env.TADDY_USER_ID = 'test-user-id';
       mockGetConfig.mockReturnValue({ tier: 'business' });
       
       service = new TranscriptService();
       
-      expect(TaddyBusinessClient).toHaveBeenCalledWith({ apiKey: 'test-api-key' });
+      expect(TaddyBusinessClient).toHaveBeenCalledWith({ 
+        apiKey: 'test-api-key',
+        userId: 'test-user-id'
+      });
       expect(TaddyFreeClient).not.toHaveBeenCalled();
     });
 
@@ -139,6 +145,7 @@ describe('TranscriptService', () => {
   describe('getTranscript with Business tier', () => {
     beforeEach(() => {
       process.env.TADDY_API_KEY = 'test-api-key';
+      process.env.TADDY_USER_ID = 'test-user-id';
       mockGetConfig.mockReturnValue({ tier: 'business' }); // Use business tier
       service = new TranscriptService();
     });
@@ -147,6 +154,7 @@ describe('TranscriptService', () => {
       const episode = createMockEpisode();
       const businessResult: BusinessTranscriptResult = {
         kind: 'processing',
+        source: 'taddy',
         creditsConsumed: 1
       };
       
@@ -198,7 +206,6 @@ describe('TranscriptService', () => {
         kind: 'partial',
         text: 'This is a business tier partial transcript.',
         wordCount: 7,
-        reason: 'Still processing',
         source: 'taddy',
         creditsConsumed: 1
       };
@@ -211,7 +218,6 @@ describe('TranscriptService', () => {
         kind: 'partial',
         text: 'This is a business tier partial transcript.',
         wordCount: 7,
-        reason: 'Still processing',
         source: 'taddy',
         creditsConsumed: 1
       });
@@ -239,7 +245,6 @@ describe('TranscriptService', () => {
       const episode = createMockEpisode();
       const businessResult: BusinessTranscriptResult = {
         kind: 'no_match',
-        reason: 'Podcast not found in Taddy database',
         creditsConsumed: 1
       };
       
@@ -249,7 +254,6 @@ describe('TranscriptService', () => {
 
       expect(result).toEqual({
         kind: 'no_match',
-        reason: 'Podcast not found in Taddy database',
         source: 'taddy',
         creditsConsumed: 1
       });
