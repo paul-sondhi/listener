@@ -54,7 +54,11 @@ describe('TranscriptService', () => {
     it('should return not_found for a valid, eligible episode when no Taddy client is available', async () => {
       const mockEpisode = createMockEpisode();
       const result = await transcriptService.getTranscript(mockEpisode);
-      expect(result).toEqual({ kind: 'not_found' });
+      expect(result).toEqual({ 
+        kind: 'not_found',
+        source: 'taddy',
+        creditsConsumed: 0
+      });
     });
 
     it('should return error for an episode with a null rss_url', async () => {
@@ -62,7 +66,9 @@ describe('TranscriptService', () => {
       const result = await transcriptService.getTranscript(mockEpisode);
       expect(result).toEqual({ 
         kind: 'error', 
-        message: 'Episode is not eligible for transcript processing' 
+        message: 'Episode is not eligible for transcript processing',
+        source: 'taddy',
+        creditsConsumed: 0
       });
     });
 
@@ -71,7 +77,9 @@ describe('TranscriptService', () => {
       const result = await transcriptService.getTranscript(mockEpisode);
       expect(result).toEqual({ 
         kind: 'error', 
-        message: 'Episode is not eligible for transcript processing' 
+        message: 'Episode is not eligible for transcript processing',
+        source: 'taddy',
+        creditsConsumed: 0
       });
     });
 
@@ -80,7 +88,9 @@ describe('TranscriptService', () => {
       const result = await transcriptService.getTranscript(mockEpisode);
       expect(result).toEqual({ 
         kind: 'error', 
-        message: 'Episode is not eligible for transcript processing' 
+        message: 'Episode is not eligible for transcript processing',
+        source: 'taddy',
+        creditsConsumed: 0
       });
     });
 
@@ -89,7 +99,9 @@ describe('TranscriptService', () => {
       const result = await transcriptService.getTranscript(mockEpisode);
       expect(result).toEqual({ 
         kind: 'error', 
-        message: 'Episode is not eligible for transcript processing' 
+        message: 'Episode is not eligible for transcript processing',
+        source: 'taddy',
+        creditsConsumed: 0
       });
     });
   });
