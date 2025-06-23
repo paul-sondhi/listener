@@ -121,6 +121,18 @@ jobs:
           cd packages/server
           npm run test:integration
 
+      - name: Run Routes Smoke Tests
+        run: |
+          echo "🧪 Running routes smoke tests..."
+          cd packages/server
+          npm test routes/__tests__/storeSpotifyTokens.smoke.test.ts
+
+      - name: Run Scripts Tests
+        run: |
+          echo "🧪 Running scripts tests..."
+          cd scripts
+          npm test
+
       - name: Debug Environment Variables
         run: |
           echo "🔍 Debug: Checking environment variables..."
