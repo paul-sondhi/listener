@@ -32,6 +32,7 @@ export class TranscriptService {
     
     // Initialize appropriate Taddy client based on tier
     const taddyApiKey = process.env.TADDY_API_KEY;
+    const taddyUserId = process.env.TADDY_USER_ID;
     
     if (!taddyApiKey) {
       this.logger.warn('system', 'TADDY_API_KEY not found - Taddy lookup disabled', {
@@ -43,9 +44,20 @@ export class TranscriptService {
     }
 
     if (this.tier === 'business') {
-      // Initialize Business client for enhanced features
-      this.taddyBusinessClient = new TaddyBusinessClient({ apiKey: taddyApiKey });
-      this.taddyFreeClient = null;
+      if (!taddyUserId) {
+        this.logger.warn('system', 'TADDY_USER_ID required for Business tier - falling back to Free tier', {
+          metadata: { hasApiKey: true, hasUserId: false, tier: this.tier }
+        });
+        this.taddyFreeClient = new TaddyFreeClient({ apiKey: taddyApiKey });
+        this.taddyBusinessClient = null;
+      } else {
+        // Initialize Business client for enhanced features
+        this.taddyBusinessClient = new TaddyBusinessClient({ 
+          apiKey: taddyApiKey,
+          userId: taddyUserId
+        });
+        this.taddyFreeClient = null;
+      }
       
       this.logger.debug('system', 'Taddy Business client initialized', {
         metadata: { hasApiKey: true, tier: this.tier }

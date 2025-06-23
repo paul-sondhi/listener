@@ -21,6 +21,7 @@ export type BusinessTranscriptResult =
  */
 export interface TaddyBusinessClientConfig {
   apiKey: string;
+  userId: string; // Required by Taddy API for authentication
   endpoint?: string;
   timeout?: number;
   userAgent?: string;
@@ -42,7 +43,10 @@ export interface TaddyBusinessClientConfig {
  * 
  * Usage:
  * ```typescript
- * const client = new TaddyBusinessClient({ apiKey: process.env.TADDY_API_KEY! });
+ * const client = new TaddyBusinessClient({ 
+ *   apiKey: process.env.TADDY_API_KEY!,
+ *   userId: process.env.TADDY_USER_ID!
+ * });
  * const result = await client.fetchTranscript('https://feeds.example.com/rss', 'episode-guid-123');
  * 
  * if (result.kind === 'full') {
@@ -71,6 +75,7 @@ export class TaddyBusinessClient {
     this.client = new GraphQLClient(this.config.endpoint, {
       headers: {
         'X-API-KEY': this.config.apiKey,
+        'X-USER-ID': this.config.userId, // Required by Taddy API
         'User-Agent': this.config.userAgent,
         'Content-Type': 'application/json',
       },
@@ -81,6 +86,7 @@ export class TaddyBusinessClient {
       endpoint: this.config.endpoint,
       timeout: this.config.timeout,
       hasApiKey: !!this.config.apiKey,
+      hasUserId: !!this.config.userId,
     });
   }
 
