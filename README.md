@@ -207,6 +207,81 @@ supabase db push
 supabase db reset
 ```
 
+### Taddy Business Tier Migration
+
+The application recently migrated from Taddy Free API to Taddy Business API for improved transcript coverage. This migration includes new database schema and environment configuration.
+
+#### Required Migration Steps
+
+1. **Apply Database Migration:**
+   ```bash
+   # Apply the migration that adds source tracking and processing status
+   supabase db push
+   
+   # This applies migration: 20250622125657_add_source_and_processing_status.sql
+   # - Adds 'source' column to track transcript providers ('podcaster' or 'taddy')
+   # - Extends status enum to include 'processing' for transcripts being generated
+   # - Updates storage_path constraints to allow NULL for processing transcripts
+   ```
+
+2. **Update Environment Variables:**
+   ```bash
+   # Set the transcript tier in your environment files
+   # Production/Staging:
+   TRANSCRIPT_TIER=business
+   
+   # Local Development:
+   TRANSCRIPT_TIER=business  # (or 'free' for testing with mock data)
+   
+   # Test Environment:
+   TRANSCRIPT_TIER=free      # (uses mock credentials, safe for CI/CD)
+   ```
+
+3. **Deploy Application Code:**
+   ```bash
+   # Deploy the updated transcript worker and service code
+   # This includes:
+   # - TaddyBusinessClient for improved transcript fetching
+   # - Enhanced TranscriptService with tier-based routing
+   # - Updated TranscriptWorker with processing status handling
+   # - Quota exhaustion detection and graceful handling
+   ```
+
+#### Environment Configuration Details
+
+The Business tier migration introduces the `TRANSCRIPT_TIER` environment variable:
+
+```bash
+# Taddy API tier configuration
+TRANSCRIPT_TIER=business              # 'free' or 'business'
+
+# Business tier benefits:
+# - Higher API rate limits (10,000+ requests/month vs 500/month)
+# - Access to pregenerated transcripts for popular podcasts
+# - Faster transcript availability for newly published episodes
+# - Better transcript quality and speaker identification
+```
+
+#### Deployment Sequence
+
+1. **Database First:** Apply migration before deploying application code
+2. **Environment Variables:** Set `TRANSCRIPT_TIER=business` in production
+3. **Application Deployment:** Deploy updated transcript worker and services
+4. **Monitoring:** Verify first nightly run shows improved transcript coverage
+
+#### Rollback Plan
+
+If rollback is needed, the migration supports backward compatibility:
+
+```bash
+# Emergency rollback: switch back to Free tier
+TRANSCRIPT_TIER=free
+
+# Database rollback (if necessary):
+# Migration is backward compatible - existing transcripts continue working
+# New 'source' and 'processing' fields are nullable and don't break existing code
+```
+
 ### Background Jobs
 
 ```bash

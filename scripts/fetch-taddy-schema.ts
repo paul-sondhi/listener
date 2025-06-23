@@ -11,10 +11,14 @@ config();
  * Fetches the Taddy GraphQL schema and saves it to a local file for codegen.
  * This script is used by the GraphQL Code Generator to create typed SDK.
  * 
+ * The schema is used by both TaddyFreeClient and TaddyBusinessClient for 
+ * type-safe GraphQL operations. The same schema works for both Free and 
+ * Business tier APIs.
+ * 
  * Usage: ts-node scripts/fetch-taddy-schema.ts
  * 
  * Environment Variables Required:
- * - TADDY_API_KEY: Your Taddy API key for Free tier access
+ * - TADDY_API_KEY: Your Taddy API key (works with Free or Business tier)
  * - TADDY_USER_ID: Your Taddy user ID (required by the API for all requests)
  */
 async function fetchTaddySchema(): Promise<void> {
