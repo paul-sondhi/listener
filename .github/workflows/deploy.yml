@@ -37,11 +37,11 @@ jobs:
           TADDY_USER_ID: ${{ secrets.TADDY_USER_ID }}
         run: npm run codegen
 
-      - name: Run All Tests
-        run: npm test # Runs all tests defined in your root package.json
+      - name: Run Unit Tests Only
+        run: npm run test:unit # Runs only unit tests (excludes integration tests)
 
-      - name: Run Transcript Worker Tests
-        # Explicitly run transcript worker tests to ensure they pass
+      - name: Run Transcript Worker Unit Tests
+        # Explicitly run transcript worker unit tests to ensure they pass
         run: |
           echo "🧪 Running transcript worker unit tests..."
           cd packages/server
@@ -114,6 +114,12 @@ jobs:
           echo "🧪 Running migration integration tests..."
           cd packages/server
           npm run test lib/__tests__/migrations/podcast_migration.test.ts
+
+      - name: Run Integration Tests
+        run: |
+          echo "🧪 Running all integration tests (including TranscriptWorker)..."
+          cd packages/server
+          npm run test:integration
 
       - name: Debug Environment Variables
         run: |
