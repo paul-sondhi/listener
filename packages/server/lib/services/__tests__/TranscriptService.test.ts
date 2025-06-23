@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TranscriptService } from '../TranscriptService.js';
 import { TaddyFreeClient } from '../../clients/taddyFreeClient.js';
 import { TaddyBusinessClient, BusinessTranscriptResult } from '../../clients/taddyBusinessClient.js';
-import { EpisodeWithShow, TranscriptResult, ExtendedTranscriptResult } from '../../../../shared/src/types/index.js';
+import { EpisodeWithShow, ExtendedTranscriptResult } from '../../../../shared/src/types/index.js';
 
 // Mock the TaddyFreeClient
 vi.mock('../../clients/taddyFreeClient.js', () => ({

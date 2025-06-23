@@ -1,4 +1,4 @@
-import { EpisodeWithShow, TranscriptResult, ExtendedTranscriptResult } from '../../../shared/src/types/index.js';
+import { EpisodeWithShow, ExtendedTranscriptResult } from '../../../shared/src/types/index.js';
 import { createLogger, Logger } from '../logger.js';
 import { TaddyFreeClient } from '../clients/taddyFreeClient.js';
 import { TaddyBusinessClient, BusinessTranscriptResult } from '../clients/taddyBusinessClient.js';
@@ -335,10 +335,11 @@ export class TranscriptService {
           ...metadata
         };
       
-      default:
+      default: {
         // TypeScript exhaustiveness check
         const _exhaustive: never = businessResult;
         throw new Error(`Unhandled business result kind: ${JSON.stringify(businessResult)}`);
+      }
     }
   }
 

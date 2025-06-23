@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GraphQLClient } from 'graphql-request';
-import { TaddyBusinessClient, BusinessTranscriptResult } from '../taddyBusinessClient.js';
+import { TaddyBusinessClient } from '../taddyBusinessClient.js';
 import * as retryModule from '../../utils/retry.js';
 
 // Mock the GraphQL client

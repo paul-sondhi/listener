@@ -27,6 +27,7 @@ function getSupabaseClient(): SupabaseClient {
  * @param episodeId - UUID of the episode this transcript belongs to
  * @param storagePath - Full path to the transcript file in storage bucket (can be empty for processing status)
  * @param status - Transcript status (available, processing, error, etc.)
+ * @param wordCount - Optional word count for the transcript (only set if provided)
  * @param source - Optional source of the transcript ('taddy' or 'podcaster')
  * @returns Promise<Transcript> The created transcript record
  * @throws Error if insertion fails or episode_id doesn't exist
@@ -35,6 +36,7 @@ export async function insertTranscript(
   episodeId: string, 
   storagePath: string,
   status: TranscriptStatus,
+  wordCount?: number,
   source?: 'taddy' | 'podcaster'
 ): Promise<Transcript> {
   const insertData: any = {
@@ -42,10 +44,19 @@ export async function insertTranscript(
     status: status
   };
 
-  // Only include storage_path if it's not empty (processing status allows NULL)
+  // Only set word_count if explicitly provided
+  if (wordCount !== undefined) {
+    insertData.word_count = wordCount;
+  }
+
+  // Set storage_path appropriately based on status
   if (storagePath) {
     insertData.storage_path = storagePath;
+  } else if (status === 'error' || status === 'processing') {
+    // For error and processing statuses, explicitly set empty string instead of NULL
+    insertData.storage_path = '';
   }
+  // For other statuses without storagePath, allow NULL (don't set the field)
 
   // Include source if provided
   if (source) {

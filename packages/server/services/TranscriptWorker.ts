@@ -954,7 +954,9 @@ export class TranscriptWorker {
     source?: 'taddy' | 'podcaster'
   ): Promise<void> {
     try {
-      await insertTranscript(episodeId, storagePath, status, source);
+      // Only pass wordCount if it's greater than 0 (for available transcripts)
+      const wordCountParam = wordCount > 0 ? wordCount : undefined;
+      await insertTranscript(episodeId, storagePath, status, wordCountParam, source);
       
       this.logger.debug('system', 'Transcript recorded in database', {
         metadata: {
