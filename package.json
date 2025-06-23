@@ -37,7 +37,9 @@
     "monitor:vault-usage": "node scripts/vault-usage-monitor.js",
     "scripts:install": "cd scripts && npm install",
     "scripts:test": "cd scripts && npm test",
-    "validate:dev-setup": "node scripts/validate-development-setup.mjs"
+    "validate:dev-setup": "node scripts/validate-development-setup.mjs",
+    "seed:test-episodes": "tsx scripts/seed-test-episodes.ts",
+    "clean:test-episodes": "tsx scripts/seed-test-episodes.ts clean"
   },
   "keywords": [],
   "author": "",
