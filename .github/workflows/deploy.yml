@@ -49,7 +49,7 @@ jobs:
 
   # NEW: Backup-Restore Migration Tests
   migration-tests:
-    name: Migration & Vault Tests
+    name: Migration Tests
     runs-on: ubuntu-latest
     needs: run-tests # Only run after basic tests pass
     
@@ -132,6 +132,11 @@ jobs:
           echo "🧪 Running scripts tests..."
           cd scripts
           npm test
+
+      - name: Run Full Test Suite (npm run test:all)
+        run: |
+          echo "🧪 Running full test suite across all workspaces..."
+          npm run test:all
 
       - name: Debug Environment Variables
         run: |
