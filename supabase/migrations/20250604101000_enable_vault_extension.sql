@@ -2,6 +2,9 @@
 -- Phase 1: Vault & Pooling Setup
 -- Created: 2025-01-07 00:00:01
 
+-- Step 1.0: Ensure pgsodium (Vault dependency) is present
+CREATE EXTENSION IF NOT EXISTS pgsodium;
+
 -- Step 1.1: Enable vault extension
 CREATE EXTENSION IF NOT EXISTS "supabase_vault";
 
