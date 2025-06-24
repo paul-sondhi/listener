@@ -3,13 +3,15 @@
  * Mirrors the database schema for the transcripts table
  */
 import { BaseEntity } from './common.js';
-export type TranscriptStatus = 'full' | 'partial' | 'not_found' | 'no_match' | 'error';
+export type TranscriptStatus = 'full' | 'partial' | 'processing' | 'no_transcript_found' | 'no_match' | 'error';
 export interface Transcript extends BaseEntity {
     id: string;
     episode_id: string;
     storage_path: string;
-    status: TranscriptStatus;
+    initial_status: TranscriptStatus;
+    current_status: TranscriptStatus;
     word_count: number | null;
+    error_details?: string | null;
     created_at: string;
     updated_at: string;
     deleted_at: string | null;
@@ -26,12 +28,15 @@ export interface TranscriptWithEpisode extends Transcript {
 export interface CreateTranscriptParams {
     episode_id: string;
     storage_path: string;
-    status?: TranscriptStatus;
+    initial_status: TranscriptStatus;
+    current_status?: TranscriptStatus;
+    error_details?: string | null;
 }
 export interface UpdateTranscriptParams {
     status?: TranscriptStatus;
     word_count?: number | null;
     deleted_at?: string | null;
+    error_details?: string | null;
 }
 export interface TranscriptFilters {
     episode_id?: string;
@@ -44,8 +49,11 @@ export interface TranscriptFilters {
 }
 export interface TranscriptStats {
     total_transcripts: number;
-    pending_count: number;
-    available_count: number;
+    full_count: number;
+    partial_count: number;
+    processing_count: number;
+    no_transcript_found_count: number;
+    no_match_count: number;
     error_count: number;
     total_word_count: number;
     average_word_count: number;

@@ -6,20 +6,31 @@
 import { BaseEntity } from './common.js';
 
 /**
- * Valid transcript processing status values that match database constraints
- * - pending: Transcript requested but not yet processed
- * - available: Transcript successfully processed and stored
- * - error: Transcript processing failed
+ * Valid transcript status values matching new database constraints
+ * - full: Complete transcript stored
+ * - partial: Incomplete transcript stored (still usable)
+ * - processing: Transcript generation in progress (poll later)
+ * - no_transcript_found: Episode exists but no transcript available yet
+ * - no_match: Episode (or series) not found in Taddy database
+ * - error: Processing failed due to system/API error (see error_details column)
  */
-export type TranscriptStatus = 'pending' | 'available' | 'error';
+export type TranscriptStatus =
+  | 'full'
+  | 'partial'
+  | 'processing'
+  | 'no_transcript_found'
+  | 'no_match'
+  | 'error';
 
 // Main transcript entity - mirrors the transcripts database table
 export interface Transcript extends BaseEntity {
   id: string;
   episode_id: string;
   storage_path: string;         // Full path in transcripts bucket (e.g. show123/episode456.jsonl.gz)
-  status: TranscriptStatus;     // Current processing status
+  initial_status: TranscriptStatus; // First status recorded by Worker A
+  current_status: TranscriptStatus; // Latest status (may evolve over time)
   word_count: number | null;    // Optional analytics helper (populated after processing)
+  error_details?: string | null; // Optional details when status = error
   created_at: string;           // ISO 8601 timestamp
   updated_at: string;           // ISO 8601 timestamp (auto-updated by trigger)
   deleted_at: string | null;    // Soft delete timestamp
@@ -40,7 +51,9 @@ export interface TranscriptWithEpisode extends Transcript {
 export interface CreateTranscriptParams {
   episode_id: string;
   storage_path: string;
-  status?: TranscriptStatus;    // Defaults to 'pending'
+  initial_status: TranscriptStatus;
+  current_status?: TranscriptStatus; // Optional override; defaults to same as initial_status
+  error_details?: string | null;
 }
 
 // Transcript update parameters (for status changes)
@@ -48,6 +61,7 @@ export interface UpdateTranscriptParams {
   status?: TranscriptStatus;
   word_count?: number | null;
   deleted_at?: string | null;
+  error_details?: string | null;
 }
 
 // Search/filter parameters for transcript queries
@@ -64,8 +78,11 @@ export interface TranscriptFilters {
 // Transcript statistics for dashboard/analytics
 export interface TranscriptStats {
   total_transcripts: number;
-  pending_count: number;
-  available_count: number;
+  full_count: number;
+  partial_count: number;
+  processing_count: number;
+  no_transcript_found_count: number;
+  no_match_count: number;
   error_count: number;
   total_word_count: number;
   average_word_count: number;
