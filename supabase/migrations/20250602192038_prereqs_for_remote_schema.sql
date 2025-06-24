@@ -17,4 +17,30 @@ CREATE SCHEMA IF NOT EXISTS auth;
 
 CREATE TABLE IF NOT EXISTS auth.users (
   id uuid PRIMARY KEY
-); 
+);
+
+-- 3️⃣  Create Supabase roles expected by remote_schema.sql
+DO $$
+BEGIN
+  -- role: anon
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  -- role: authenticated
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+  -- role: service_role
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
+    CREATE ROLE service_role NOLOGIN;
+  END IF;
+END $$;
+
+-- 4️⃣  Stub auth.uid() so RLS policies in remote_schema.sql compile.
+CREATE OR REPLACE FUNCTION auth.uid()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT NULL::uuid;
+$$; 
