@@ -3,7 +3,7 @@ import { Database } from '@listener/shared';
 import { TranscriptStatus } from '@listener/shared';
 import { TranscriptService } from '../lib/services/TranscriptService.js';
 import { ExtendedTranscriptResult } from '../../shared/src/types/index.js';
-import { insertTranscript } from '../lib/db/transcripts.js';
+import { insertTranscript, overwriteTranscript } from '../lib/db/transcripts.js';
 import { getTranscriptWorkerConfig, TranscriptWorkerConfig } from '../config/transcriptWorkerConfig.js';
 import { createLogger, Logger } from '../lib/logger.js';
 import { promisify } from 'util';
@@ -971,11 +971,12 @@ export class TranscriptWorker {
     wordCount: number,
     source?: 'taddy' | 'podcaster'
   ): Promise<void> {
+    // Only pass wordCount if it's greater than 0 (for available transcripts)
+    const wordCountParam = wordCount > 0 ? wordCount : undefined;
+
     try {
-      // Only pass wordCount if it's greater than 0 (for available transcripts)
-      const wordCountParam = wordCount > 0 ? wordCount : undefined;
       await insertTranscript(episodeId, storagePath, status, wordCountParam, source);
-      
+
       this.logger.debug('system', 'Transcript recorded in database', {
         metadata: {
           episode_id: episodeId,
@@ -986,21 +987,48 @@ export class TranscriptWorker {
         }
       });
     } catch (error) {
-      // Check if this is a conflict error (episode already has transcript)
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
+      // Handle unique-constraint violation (transcript already exists)
       if (errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
-        this.logger.debug('system', 'Transcript already exists for episode - skipping (idempotent)', {
-          metadata: {
-            episode_id: episodeId,
-            status: status,
-            source: source
+        if (this.config.last10Mode === true) {
+          // Overwrite existing row with new data
+          try {
+            await overwriteTranscript(episodeId, storagePath, status, wordCountParam, source);
+
+            this.logger.debug('system', 'Transcript overwritten (last10Mode)', {
+              metadata: {
+                episode_id: episodeId,
+                status: status,
+                storage_path: storagePath,
+                word_count: wordCountParam,
+                source: source
+              }
+            });
+          } catch (updateErr) {
+            this.logger.error('system', 'Failed to overwrite existing transcript row', {
+              metadata: {
+                episode_id: episodeId,
+                original_error: errorMessage,
+                overwrite_error: updateErr instanceof Error ? updateErr.message : String(updateErr)
+              }
+            });
+            throw updateErr; // Re-throw so caller knows we failed
           }
-        });
-        return; // Ignore conflict - this is expected for idempotency
+        } else {
+          // Normal nightly behaviour: skip duplicate
+          this.logger.debug('system', 'Transcript already exists for episode - skipping (idempotent)', {
+            metadata: {
+              episode_id: episodeId,
+              status: status,
+              source: source
+            }
+          });
+        }
+        return; // Conflict handled
       }
-      
-      // Re-throw other errors
+
+      // Other errors – bubble up
       throw error;
     }
   }

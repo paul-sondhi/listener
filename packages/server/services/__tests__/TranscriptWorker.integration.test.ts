@@ -808,5 +808,79 @@ describe('TranscriptWorker Integration Tests', () => {
       expect(summary.processedEpisodes).toBeGreaterThan(0);
       expect(summary.totalEpisodes).toBeLessThanOrEqual(10);
     });
+
+    it('should overwrite existing transcript rows when last10Mode is true', async () => {
+      // 1️⃣ Arrange: Pre-insert transcripts with old data
+      const initialWordCount = 1;
+
+      // Insert one transcript per seeded episode with minimal data
+      const initialInsertData = seededEpisodeIds.map((epId) => ({
+        episode_id: epId,
+        status: 'pending',
+        storage_path: '',
+        word_count: initialWordCount,
+        source: 'taddy'
+      }));
+
+      const { error: insertErr } = await supabase
+        .from('transcripts')
+        .insert(initialInsertData);
+
+      if (insertErr) {
+        throw new Error(`Failed to seed transcripts for overwrite-test: ${insertErr.message}`);
+      }
+
+      // Capture original updated_at timestamps
+      const { data: beforeRows, error: beforeErr } = await supabase
+        .from('transcripts')
+        .select('episode_id, updated_at');
+
+      if (beforeErr || !beforeRows) {
+        throw new Error(`Failed to query pre-test transcripts: ${beforeErr?.message}`);
+      }
+
+      const updatedAtBefore: Record<string, string> = {};
+      for (const row of beforeRows) {
+        updatedAtBefore[row.episode_id] = row.updated_at as string;
+      }
+
+      // 2️⃣ Setup mock TranscriptService to return full transcripts so rows will be overwritten to 'available'
+      const mockInstance = {
+        getTranscript: vi.fn().mockResolvedValue({
+          kind: 'full',
+          text: 'Overwritten transcript content',
+          wordCount: 42,
+          source: 'taddy',
+          creditsConsumed: 1
+        })
+      };
+      mockTranscriptService.mockImplementation(() => mockInstance);
+
+      // 3️⃣ Act: run worker with last10Mode true
+      const cfg: TranscriptWorkerConfig = { ...integrationConfig, last10Mode: true } as any;
+      const l10Worker = new TranscriptWorker(cfg, mockLogger, supabase);
+      await l10Worker.run();
+
+      // 4️⃣ Assert: each transcript row should now be status 'available' and updated_at advanced
+      const { data: afterRows, error: afterErr } = await supabase
+        .from('transcripts')
+        .select('episode_id, status, storage_path, word_count, updated_at');
+
+      if (afterErr || !afterRows) {
+        throw new Error(`Failed to query post-run transcripts: ${afterErr?.message}`);
+      }
+
+      // Ensure at least one transcript is now available and has updated fields
+      const availableRows = afterRows.filter((r) => r.status === 'available');
+      expect(availableRows.length).toBeGreaterThan(0);
+
+      for (const row of availableRows) {
+        expect(row.storage_path).not.toBe('');
+        expect(row.word_count).not.toBe(initialWordCount);
+      }
+
+      // Also ensure TranscriptService called once per episode
+      expect(mockInstance.getTranscript).toHaveBeenCalledTimes(seededEpisodeIds.length);
+    });
   });
 }); 

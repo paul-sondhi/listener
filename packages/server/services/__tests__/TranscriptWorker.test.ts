@@ -90,21 +90,22 @@ describe('TranscriptWorker', () => {
     // Mock database queries - need to handle both podcast_episodes and transcripts queries
     mockSupabaseClient.from.mockImplementation((table: string) => {
       if (table === 'podcast_episodes') {
-        // First query: complex chain for podcast_episodes
+        const orderObj = {
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({ data: [], error: null })
+          })
+        };
+
+        // Build exactly four nested `not` calls after `gte`
+        const not4 = vi.fn().mockReturnValue(orderObj);
+        const not3 = vi.fn().mockReturnValue({ not: not4 });
+        const not2 = vi.fn().mockReturnValue({ not: not3 });
+        const not1 = vi.fn().mockReturnValue({ not: not2 });
+
         return {
           select: vi.fn().mockReturnValue({
             gte: vi.fn().mockReturnValue({
-              not: vi.fn().mockReturnValue({
-                not: vi.fn().mockReturnValue({
-                  not: vi.fn().mockReturnValue({
-                    not: vi.fn().mockReturnValue({
-                      order: vi.fn().mockReturnValue({
-                        limit: vi.fn().mockResolvedValue({ data: [], error: null })
-                      })
-                    })
-                  })
-                })
-              })
+              not: not1
             })
           })
         };
@@ -131,6 +132,7 @@ describe('TranscriptWorker', () => {
 
     // Mock database functions
     mockTranscriptDb.insertTranscript = vi.fn().mockResolvedValue({});
+    mockTranscriptDb.overwriteTranscript = vi.fn().mockResolvedValue({});
 
     // Create a new worker instance to pick up the mocked TranscriptService
     worker = new TranscriptWorker(defaultConfig, mockLogger);
@@ -384,8 +386,8 @@ describe('TranscriptWorker', () => {
         result: JSON.stringify(result, null, 2),
         getTranscriptCalls: mockTranscriptServiceInstance.getTranscript.mock.calls,
         insertTranscriptCalls: mockTranscriptDb.insertTranscript.mock.calls,
-        loggerInfoCalls: mockLogger.info.mock.calls.map(call => call[1]),
-        loggerWarnCalls: mockLogger.warn.mock.calls.map(call => call[1])
+        loggerInfoCalls: (mockLogger.info as any).mock.calls.map((call: any) => call[1]),
+        loggerWarnCalls: (mockLogger.warn as any).mock.calls.map((call: any) => call[1])
       };
 
       if (result.processingCount !== 1) {

@@ -327,4 +327,51 @@ export async function getStatusCounts(
   }
 
   return counts;
+}
+
+/**
+ * Overwrite an existing transcript row for an episode (used by last-10 reprocessing)
+ * Replaces status, storage_path, word_count, and source while keeping created_at intact.
+ * @param episodeId - UUID of the episode whose transcript we are overwriting
+ * @param storagePath - New storage path ("" allowed for processing/error)
+ * @param status - New transcript status
+ * @param wordCount - Optional new word count
+ * @param source - Optional transcript source (e.g., 'taddy' or 'podcaster')
+ * @returns Promise<Transcript> The updated transcript record
+ */
+export async function overwriteTranscript(
+  episodeId: string,
+  storagePath: string,
+  status: TranscriptStatus,
+  wordCount?: number,
+  source?: 'taddy' | 'podcaster'
+): Promise<Transcript> {
+  const updateData: any = {
+    status,
+    storage_path: storagePath,
+  };
+  // Only set word_count if explicitly provided
+  if (wordCount !== undefined) {
+    updateData.word_count = wordCount;
+  }
+  // Include source if provided
+  if (source !== undefined) {
+    updateData.source = source;
+  }
+
+  const { data, error } = await getSupabaseClient()
+    .from('transcripts')
+    .update(updateData)
+    .eq('episode_id', episodeId)
+    .is('deleted_at', null)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to overwrite transcript: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error(`No transcript found for episode_id: ${episodeId}`);
+  }
+  return data as Transcript;
 } 
