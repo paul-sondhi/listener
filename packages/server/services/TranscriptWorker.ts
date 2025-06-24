@@ -304,13 +304,11 @@ export class TranscriptWorker {
    * @returns Promise<EpisodeWithShow[]> Episodes needing transcripts
    */
   private async queryEpisodesNeedingTranscripts(): Promise<EpisodeWithShow[]> {
-    // If last10Mode flag === false, skip all episodes entirely.
-    if (this.config.last10Mode === false) {
-      this.logger.info('system', 'TRANSCRIPT_WORKER_L10 disabled - skipping episode selection');
-      return [];
-    }
+    // Note: Previously, when last10Mode === false the worker skipped all episodes. As of vNext, "false" means
+    // **normal nightly mode**, so we no longer short-circuit here. We still keep special behaviour for `true`
+    // (re-check last 10).
 
-    // When last10Mode === true, after query we will override filtering to include last 10.
+    // When last10Mode === true, after the main query we will ignore existing transcripts, sort DESC and slice(0,10).
 
     const startTime = Date.now();
     

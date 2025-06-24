@@ -53,7 +53,7 @@ const defaultConfig: TranscriptWorkerConfig = {
   cronSchedule: '0 1 * * *',
   useAdvisoryLock: true,
   tier: 'business',
-  last10Mode: undefined
+  last10Mode: false
 };
 
 describe('TranscriptWorker', () => {

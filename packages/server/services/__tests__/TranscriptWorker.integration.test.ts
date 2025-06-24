@@ -43,7 +43,8 @@ const integrationConfig: TranscriptWorkerConfig = {
   enabled: true,
   cronSchedule: '0 1 * * *',
   useAdvisoryLock: false, // Disable advisory lock for tests
-  tier: 'business'
+  tier: 'business',
+  last10Mode: false
 };
 
 describe('TranscriptWorker Integration Tests', () => {
@@ -780,19 +781,27 @@ describe('TranscriptWorker Integration Tests', () => {
   });
 
   describe('TRANSCRIPT_WORKER_L10 flag behaviour', () => {
-    it('should skip all work when last10Mode is false', async () => {
+    it('should process only genuinely new episodes when last10Mode is false', async () => {
+      // Arrange: remove any existing transcripts so episodes are treated as new.
+      const { error: cleanupErr } = await supabase
+        .from('transcripts')
+        .delete();
+      if (cleanupErr) {
+        throw new Error(`Failed to clean transcripts: ${cleanupErr.message}`);
+      }
+
       const cfg: TranscriptWorkerConfig = { ...integrationConfig, last10Mode: false } as any;
 
-      const skipWorker = new TranscriptWorker(cfg, mockLogger, supabase);
+      const workerFalse = new TranscriptWorker(cfg, mockLogger, supabase);
 
-      const summary = await skipWorker.run();
+      const summary = await workerFalse.run();
 
-      expect(summary.totalEpisodes).toBe(0);
-      expect(summary.processedEpisodes).toBe(0);
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        'system',
-        'TRANSCRIPT_WORKER_L10 disabled - skipping episode selection'
-      );
+      // Should discover the seeded episodes (4) and process them, creating transcripts
+      expect(summary.totalEpisodes).toBe(seededEpisodeIds.length);
+      expect(summary.processedEpisodes).toBeGreaterThan(0);
+
+      // Should have created available transcripts for at least one episode (depends on mocks)
+      expect(summary.availableTranscripts).toBeGreaterThan(0);
     });
 
     it('should re-submit up to 10 most recent episodes when last10Mode is true', async () => {

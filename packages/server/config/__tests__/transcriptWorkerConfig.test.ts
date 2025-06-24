@@ -32,7 +32,7 @@ describe('Transcript Worker Configuration', () => {
     delete process.env.TRANSCRIPT_WORKER_CRON;
     delete process.env.TRANSCRIPT_ADVISORY_LOCK;
     delete process.env.TRANSCRIPT_TIER;
-    delete process.env.TRANSCRIPT_WORKER_L10;
+    delete process.env.TRANSCRIPT_WORKER_L10D;
   });
 
   afterEach(() => {
@@ -52,7 +52,7 @@ describe('Transcript Worker Configuration', () => {
         cronSchedule: '0 1 * * *',
         tier: 'business',
         useAdvisoryLock: true,
-        last10Mode: undefined
+        last10Mode: false
       });
     });
 
@@ -74,7 +74,7 @@ describe('Transcript Worker Configuration', () => {
       expect(config.cronSchedule).toBe('0 1 * * *');
       expect(config.tier).toBe('business');
       expect(config.useAdvisoryLock).toBe(true);
-      expect(config.last10Mode).toBeUndefined();
+      expect(config.last10Mode).toBe(false);
     });
   });
 
@@ -97,7 +97,7 @@ describe('Transcript Worker Configuration', () => {
       expect(config.cronSchedule).toBe('30 2 * * *');
       expect(config.tier).toBe('free');
       expect(config.useAdvisoryLock).toBe(false);
-      expect(config.last10Mode).toBeUndefined();
+      expect(config.last10Mode).toBe(false);
     });
 
     it('should handle string "false" for enabled flag', () => {
@@ -139,6 +139,35 @@ describe('Transcript Worker Configuration', () => {
       process.env.TRANSCRIPT_ADVISORY_LOCK = 'true';
       config = getTranscriptWorkerConfig();
       expect(config.useAdvisoryLock).toBe(true);
+    });
+
+    /**
+     * New tests for TRANSCRIPT_WORKER_L10D semantics (strict boolean)
+     */
+    describe('last10Mode Flag (TRANSCRIPT_WORKER_L10D)', () => {
+      it('should set last10Mode = true when env var is "true"', () => {
+        process.env.TRANSCRIPT_WORKER_L10D = 'true';
+
+        const config = getTranscriptWorkerConfig();
+
+        expect(config.last10Mode).toBe(true);
+      });
+
+      it('should set last10Mode = false when env var is "false"', () => {
+        process.env.TRANSCRIPT_WORKER_L10D = 'false';
+
+        const config = getTranscriptWorkerConfig();
+
+        expect(config.last10Mode).toBe(false);
+      });
+
+      it('should default last10Mode to false when env var is unset', () => {
+        delete process.env.TRANSCRIPT_WORKER_L10D; // ensure unset
+
+        const config = getTranscriptWorkerConfig();
+
+        expect(config.last10Mode).toBe(false);
+      });
     });
   });
 
@@ -516,7 +545,7 @@ describe('Transcript Worker Configuration', () => {
         cronSchedule: '0 1 * * *',
         tier: 'business',
         useAdvisoryLock: true,
-        last10Mode: undefined
+        last10Mode: false
       });
     });
 
@@ -539,7 +568,7 @@ describe('Transcript Worker Configuration', () => {
         cronSchedule: '*/5 * * * *',
         tier: 'free',
         useAdvisoryLock: false,
-        last10Mode: undefined
+        last10Mode: false
       });
     });
   });

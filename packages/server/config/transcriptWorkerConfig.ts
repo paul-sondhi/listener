@@ -18,8 +18,8 @@ export interface TranscriptWorkerConfig {
   concurrency: number;
   /** Whether to use PostgreSQL advisory lock */
   useAdvisoryLock: boolean;
-  /** When true, re-process last 10; when false, skip all; undefined = normal */
-  last10Mode?: boolean;
+  /** When true, re-process the 10 most-recent episodes (overwrite duplicates); when false, run in normal nightly mode */
+  last10Mode: boolean;
 }
 
 /**
@@ -70,10 +70,8 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
   // Parse advisory lock flag
   const useAdvisoryLock = process.env.TRANSCRIPT_ADVISORY_LOCK !== 'false';
 
-  // Parse last10Mode flag
-  let last10Mode: boolean | undefined;
-  if (process.env.TRANSCRIPT_WORKER_L10 === 'true') last10Mode = true;
-  else if (process.env.TRANSCRIPT_WORKER_L10 === 'false') last10Mode = false;
+  // Parse last10Mode flag (strict boolean semantics) – any value other than the string "true" yields false
+  const last10Mode: boolean = process.env.TRANSCRIPT_WORKER_L10D === 'true';
 
   return {
     enabled,

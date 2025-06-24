@@ -35,6 +35,22 @@ const AppPage = (): React.JSX.Element => {
   // Use ref to track if we've already synced for this user session
   const hasSynced = useRef<boolean>(false)
 
+  /**
+   * Track whether the component is still mounted to avoid calling setState
+   * after Jest/Vitest unmounts the component (e.g. at the end of a test).
+   * React will warn if we call setState on an unmounted component and, in
+   * JSDOM test environments, the global `window` object can be torn down
+   * which leads to `window is not defined` unhandled rejections. Guarding
+   * updates with this ref prevents those noisy errors without affecting
+   * production behaviour.
+   */
+  const isMounted = useRef(true)
+  useEffect(() => {
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
   // Sync Spotify tokens on component mount
   useEffect(() => {
     /**
@@ -163,7 +179,10 @@ const AppPage = (): React.JSX.Element => {
         // CRITICAL: Always mark as attempted to prevent infinite loops
         hasSynced.current = true
       } finally {
-        setIsSyncing(false)
+        // Avoid state update if component has unmounted (e.g., after test teardown)
+        if (isMounted.current) {
+          setIsSyncing(false)
+        }
       }
     }
 
