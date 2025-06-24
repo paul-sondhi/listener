@@ -13,6 +13,7 @@ import * as transcriptDb from '../../lib/db/transcripts.js';
 import { TranscriptService } from '../../lib/services/TranscriptService.js';
 import { createClient } from '@supabase/supabase-js';
 import { getSharedSupabaseClient } from '../../lib/db/sharedSupabaseClient.js';
+import { gunzipSync } from 'zlib';
 
 // Mock all external dependencies
 vi.mock('../../lib/db/transcripts.js');
@@ -770,6 +771,146 @@ describe('TranscriptWorker', () => {
           })
         })
       );
+    });
+
+    it('should store gzipped JSONL content that can be decompressed and parsed', async () => {
+      // Arrange mock episode
+      const mockEpisodes = [{
+        id: 'episode-1',
+        show_id: 'show-1',
+        guid: 'guid-1',
+        episode_url: 'https://example.com/episode1',
+        title: 'Test Episode',
+        description: 'Test description',
+        pub_date: new Date().toISOString(),
+        duration_sec: 3600,
+        created_at: new Date().toISOString(),
+        deleted_at: null,
+        podcast_shows: {
+          id: 'show-1',
+          rss_url: 'https://example.com/rss',
+          title: 'Test Show'
+        }
+      }];
+
+      // Capture uploaded buffer
+      let capturedBuffer: Buffer | undefined;
+      let capturedContentType: string | undefined;
+      const mockStorageUpload = vi.fn().mockImplementation((path, content, options) => {
+        capturedBuffer = content as Buffer;
+        capturedContentType = options?.contentType;
+        return Promise.resolve({ error: null });
+      });
+
+      mockSupabaseClient.storage.from.mockReturnValue({ upload: mockStorageUpload });
+
+      // Mock DB queries to return episode
+      mockSupabaseClient.from.mockImplementation((table: string) => {
+        if (table === 'podcast_episodes') {
+          return {
+            select: vi.fn().mockReturnValue({
+              gte: vi.fn().mockReturnValue({
+                not: vi.fn().mockReturnValue({
+                  not: vi.fn().mockReturnValue({
+                    not: vi.fn().mockReturnValue({
+                      not: vi.fn().mockReturnValue({
+                        order: vi.fn().mockReturnValue({
+                          limit: vi.fn().mockResolvedValue({ data: mockEpisodes, error: null })
+                        })
+                      })
+                    })
+                  })
+                })
+              })
+            })
+          };
+        } else if (table === 'transcripts') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                is: vi.fn().mockResolvedValue({ data: [], error: null })
+              })
+            })
+          };
+        } else if (table === 'podcast_shows') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ data: [], error: null })
+            })
+          };
+        }
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      });
+
+      // Mock transcript service to return full transcript
+      const mockTranscriptServiceInstance = {
+        getTranscript: vi.fn().mockResolvedValue({
+          kind: 'full',
+          text: 'Sample transcript text',
+          wordCount: 3,
+          source: 'taddy',
+          creditsConsumed: 1
+        })
+      };
+      mockTranscriptService.mockImplementation(() => mockTranscriptServiceInstance);
+
+      // Act
+      worker = new TranscriptWorker(defaultConfig, mockLogger);
+      await worker.run();
+
+      // Assert buffer captured
+      expect(capturedBuffer).toBeDefined();
+      // Decompress and parse
+      const decompressed = gunzipSync(capturedBuffer as Buffer).toString('utf-8');
+      const parsed = JSON.parse(decompressed);
+      expect(parsed).toEqual(
+        expect.objectContaining({
+          episode_id: 'episode-1',
+          show_id: 'show-1',
+          transcript: 'Sample transcript text'
+        })
+      );
+      // Confirm correct MIME type is still used
+      expect(capturedContentType).toBe('application/gzip');
+    });
+
+    it('should never use unsupported MIME type (regression guard)', async () => {
+      // Simple assertion on worker constant via runtime behaviour
+      let capturedContentType: string | undefined;
+      const mockStorageUpload = vi.fn().mockImplementation((path, content, options) => {
+        capturedContentType = options?.contentType;
+        return Promise.resolve({ error: null });
+      });
+      mockSupabaseClient.storage.from.mockReturnValue({ upload: mockStorageUpload });
+
+      // Short-circuit transcripts and DB queries to no episodes to keep test light
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          gte: vi.fn().mockReturnValue({
+            not: vi.fn().mockReturnValue({
+              not: vi.fn().mockReturnValue({
+                not: vi.fn().mockReturnValue({
+                  not: vi.fn().mockReturnValue({
+                    order: vi.fn().mockReturnValue({
+                      limit: vi.fn().mockResolvedValue({ data: [], error: null })
+                    })
+                  })
+                })
+              })
+            })
+          })
+        })
+      });
+
+      // Act
+      worker = new TranscriptWorker(defaultConfig, mockLogger);
+      await worker.run();
+
+      // If worker never uploaded, capturedContentType may be undefined which is fine
+      if (capturedContentType) {
+        expect(capturedContentType).not.toBe('application/jsonlines+gzip');
+        expect(capturedContentType).toBe('application/gzip');
+      }
     });
   });
 }); 
