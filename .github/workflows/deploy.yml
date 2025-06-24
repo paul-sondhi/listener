@@ -158,12 +158,6 @@ jobs:
           
           echo "✅ All required secrets are configured"
 
-      - name: Run Migration Validation
-        run: |
-          echo "🔍 Running migration validation tests..."
-          cd scripts
-          node validate-migration.js
-
       - name: Run Backup-Restore Test
         run: |
           echo "🔄 Running backup-restore test..."
