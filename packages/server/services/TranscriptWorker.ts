@@ -730,7 +730,7 @@ export class TranscriptWorker {
 
       // Record error in database with ON CONFLICT DO NOTHING for idempotency
       try {
-        await this.recordTranscriptInDatabase(episode.id, '', 'error', 0);
+        await this.recordTranscriptInDatabase(episode.id, '', 'error', 0, undefined, errorMessage);
       } catch (dbError) {
         this.logger.warn('system', 'Failed to record error in database', {
           metadata: {
@@ -778,15 +778,15 @@ export class TranscriptWorker {
         
         await this.recordTranscriptInDatabase(
           episode.id, 
-          fullStoragePath, 
-          'available', // Map 'full' to 'available' for database compatibility
+          fullStoragePath,
+          'full',
           transcriptResult.wordCount,
           transcriptResult.source
         );
 
         return {
           ...baseResult,
-          status: 'available', // Use 'available' instead of 'full'
+          status: 'full',
           storagePath: fullStoragePath,
           wordCount: transcriptResult.wordCount
         } as EpisodeProcessingResult;
@@ -802,15 +802,15 @@ export class TranscriptWorker {
         
         await this.recordTranscriptInDatabase(
           episode.id, 
-          partialStoragePath, 
-          'available', // Map 'partial' to 'available' for database compatibility  
+          partialStoragePath,
+          'partial',
           transcriptResult.wordCount,
           transcriptResult.source
         );
 
         return {
           ...baseResult,
-          status: 'available', // Use 'available' instead of 'partial'
+          status: 'partial',
           storagePath: partialStoragePath,
           wordCount: transcriptResult.wordCount
         } as EpisodeProcessingResult;
@@ -843,25 +843,25 @@ export class TranscriptWorker {
 
       case 'not_found':
         // Episode found but no transcript available - map to error status
-        await this.recordTranscriptInDatabase(episode.id, '', 'error', 0, transcriptResult.source);
+        await this.recordTranscriptInDatabase(episode.id, '', 'no_transcript_found', 0, transcriptResult.source);
         return {
           ...baseResult,
-          status: 'error', // Map 'not_found' to 'error' for database compatibility
+          status: 'no_transcript_found',
           error: 'No transcript found for episode'
         } as EpisodeProcessingResult;
 
       case 'no_match':
         // Episode not found in Taddy database - map to error status
-        await this.recordTranscriptInDatabase(episode.id, '', 'error', 0, transcriptResult.source);
+        await this.recordTranscriptInDatabase(episode.id, '', 'no_match', 0, transcriptResult.source);
         return {
           ...baseResult,
-          status: 'error', // Map 'no_match' to 'error' for database compatibility
+          status: 'no_match',
           error: 'Episode not found in transcript database'
         } as EpisodeProcessingResult;
 
       case 'error': {
         // API error or processing failure
-        await this.recordTranscriptInDatabase(episode.id, '', 'error', 0, transcriptResult.source);
+        await this.recordTranscriptInDatabase(episode.id, '', 'error', 0, transcriptResult.source, transcriptResult.message);
         
         // Check if this is a quota exhaustion error
         if (this.isQuotaExhaustionError(transcriptResult.message)) {
@@ -958,27 +958,37 @@ export class TranscriptWorker {
    * Record transcript metadata in the database with idempotent conflict handling
    * @param episodeId Episode ID
    * @param storagePath Storage path (empty for non-stored statuses)
-   * @param status Transcript status
+   * @param initialStatus Initial transcript status
    * @param wordCount Word count (0 for non-text statuses)
    * @param source Optional source of the transcript ('taddy' or 'podcaster')
+   * @param errorDetails Optional error details
    */
   private async recordTranscriptInDatabase(
     episodeId: string,
     storagePath: string,
-    status: TranscriptStatus,
+    initialStatus: TranscriptStatus,
     wordCount: number,
-    source?: 'taddy' | 'podcaster'
+    source?: 'taddy' | 'podcaster',
+    errorDetails?: string | null
   ): Promise<void> {
     // Only pass wordCount if it's greater than 0 (for available transcripts)
     const wordCountParam = wordCount > 0 ? wordCount : undefined;
 
     try {
-      await insertTranscript(episodeId, storagePath, status, wordCountParam, source);
+      await insertTranscript(
+        episodeId,
+        storagePath,
+        initialStatus,
+        undefined, // currentStatus defaults internally to initial
+        wordCountParam,
+        source,
+        errorDetails
+      );
 
       this.logger.debug('system', 'Transcript recorded in database', {
         metadata: {
           episode_id: episodeId,
-          status: status,
+          status: initialStatus,
           storage_path: storagePath,
           word_count: wordCount,
           source: source
@@ -992,12 +1002,20 @@ export class TranscriptWorker {
         if (this.config.last10Mode === true) {
           // Overwrite existing row with new data
           try {
-            await overwriteTranscript(episodeId, storagePath, status, wordCountParam, source);
+            await overwriteTranscript(
+              episodeId,
+              storagePath,
+              initialStatus,
+              initialStatus, // current_status same as initial by definition
+              wordCountParam,
+              source,
+              errorDetails
+            );
 
             this.logger.debug('system', 'Transcript overwritten (last10Mode)', {
               metadata: {
                 episode_id: episodeId,
-                status: status,
+                status: initialStatus,
                 storage_path: storagePath,
                 word_count: wordCountParam,
                 source: source
@@ -1018,7 +1036,7 @@ export class TranscriptWorker {
           this.logger.debug('system', 'Transcript already exists for episode - skipping (idempotent)', {
             metadata: {
               episode_id: episodeId,
-              status: status,
+              status: initialStatus,
               source: source
             }
           });
@@ -1078,18 +1096,20 @@ export class TranscriptWorker {
 
     for (const result of results) {
       switch (result.status) {
-        case 'available':
+        case 'full':
+        case 'partial':
           availableTranscripts++;
           break;
         case 'processing':
           processingCount++;
           break;
+        case 'no_transcript_found':
+        case 'no_match':
         case 'error':
           errorCount++;
           break;
         default:
-          // Handle any unexpected status values
-          errorCount++; 
+          errorCount++;
           break;
       }
     }

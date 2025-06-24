@@ -350,20 +350,24 @@ export async function getStatusCounts(
  * Replaces status, storage_path, word_count, and source while keeping created_at intact.
  * @param episodeId - UUID of the episode whose transcript we are overwriting
  * @param storagePath - New storage path ("" allowed for processing/error)
- * @param status - New transcript status
+ * @param initialStatus - Initial transcript status
+ * @param currentStatus - New transcript status
  * @param wordCount - Optional new word count
  * @param source - Optional transcript source (e.g., 'taddy' or 'podcaster')
+ * @param errorDetails - Optional error details
  * @returns Promise<Transcript> The updated transcript record
  */
 export async function overwriteTranscript(
   episodeId: string,
   storagePath: string,
+  initialStatus: TranscriptStatus,
   currentStatus: TranscriptStatus,
   wordCount?: number,
   source?: 'taddy' | 'podcaster',
   errorDetails?: string | null
 ): Promise<Transcript> {
   const updateData: any = {
+    initial_status: initialStatus,
     current_status: currentStatus,
     storage_path: storagePath,
   };
