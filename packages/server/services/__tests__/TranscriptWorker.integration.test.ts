@@ -778,4 +778,35 @@ describe('TranscriptWorker Integration Tests', () => {
     // The recent episode should get a full transcript
     expect(result.availableTranscripts).toBe(1);
   });
+
+  describe('TRANSCRIPT_WORKER_L10 flag behaviour', () => {
+    it('should skip all work when last10Mode is false', async () => {
+      const cfg: TranscriptWorkerConfig = { ...integrationConfig, last10Mode: false } as any;
+
+      const skipWorker = new TranscriptWorker(cfg, mockLogger, supabase);
+
+      const summary = await skipWorker.run();
+
+      expect(summary.totalEpisodes).toBe(0);
+      expect(summary.processedEpisodes).toBe(0);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'system',
+        'TRANSCRIPT_WORKER_L10 disabled - skipping episode selection'
+      );
+    });
+
+    it('should re-submit up to 10 most recent episodes when last10Mode is true', async () => {
+      const cfg: TranscriptWorkerConfig = { ...integrationConfig, last10Mode: true } as any;
+
+      const l10Worker = new TranscriptWorker(cfg, mockLogger, supabase);
+
+      const summary = await l10Worker.run();
+
+      // We seeded 4 episodes, so expect all 4 to be considered.
+      expect(summary.totalEpisodes).toBe(seededEpisodeIds.length);
+      // At least one should be processed (depends on transcript mocks)
+      expect(summary.processedEpisodes).toBeGreaterThan(0);
+      expect(summary.totalEpisodes).toBeLessThanOrEqual(10);
+    });
+  });
 }); 
