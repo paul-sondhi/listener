@@ -62,10 +62,7 @@ jobs:
           - 5432:5432
     
     env:
-      # Supabase credentials for encrypted-token migration guard & integration tests
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      RUN_DB_HEALTHCHECK: 'true'
+      # No Supabase creds: integration tests target local Postgres container
       NODE_ENV: test
       TEST_SECRET_COUNT: 3
       # Database URL for migration tests (local Postgres container)
@@ -100,6 +97,15 @@ jobs:
           PGPASSWORD=postgres psql -h localhost -U postgres -d test_db -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
           echo "✅ Database extensions installed"
 
+      - name: Apply Supabase migrations to test_db
+        run: |
+          echo "📦 Applying supabase/migrations/*.sql to test_db..."
+          for sql in $(ls supabase/migrations/*.sql | sort); do
+            echo "▶ psql -f $sql"
+            PGPASSWORD=postgres psql -h localhost -U postgres -d test_db -v ON_ERROR_STOP=1 -f "$sql"
+          done
+          echo "✅ Migrations applied"
+
       - name: Run Migration Integration Tests
         run: |
           echo "🧪 Running migration integration tests..."
@@ -122,8 +128,6 @@ jobs:
         run: |
           echo "🔍 Debug: Checking environment variables..."
           echo "NODE_ENV: $NODE_ENV"
-          echo "SUPABASE_URL is set: ${{ secrets.SUPABASE_TEST_URL && 'true' || secrets.SUPABASE_URL && 'true' || 'false' }}"
-          echo "SUPABASE_SERVICE_ROLE_KEY is set: ${{ secrets.SUPABASE_TEST_SERVICE_KEY && 'true' || secrets.SUPABASE_SERVICE_ROLE_KEY && 'true' || 'false' }}"
           echo "Available secrets (names only):"
           echo "- SUPABASE_TEST_URL exists: ${{ secrets.SUPABASE_TEST_URL && 'true' || 'false' }}"
           echo "- SUPABASE_URL exists: ${{ secrets.SUPABASE_URL && 'true' || 'false' }}"
