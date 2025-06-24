@@ -5,5 +5,8 @@
 
 DROP INDEX IF EXISTS podcast_episodes_pub_date_idx;
 
-CREATE INDEX CONCURRENTLY podcast_episodes_pub_date_idx
+-- Using regular CREATE INDEX because pipeline mode used by Supabase CLI
+-- rejects CREATE INDEX CONCURRENTLY (SQLSTATE 25001)
+
+CREATE INDEX podcast_episodes_pub_date_idx
   ON podcast_episodes (pub_date DESC); 
