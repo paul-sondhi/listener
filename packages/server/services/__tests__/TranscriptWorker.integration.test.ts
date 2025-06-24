@@ -20,12 +20,15 @@ vi.mock('../../lib/services/TranscriptService.js');
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('Missing required Supabase environment variables for integration tests');
-}
+const hasCredentials = Boolean(supabaseUrl && supabaseServiceKey);
 
-// Create Supabase client for test data management
-const supabase: SupabaseClient<Database> = createClient(supabaseUrl, supabaseServiceKey);
+// Create Supabase client only if creds provided
+const supabase: SupabaseClient<Database> = hasCredentials
+  ? createClient(supabaseUrl!, supabaseServiceKey!)
+  : ({} as any);
+
+// Use conditional describe like other suite
+const maybeDescribe = hasCredentials ? describe : describe.skip;
 
 // Mock logger
 const mockLogger = {
@@ -47,7 +50,9 @@ const integrationConfig: TranscriptWorkerConfig = {
   last10Mode: false
 };
 
-describe('TranscriptWorker Integration Tests', () => {
+const FULL_STATUSES: Array<'full' | 'partial'> = ['full', 'partial'];
+
+maybeDescribe('TranscriptWorker Integration Tests', () => {
   let worker: TranscriptWorker;
   let seededShowId: string;
   let seededEpisodeIds: string[] = [];
@@ -426,7 +431,7 @@ describe('TranscriptWorker Integration Tests', () => {
     }
 
     // Verify full transcript record
-    const fullTranscript = transcripts.find(t => t.status === 'available' && t.word_count === 25);
+    const fullTranscript = transcripts.find(t => t.current_status === 'full' && t.word_count === 25);
     if (!fullTranscript) {
       throw new Error(`DEBUG: Can't find full transcript with word_count=25. All transcripts: ${JSON.stringify(transcripts, null, 2)}`);
     }
@@ -437,24 +442,28 @@ describe('TranscriptWorker Integration Tests', () => {
     expect(fullTranscript!.storage_path).toMatch(/^test-transcript-worker-show-1\/test-transcript-worker-episode-\d+\.jsonl\.gz$/);
 
     // Verify partial transcript record (also stored as 'available')
-    const partialTranscript = transcripts.find(t => t.status === 'available' && t.word_count === 12);
+    const partialTranscript = transcripts.find(t => t.current_status === 'partial' && t.word_count === 12);
     expect(partialTranscript).toBeDefined();
     expect(partialTranscript!.source).toBe('taddy');
     expect(partialTranscript!.storage_path).toBeTruthy();
 
     // Verify processing transcript record
-    const processingTranscript = transcripts.find(t => t.status === 'processing');
+    const processingTranscript = transcripts.find(t => t.current_status === 'processing');
     expect(processingTranscript).toBeDefined();
     expect(processingTranscript!.source).toBe('taddy');
     expect(processingTranscript!.storage_path).toBe('');
     expect(processingTranscript!.word_count).toBeUndefined();
 
-    // Verify not_found transcript record (stored as 'error')
-    const errorTranscript = transcripts.find(t => t.status === 'error');
-    expect(errorTranscript).toBeDefined();
-    expect(errorTranscript!.source).toBe('taddy');
-    expect(errorTranscript!.storage_path).toBe('');
-    expect(errorTranscript!.word_count).toBeUndefined();
+    // Verify not_found transcript record (previously stored as 'error', now stored as 'no_transcript_found')
+    // Accept either status to remain backward-compatible with older data.
+    const notFoundTranscript = transcripts.find(
+      (t) => t.current_status === 'no_transcript_found' || t.current_status === 'error'
+    );
+    expect(notFoundTranscript).toBeDefined();
+    expect(notFoundTranscript!.source).toBe('taddy');
+    // Storage path should be empty string or null for not_found records
+    expect(notFoundTranscript!.storage_path === '' || notFoundTranscript!.storage_path == null).toBe(true);
+    expect(notFoundTranscript!.word_count).toBeUndefined();
   });
 
   it('should store transcript files in Supabase Storage for available transcripts', async () => {
@@ -518,9 +527,9 @@ describe('TranscriptWorker Integration Tests', () => {
     // Get transcript records with storage paths
     const { data: transcripts, error } = await supabase
       .from('transcripts')
-      .select('storage_path, episode_id, status, word_count')
+      .select('storage_path, episode_id, current_status, word_count')
       .in('episode_id', seededEpisodeIds)
-      .eq('status', 'available')
+      .in('current_status', FULL_STATUSES)
       .not('storage_path', 'eq', '');
 
     expect(error).toBeNull();
@@ -579,7 +588,8 @@ describe('TranscriptWorker Integration Tests', () => {
       const transcript1 = await insertTranscript(
         seededEpisodeIds[0], 
         `test-transcript-worker-show-1/${seededEpisodeIds[0]}.jsonl.gz`,
-        'available',
+        'full',
+        undefined,
         25,
         'taddy'
       );
@@ -589,7 +599,8 @@ describe('TranscriptWorker Integration Tests', () => {
       const transcript2 = await insertTranscript(
         seededEpisodeIds[1], 
         `test-transcript-worker-show-1/${seededEpisodeIds[1]}.jsonl.gz`,
-        'available',
+        'partial',
+        undefined,
         12,
         'taddy'
       );
@@ -601,6 +612,7 @@ describe('TranscriptWorker Integration Tests', () => {
         '',
         'processing',
         undefined,
+        undefined,
         'taddy'
       );
       console.log(`DEBUG: Successfully inserted transcript 3:`, transcript3.id);
@@ -610,6 +622,7 @@ describe('TranscriptWorker Integration Tests', () => {
         seededEpisodeIds[3], 
         '',
         'error',
+        undefined,
         undefined,
         'taddy'
       );
@@ -630,7 +643,7 @@ describe('TranscriptWorker Integration Tests', () => {
     // Verify transcripts were created
     const { data: verifyTranscripts, error: verifyError } = await supabase
       .from('transcripts')
-      .select('episode_id, status, storage_path, word_count')
+      .select('episode_id, current_status, storage_path, word_count')
       .in('episode_id', seededEpisodeIds);
 
     if (verifyError) {
@@ -825,7 +838,8 @@ describe('TranscriptWorker Integration Tests', () => {
       // Insert one transcript per seeded episode with minimal data
       const initialInsertData = seededEpisodeIds.map((epId) => ({
         episode_id: epId,
-        status: 'pending',
+        current_status: 'processing',
+        initial_status: 'processing',
         storage_path: '',
         word_count: initialWordCount,
         source: 'taddy'
@@ -873,14 +887,14 @@ describe('TranscriptWorker Integration Tests', () => {
       // 4️⃣ Assert: each transcript row should now be status 'available' and updated_at advanced
       const { data: afterRows, error: afterErr } = await supabase
         .from('transcripts')
-        .select('episode_id, status, storage_path, word_count, updated_at');
+        .select('episode_id, current_status, storage_path, word_count, updated_at');
 
       if (afterErr || !afterRows) {
         throw new Error(`Failed to query post-run transcripts: ${afterErr?.message}`);
       }
 
       // Ensure at least one transcript is now available and has updated fields
-      const availableRows = afterRows.filter((r) => r.status === 'available');
+      const availableRows = afterRows.filter((r) => FULL_STATUSES.includes(r.current_status));
       expect(availableRows.length).toBeGreaterThan(0);
 
       for (const row of availableRows) {

@@ -34,6 +34,10 @@ vi.mock('../lib/services/TranscriptService.js');
 // Mock TranscriptService
 const mockTranscriptService = TranscriptService as any;
 
+// Helper constants for new status vocabulary
+const FULL_STATUSES: Array<'full' | 'partial'> = ['full', 'partial'];
+const ERROR_STATUSES: Array<'error' | 'no_transcript_found' | 'no_match'> = ['error', 'no_transcript_found', 'no_match'];
+
 // ---------------------------------------------------------------------------
 // 🕒  Freeze system time so the lookback period includes our fixture episodes
 // ---------------------------------------------------------------------------
@@ -417,7 +421,7 @@ describe('Transcript Worker Integration Tests', () => {
       expect(transcripts).toHaveLength(2);
       
       for (const transcript of transcripts!) {
-        expect(transcript.status).toBe('available');
+        expect(transcript.current_status).toBe('full');
         expect(transcript.storage_path).toBeTruthy();
         expect(transcript.word_count == null || typeof transcript.word_count === 'number').toBe(true);
       }
@@ -492,8 +496,8 @@ describe('Transcript Worker Integration Tests', () => {
       expect(transcripts).toHaveLength(3);
 
       // Check individual transcript statuses
-      const fullTranscripts = transcripts!.filter(t => t.status === 'available');
-      const errorTranscripts = transcripts!.filter(t => t.status === 'error');
+      const fullTranscripts = transcripts!.filter(t => FULL_STATUSES.includes(t.current_status));
+      const errorTranscripts = transcripts!.filter(t => ERROR_STATUSES.includes(t.current_status));
       
       expect(fullTranscripts.length).toBeGreaterThanOrEqual(2); // allow extra
       expect(errorTranscripts.length).toBeLessThanOrEqual(1);
@@ -594,7 +598,8 @@ describe('Transcript Worker Integration Tests', () => {
         .from('transcripts')
         .insert({
           episode_id: testEpisodes[0].id,
-          status: 'available',
+          initial_status: 'full',
+          current_status: 'full',
           storage_path: 'transcripts/existing.jsonl.gz',
           word_count: 500,
           created_at: new Date().toISOString(),
@@ -626,12 +631,12 @@ describe('Transcript Worker Integration Tests', () => {
 
       // First transcript should remain unchanged
       expect(allTranscripts![0].episode_id).toBe(testEpisodes[0].id);
-      expect(allTranscripts![0].status).toBe('available');
+      expect(allTranscripts![0].current_status).toBe('full');
       expect(allTranscripts![0].storage_path).toBe('transcripts/existing.jsonl.gz');
 
       // Second transcript should be newly created
       expect(allTranscripts![1].episode_id).toBe(testEpisodes[1].id);
-      expect(['partial', 'available', 'error']).toContain(allTranscripts![1].status);
+      expect(['partial', 'full', 'error', 'no_transcript_found']).toContain(allTranscripts![1].current_status);
 
       // Note: TranscriptService mocking is handled internally
     });
@@ -680,7 +685,7 @@ describe('Transcript Worker Integration Tests', () => {
 
       expect(error).toBeNull();
       expect(transcripts.length).toBeGreaterThanOrEqual(1);
-      expect(['error', 'available', 'partial']).toContain(transcripts![0].status);
+      expect(['error', 'full', 'partial', 'no_transcript_found']).toContain(transcripts![0].current_status);
       expect(typeof transcripts![0].storage_path).toBe('string');
       expect(transcripts![0].word_count == null || typeof transcripts![0].word_count === 'number').toBe(true);
 
@@ -731,7 +736,7 @@ describe('Transcript Worker Integration Tests', () => {
 
       expect(error).toBeNull();
       expect(transcripts.length).toBeGreaterThanOrEqual(1);
-      expect(['error', 'available', 'partial']).toContain(transcripts![0].status);
+      expect(['error', 'full', 'partial', 'no_transcript_found']).toContain(transcripts![0].current_status);
       expect(typeof transcripts![0].storage_path).toBe('string');
       expect(transcripts![0].word_count == null || typeof transcripts![0].word_count === 'number').toBe(true);
     });
@@ -784,7 +789,7 @@ describe('Transcript Worker Integration Tests', () => {
 
       expect(error).toBeNull();
       expect(transcripts.length).toBeGreaterThanOrEqual(1);
-      expect(['error', 'available', 'partial']).toContain(transcripts![0].status);
+      expect(['error', 'full', 'partial', 'no_transcript_found']).toContain(transcripts![0].current_status);
     });
   });
 
@@ -840,7 +845,7 @@ describe('Transcript Worker Integration Tests', () => {
       
       // All should be successful
       for (const transcript of transcripts!) {
-        expect(transcript.status).toBe('available');
+        expect(transcript.current_status).toBe('full');
         expect(transcript.storage_path).toBeTruthy();
         expect(transcript.word_count == null || typeof transcript.word_count === 'number').toBe(true);
       }
