@@ -46,9 +46,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: run-tests # Only run after basic tests pass
     
-    # Only run migration tests on main branch pushes and PRs to main
-    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
-    
     services:
       postgres:
         image: postgres:15
