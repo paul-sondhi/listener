@@ -58,10 +58,12 @@ export interface CreateTranscriptParams {
 
 // Transcript update parameters (for status changes)
 export interface UpdateTranscriptParams {
-  status?: TranscriptStatus;
+  current_status?: TranscriptStatus;
   word_count?: number | null;
   deleted_at?: string | null;
   error_details?: string | null;
+  /** @deprecated use current_status */
+  status?: TranscriptStatus;
 }
 
 // Search/filter parameters for transcript queries

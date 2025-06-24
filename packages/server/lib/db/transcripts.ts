@@ -5,11 +5,11 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getSharedSupabaseClient } from './sharedSupabaseClient';
-import { 
-  Transcript, 
-  TranscriptStatus, 
+import {
+  Transcript,
+  TranscriptStatus,
   UpdateTranscriptParams,
-  TranscriptFilters 
+  TranscriptFilters
 } from '@listener/shared';
 
 // Lazy initialization of Supabase client for database operations
@@ -33,26 +33,36 @@ function getSupabaseClient(): SupabaseClient {
  * @throws Error if insertion fails or episode_id doesn't exist
  */
 export async function insertTranscript(
-  episodeId: string, 
+  episodeId: string,
   storagePath: string,
-  status: TranscriptStatus,
+  initialStatus: TranscriptStatus,
+  currentStatus?: TranscriptStatus,
   wordCount?: number,
-  source?: 'taddy' | 'podcaster'
+  source?: 'taddy' | 'podcaster',
+  errorDetails?: string | null
 ): Promise<Transcript> {
+  // Default currentStatus to initialStatus if not provided
+  const resolvedCurrentStatus = currentStatus ?? initialStatus;
+
   const insertData: any = {
     episode_id: episodeId,
-    status: status
+    initial_status: initialStatus,
+    current_status: resolvedCurrentStatus
   };
+
+  if (errorDetails) {
+    insertData.error_details = errorDetails;
+  }
 
   // Only set word_count if explicitly provided
   if (wordCount !== undefined) {
     insertData.word_count = wordCount;
   }
 
-  // Set storage_path appropriately based on status
+  // Set storage_path appropriately based on currentStatus
   if (storagePath) {
     insertData.storage_path = storagePath;
-  } else if (status === 'error' || status === 'processing') {
+  } else if (resolvedCurrentStatus === 'error' || resolvedCurrentStatus === 'processing') {
     // For error and processing statuses, explicitly set empty string instead of NULL
     insertData.storage_path = '';
   }
@@ -81,17 +91,15 @@ export async function insertTranscript(
 }
 
 /**
- * Insert a new transcript record with 'pending' status
+ * Insert a new transcript record with 'processing' status (replacement for insertPending)
  * @param episodeId - UUID of the episode this transcript belongs to
- * @param storagePath - Full path to the transcript file in storage bucket
- * @returns Promise<Transcript> The created transcript record
- * @throws Error if insertion fails or episode_id doesn't exist
+ * @param storagePath - Full path to the transcript file in storage bucket (usually empty until file is stored)
  */
-export async function insertPending(
-  episodeId: string, 
-  storagePath: string
+export async function insertProcessing(
+  episodeId: string,
+  storagePath: string = ''
 ): Promise<Transcript> {
-  return insertTranscript(episodeId, storagePath, 'pending');
+  return insertTranscript(episodeId, storagePath, 'processing');
 }
 
 /**
@@ -106,7 +114,7 @@ export async function markAvailable(
   wordCount?: number
 ): Promise<Transcript> {
   const updateData: UpdateTranscriptParams = {
-    status: 'available' as TranscriptStatus
+    current_status: 'full' as TranscriptStatus,
   };
 
   if (wordCount !== undefined) {
@@ -148,9 +156,17 @@ export async function markError(
     console.error(`Transcript error for episode ${episodeId}: ${reason}`);
   }
 
+  const updatePayload: UpdateTranscriptParams = {
+    current_status: 'error' as TranscriptStatus,
+  };
+
+  if (reason) {
+    updatePayload.error_details = reason;
+  }
+
   const { data, error } = await getSupabaseClient()
     .from('transcripts')
-    .update({ status: 'error' as TranscriptStatus })
+    .update(updatePayload)
     .eq('episode_id', episodeId)
     .is('deleted_at', null) // Only update non-deleted records
     .select()
@@ -342,18 +358,25 @@ export async function getStatusCounts(
 export async function overwriteTranscript(
   episodeId: string,
   storagePath: string,
-  status: TranscriptStatus,
+  currentStatus: TranscriptStatus,
   wordCount?: number,
-  source?: 'taddy' | 'podcaster'
+  source?: 'taddy' | 'podcaster',
+  errorDetails?: string | null
 ): Promise<Transcript> {
   const updateData: any = {
-    status,
+    current_status: currentStatus,
     storage_path: storagePath,
   };
+
+  if (errorDetails) {
+    updateData.error_details = errorDetails;
+  }
+
   // Only set word_count if explicitly provided
   if (wordCount !== undefined) {
     updateData.word_count = wordCount;
   }
+
   // Include source if provided
   if (source !== undefined) {
     updateData.source = source;

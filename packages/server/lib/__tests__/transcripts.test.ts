@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { 
-  insertPending, 
+  insertProcessing, 
   markAvailable, 
   markError, 
   softDelete, 
@@ -178,15 +178,15 @@ describe('Transcript Database Helpers', () => {
 
       const storagePath = TranscriptTestDataFactory.generateStoragePath(episode.id);
 
-      // Insert pending transcript
-      const transcript = await insertPending(episode.id, storagePath);
+      // Insert processing transcript
+      const transcript = await insertProcessing(episode.id, storagePath);
       testTranscriptIds.push(transcript.id);
 
       // Verify the transcript was created correctly
       expect(transcript).toBeDefined();
       expect(transcript.episode_id).toBe(episode.id);
       expect(transcript.storage_path).toBe(storagePath);
-      expect(transcript.status).toBe('pending');
+      expect(transcript.current_status).toBe('processing');
       // Fix: Accept undefined for nullable fields in mock environment
       expect(transcript.word_count === null || transcript.word_count === undefined).toBe(true);
       expect(transcript.deleted_at === null || transcript.deleted_at === undefined).toBe(true);
@@ -209,7 +209,7 @@ describe('Transcript Database Helpers', () => {
       const storagePath = TranscriptTestDataFactory.generateStoragePath(episode.id);
 
       // Insert first transcript
-      const firstTranscript = await insertPending(episode.id, storagePath);
+      const firstTranscript = await insertProcessing(episode.id, storagePath);
       testTranscriptIds.push(firstTranscript.id);
 
       // Verify the transcript was created
@@ -217,7 +217,7 @@ describe('Transcript Database Helpers', () => {
       expect(firstTranscript.episode_id).toBe(episode.id);
 
       // In the mock environment, state may not persist between operations
-      // But we can verify that the insertPending function works correctly
+      // But we can verify that the insertProcessing function works correctly
       // and that in a real database, this would be prevented by unique constraint
       try {
         const existingTranscript = await getByEpisodeId(episode.id);
@@ -265,7 +265,7 @@ describe('Transcript Database Helpers', () => {
       // Verify that the fake episode ID is properly formatted but non-existent
       expect(fakeEpisodeId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
       
-      // In a real database, insertPending would fail with FK constraint
+      // In a real database, insertProcessing would fail with FK constraint
       // For the mock, we've verified the episode doesn't exist
     });
   });
@@ -277,14 +277,14 @@ describe('Transcript Database Helpers', () => {
       testEpisodeIds.push(episode.id);
 
       const storagePath = TranscriptTestDataFactory.generateStoragePath(episode.id);
-      const transcript = await insertPending(episode.id, storagePath);
+      const transcript = await insertProcessing(episode.id, storagePath);
       testTranscriptIds.push(transcript.id);
 
       // For mock environment, we need to use a different approach
       // since the insert and update operations don't share state
       try {
         const updatedTranscript = await markAvailable(episode.id);
-        expect(updatedTranscript.status).toBe('available');
+        expect(updatedTranscript.current_status).toBe('full');
         expect(updatedTranscript.episode_id).toBe(episode.id);
         expect(updatedTranscript.word_count === null || updatedTranscript.word_count === undefined).toBe(true);
       } catch (error: any) {
@@ -301,14 +301,14 @@ describe('Transcript Database Helpers', () => {
       testEpisodeIds.push(episode.id);
 
       const storagePath = TranscriptTestDataFactory.generateStoragePath(episode.id);
-      const transcript = await insertPending(episode.id, storagePath);
+      const transcript = await insertProcessing(episode.id, storagePath);
       testTranscriptIds.push(transcript.id);
 
       const wordCount = 1500;
 
       try {
         const updatedTranscript = await markAvailable(episode.id, wordCount);
-        expect(updatedTranscript.status).toBe('available');
+        expect(updatedTranscript.current_status).toBe('full');
         expect(updatedTranscript.word_count).toBe(wordCount);
       } catch (_error: any) {
         // In mock environment, this might fail due to state isolation
@@ -333,7 +333,7 @@ describe('Transcript Database Helpers', () => {
       testEpisodeIds.push(episode.id);
 
       const storagePath = TranscriptTestDataFactory.generateStoragePath(episode.id);
-      const transcript = await insertPending(episode.id, storagePath);
+      const transcript = await insertProcessing(episode.id, storagePath);
       testTranscriptIds.push(transcript.id);
 
       // Mock console.error to verify error logging
@@ -343,7 +343,7 @@ describe('Transcript Database Helpers', () => {
 
       try {
         const updatedTranscript = await markError(episode.id, errorReason);
-        expect(updatedTranscript.status).toBe('error');
+        expect(updatedTranscript.current_status).toBe('error');
         expect(updatedTranscript.episode_id).toBe(episode.id);
 
         // Verify error was logged
@@ -375,7 +375,7 @@ describe('Transcript Database Helpers', () => {
       testEpisodeIds.push(episode.id);
 
       const storagePath = TranscriptTestDataFactory.generateStoragePath(episode.id);
-      const transcript = await insertPending(episode.id, storagePath);
+      const transcript = await insertProcessing(episode.id, storagePath);
       testTranscriptIds.push(transcript.id);
 
       try {
@@ -414,7 +414,7 @@ describe('Transcript Database Helpers', () => {
       testEpisodeIds.push(episode.id);
 
       const storagePath = TranscriptTestDataFactory.generateStoragePath(episode.id);
-      const transcript = await insertPending(episode.id, storagePath);
+      const transcript = await insertProcessing(episode.id, storagePath);
       testTranscriptIds.push(transcript.id);
 
       const originalUpdatedAt = transcript.updated_at;
@@ -446,15 +446,15 @@ describe('Transcript Database Helpers', () => {
       const storagePath = TranscriptTestDataFactory.generateStoragePath(episode.id);
 
       // Test that the business logic validates status values
-      // The insertPending function should only accept valid status values
-      const validStatuses = ['pending', 'available', 'error'];
-      const invalidStatuses = ['invalid_status', 'completed', 'processing', 'failed'];
+      // The insertProcessing function should only accept valid status values
+      const validStatuses = ['processing', 'full', 'error'];
+      const invalidStatuses = ['invalid_status', 'completed', 'pending', 'failed'];
 
       // Verify that our application functions use valid statuses
-      const transcript = await insertPending(episode.id, storagePath);
+      const transcript = await insertProcessing(episode.id, storagePath);
       testTranscriptIds.push(transcript.id);
-      expect(validStatuses).toContain(transcript.status);
-      expect(transcript.status).toBe('pending');
+      expect(validStatuses).toContain(transcript.current_status);
+      expect(transcript.current_status).toBe('processing');
 
       // Test that invalid status values would be caught in business logic
       invalidStatuses.forEach(invalidStatus => {
@@ -463,8 +463,8 @@ describe('Transcript Database Helpers', () => {
 
       // In a properly implemented system, these invalid statuses would be
       // rejected either by database constraints or application validation
-      expect(typeof transcript.status).toBe('string');
-      expect(validStatuses.includes(transcript.status)).toBe(true);
+      expect(typeof transcript.current_status).toBe('string');
+      expect(validStatuses.includes(transcript.current_status)).toBe(true);
     });
   });
 
@@ -475,7 +475,7 @@ describe('Transcript Database Helpers', () => {
       testEpisodeIds.push(episode.id);
 
       const storagePath = TranscriptTestDataFactory.generateStoragePath(episode.id);
-      const transcript = await insertPending(episode.id, storagePath);
+      const transcript = await insertProcessing(episode.id, storagePath);
       testTranscriptIds.push(transcript.id);
 
       try {
