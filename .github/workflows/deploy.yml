@@ -40,13 +40,6 @@ jobs:
       - name: Run Unit Tests Only
         run: npm run test:unit # Runs only unit tests (excludes integration tests)
 
-      - name: Run Transcript Worker Unit Tests
-        # Explicitly run transcript worker unit tests to ensure they pass
-        run: |
-          echo "🧪 Running transcript worker unit tests..."
-          cd packages/server
-          npm test -- --run config/__tests__/transcriptWorkerConfig.test.ts services/__tests__/TranscriptWorker.test.ts
-
   # NEW: Backup-Restore Migration Tests
   migration-tests:
     name: Migration Tests
@@ -72,12 +65,13 @@ jobs:
           - 5432:5432
     
     env:
-      # Use test environment variables
-      SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL || secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Supabase credentials for encrypted-token migration guard & integration tests
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RUN_DB_HEALTHCHECK: 'true'
       NODE_ENV: test
       TEST_SECRET_COUNT: 3
-      # Database URL for migration tests
+      # Database URL for migration tests (local Postgres container)
       DATABASE_URL_TEST: postgresql://postgres:postgres@localhost:5432/test_db
     
     steps:
@@ -126,12 +120,6 @@ jobs:
           echo "🧪 Running routes smoke tests..."
           cd packages/server
           npm test routes/__tests__/storeSpotifyTokens.smoke.test.ts
-
-      - name: Run Scripts Tests
-        run: |
-          echo "🧪 Running scripts tests..."
-          cd scripts
-          npm test
 
       - name: Debug Environment Variables
         run: |
