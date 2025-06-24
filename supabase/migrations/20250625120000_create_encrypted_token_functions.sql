@@ -12,6 +12,12 @@
 -- ──────────────────────────────────────────────────────────────────────────
 
 -- ──────────────────────────────────────────────────────────────────────────
+-- Cleanup: drop old TEXT-returning helpers so we can redefine with JSONB
+-- ──────────────────────────────────────────────────────────────────────────
+DROP FUNCTION IF EXISTS get_encrypted_tokens(UUID, TEXT);
+DROP FUNCTION IF EXISTS update_encrypted_tokens(UUID, TEXT, TEXT);
+
+-- ──────────────────────────────────────────────────────────────────────────
 -- 1. update_encrypted_tokens
 --    Encrypts token JSON with pgp_sym_encrypt and stores it.
 -- ──────────────────────────────────────────────────────────────────────────
