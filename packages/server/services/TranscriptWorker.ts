@@ -916,10 +916,12 @@ export class TranscriptWorker {
     });
 
     // Upload to Supabase Storage
+    // Note: Content is gzipped JSONL (JSON Lines) format but we use 'application/gzip' 
+    // as the MIME type since Supabase Storage doesn't recognize 'application/jsonlines+gzip'
     const { error } = await this.supabase.storage
       .from(this.bucketName)
       .upload(storagePath, compressedContent, {
-        contentType: 'application/jsonlines+gzip',
+        contentType: 'application/gzip',
         upsert: true // Allow overwriting if file exists
       });
 

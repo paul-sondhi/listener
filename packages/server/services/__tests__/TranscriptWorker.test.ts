@@ -565,4 +565,211 @@ describe('TranscriptWorker', () => {
       );
     });
   });
+
+  describe('Storage Integration', () => {
+    it('should successfully store transcript file with correct MIME type', async () => {
+      // Mock episodes data with proper structure including joined podcast_shows
+      const mockEpisodes = [{
+        id: 'episode-1',
+        show_id: 'show-1',
+        guid: 'guid-1',
+        episode_url: 'https://example.com/episode1',
+        title: 'Test Episode',
+        description: 'Test description',
+        pub_date: new Date().toISOString(),
+        duration_sec: 3600,
+        created_at: new Date().toISOString(),
+        deleted_at: null,
+        podcast_shows: {
+          id: 'show-1',
+          rss_url: 'https://example.com/rss',
+          title: 'Test Show'
+        }
+      }];
+
+      // Mock storage upload to capture the MIME type used
+      let capturedContentType: string | undefined;
+      const mockStorageUpload = vi.fn().mockImplementation((path, content, options) => {
+        capturedContentType = options?.contentType;
+        return Promise.resolve({ error: null });
+      });
+
+      mockSupabaseClient.storage.from.mockReturnValue({
+        upload: mockStorageUpload
+      });
+
+      // Mock database to return episodes
+      mockSupabaseClient.from.mockImplementation((table: string) => {
+        if (table === 'podcast_episodes') {
+          return {
+            select: vi.fn().mockReturnValue({
+              gte: vi.fn().mockReturnValue({
+                not: vi.fn().mockReturnValue({
+                  not: vi.fn().mockReturnValue({
+                    not: vi.fn().mockReturnValue({
+                      not: vi.fn().mockReturnValue({
+                        order: vi.fn().mockReturnValue({
+                          limit: vi.fn().mockResolvedValue({ data: mockEpisodes, error: null })
+                        })
+                      })
+                    })
+                  })
+                })
+              })
+            })
+          };
+        } else if (table === 'transcripts') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                is: vi.fn().mockResolvedValue({ data: [], error: null })
+              })
+            })
+          };
+        } else if (table === 'podcast_shows') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ data: [], error: null })
+            })
+          };
+        }
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      });
+
+      // Mock transcript service to return available transcript
+      const mockTranscriptServiceInstance = {
+        getTranscript: vi.fn().mockResolvedValue({
+          kind: 'full',
+          text: 'This is a test transcript content for storage testing.',
+          wordCount: 12,
+          source: 'taddy',
+          creditsConsumed: 1
+        })
+      };
+      mockTranscriptService.mockImplementation(() => mockTranscriptServiceInstance);
+
+      // Create a new worker instance to pick up the mocked TranscriptService  
+      worker = new TranscriptWorker(defaultConfig, mockLogger);
+
+      const result = await worker.run();
+
+      // Verify the transcript storage was called
+      expect(mockStorageUpload).toHaveBeenCalledWith(
+        'show-1/episode-1.jsonl.gz',
+        expect.any(Buffer), // The gzipped JSONL content
+        expect.objectContaining({
+          contentType: 'application/gzip', // Should use the fixed MIME type
+          upsert: true
+        })
+      );
+
+      // Verify the correct MIME type was used
+      expect(capturedContentType).toBe('application/gzip');
+
+      // Verify that we successfully processed the transcript
+      expect(result.availableTranscripts).toBe(1);
+      expect(result.processedEpisodes).toBe(1);
+    });
+
+    it('should handle storage upload errors gracefully', async () => {
+      // Mock episodes data with proper structure including joined podcast_shows
+      const mockEpisodes = [{
+        id: 'episode-1',
+        show_id: 'show-1',
+        guid: 'guid-1',
+        episode_url: 'https://example.com/episode1',
+        title: 'Test Episode',
+        description: 'Test description',
+        pub_date: new Date().toISOString(),
+        duration_sec: 3600,
+        created_at: new Date().toISOString(),
+        deleted_at: null,
+        podcast_shows: {
+          id: 'show-1',
+          rss_url: 'https://example.com/rss',
+          title: 'Test Show'
+        }
+      }];
+
+      // Mock storage upload to fail
+      const mockStorageUpload = vi.fn().mockResolvedValue({ 
+        error: { message: 'Storage upload failed' } 
+      });
+
+      mockSupabaseClient.storage.from.mockReturnValue({
+        upload: mockStorageUpload
+      });
+
+      // Mock database to return episodes
+      mockSupabaseClient.from.mockImplementation((table: string) => {
+        if (table === 'podcast_episodes') {
+          return {
+            select: vi.fn().mockReturnValue({
+              gte: vi.fn().mockReturnValue({
+                not: vi.fn().mockReturnValue({
+                  not: vi.fn().mockReturnValue({
+                    not: vi.fn().mockReturnValue({
+                      not: vi.fn().mockReturnValue({
+                        order: vi.fn().mockReturnValue({
+                          limit: vi.fn().mockResolvedValue({ data: mockEpisodes, error: null })
+                        })
+                      })
+                    })
+                  })
+                })
+              })
+            })
+          };
+        } else if (table === 'transcripts') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                is: vi.fn().mockResolvedValue({ data: [], error: null })
+              })
+            })
+          };
+        } else if (table === 'podcast_shows') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ data: [], error: null })
+            })
+          };
+        }
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      });
+
+      // Mock transcript service to return available transcript
+      const mockTranscriptServiceInstance = {
+        getTranscript: vi.fn().mockResolvedValue({
+          kind: 'full',
+          text: 'This is a test transcript content for storage testing.',
+          wordCount: 12,
+          source: 'taddy',
+          creditsConsumed: 1
+        })
+      };
+      mockTranscriptService.mockImplementation(() => mockTranscriptServiceInstance);
+
+      // Create a new worker instance to pick up the mocked TranscriptService
+      worker = new TranscriptWorker(defaultConfig, mockLogger);
+
+      const result = await worker.run();
+
+      // Verify that the storage error was handled and episode marked as error
+      expect(result.errorCount).toBe(1);
+      expect(result.availableTranscripts).toBe(0);
+
+      // Verify error was logged appropriately  
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'system',
+        'Episode processing failed',
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            episode_id: 'episode-1',
+            error: 'Failed to upload transcript to storage: Storage upload failed'
+          })
+        })
+      );
+    });
+  });
 }); 
