@@ -76,8 +76,8 @@ A podcast transcription service that integrates with Spotify.
    TRANSCRIPT_MAX_REQUESTS=15            # Max API calls per run
    TRANSCRIPT_CONCURRENCY=10             # Max simultaneous requests
    TRANSCRIPT_ADVISORY_LOCK=true         # Prevent overlapping runs
-   # Experimental: resubmit last 10 episodes instead of normal lookback. 'true' | 'false' | omit
-   TRANSCRIPT_WORKER_L10=false
+   # Re-check toggle (strict boolean): "true" => re-submit last 10, "false" => normal mode
+   TRANSCRIPT_WORKER_L10D=false          # Pause worker entirely with TRANSCRIPT_WORKER_ENABLED=false
    ```
 
 3. **Verify setup:**

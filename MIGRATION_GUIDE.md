@@ -183,7 +183,7 @@ This guide covers the migration from Taddy Free API to Taddy Business API for im
 ### Environment Configuration
 - **New `TRANSCRIPT_TIER` Variable**: Controls which Taddy API tier to use (`'free'` or `'business'`)
 - **Enhanced Configuration**: Better defaults and validation for Business tier usage
-- **New `TRANSCRIPT_WORKER_L10` Variable**: Optional toggle to make the nightly worker re-submit the ten most recent episodes (`true`), skip all work (`false`), or remain in normal look-back mode when unset.
+- **Renamed `TRANSCRIPT_WORKER_L10D` Variable**: Strict boolean toggle. `"true"` makes the nightly worker re-submit the 10 most-recent episodes (overwriting duplicates). `"false"` means normal nightly mode (skip episodes that already have transcripts). To pause the worker, use `TRANSCRIPT_WORKER_ENABLED=false`.
 
 ### Application Features
 - **Business Client**: New `TaddyBusinessClient` with GraphQL API integration
