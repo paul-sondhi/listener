@@ -353,12 +353,65 @@ export class TaddyBusinessClient {
   /**
    * Query for podcast episode by podcast UUID and episode GUID
    * 
-   * FIXED: The Taddy Business API schema doesn't support getPodcastEpisode(args).
-   * Instead, we must:
-   * 1. Get the podcast series with episodes included (using correct 'uuid' parameter)
-   * 2. Filter client-side for the episode with matching GUID
+   * Attempts direct episode lookup first, then falls back to series-then-filter
+   * approach if the direct query fails due to schema issues.
    */
   private async queryPodcastEpisode(podcastUuid: string, episodeGuid: string) {
+    // ATTEMPT 1: Direct episode query (preferred approach)
+    try {
+      const directQuery = `
+        query GetPodcastEpisode($guid: String!) {
+          getPodcastEpisode(guid: $guid) {
+            uuid
+            name
+            guid
+            taddyTranscribeStatus
+          }
+        }
+      `;
+
+      const result = await this.client.request(directQuery, { guid: episodeGuid });
+      
+      if (result.getPodcastEpisode) {
+        logger.debug('Found episode via direct query', {
+          episodeGuid,
+          episodeUuid: result.getPodcastEpisode.uuid,
+          episodeName: result.getPodcastEpisode.name,
+          transcribeStatus: result.getPodcastEpisode.taddyTranscribeStatus
+        });
+        
+        return result.getPodcastEpisode;
+      }
+      
+      // Episode not found via direct query
+      logger.debug('No episode found via direct query', { episodeGuid });
+      return null;
+      
+    } catch (error) {
+      // If direct query fails due to schema issues, fall back to series approach
+      if (error instanceof Error && (
+        error.message.includes('Cannot query field') ||
+        error.message.includes('Unknown argument') ||
+        error.message.includes('getPodcastEpisode')
+      )) {
+        logger.debug('Direct episode query failed, falling back to series lookup', {
+          episodeGuid,
+          podcastUuid,
+          error: error.message
+        });
+        
+        return this.queryPodcastEpisodeViaSeriesLookup(podcastUuid, episodeGuid);
+      }
+      
+      // Re-throw other errors
+      throw error;
+    }
+  }
+
+  /**
+   * Fallback method to find episode via series lookup when direct query fails
+   */
+  private async queryPodcastEpisodeViaSeriesLookup(podcastUuid: string, episodeGuid: string) {
     const query = `
       query GetPodcastSeriesWithEpisodes($podcastUuid: ID!) {
         getPodcastSeries(uuid: $podcastUuid) {
@@ -397,7 +450,7 @@ export class TaddyBusinessClient {
     );
 
     if (!matchingEpisode) {
-      logger.debug('No episode found with matching GUID', { 
+      logger.debug('No episode found with matching GUID via series lookup', { 
         podcastUuid, 
         episodeGuid,
         seriesName: series.name,
@@ -406,7 +459,7 @@ export class TaddyBusinessClient {
       return null;
     }
 
-    logger.debug('Found matching episode via series lookup', {
+    logger.debug('Found matching episode via series lookup fallback', {
       podcastUuid,
       episodeGuid,
       episodeUuid: matchingEpisode.uuid,
