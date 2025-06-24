@@ -98,7 +98,7 @@ jobs:
       - name: Apply migrations to test_db via Supabase CLI
         run: |
           echo "📦 Resetting shadow DB and applying migrations via Supabase CLI..."
-          supabase db reset --db-url "postgres://postgres:postgres@localhost:5432/test_db" --no-confirm
+          yes | supabase db reset --db-url "postgres://postgres:postgres@localhost:5432/test_db"
           echo "✅ Migrations applied"
 
       - name: Run Migration Integration Tests
