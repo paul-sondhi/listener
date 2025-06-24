@@ -19,6 +19,15 @@ CREATE TABLE IF NOT EXISTS auth.users (
   id uuid PRIMARY KEY
 );
 
+CREATE TABLE IF NOT EXISTS auth.identities (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  provider text,
+  identity_data jsonb,
+  created_at timestamptz DEFAULT now(),
+  CONSTRAINT identities_user_fk FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+
 -- 3️⃣  Create Supabase roles expected by remote_schema.sql
 DO $$
 BEGIN
