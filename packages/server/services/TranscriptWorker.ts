@@ -1007,6 +1007,15 @@ export class TranscriptWorker {
 
   /**
    * Check if an error message indicates quota exhaustion
+   *
+   * Unified abstraction: Any upstream response that points to Taddy credit
+   * exhaustion (HTTP 429, explicit `CREDITS_EXCEEDED` code, generic quota or
+   * rate-limit wording) is normalised by this helper so the rest of the worker
+   * can treat them identically.  This lets us maintain a single guard branch
+   * (`if (this.isQuotaExhaustionError(...))`) instead of sprinkling special-case
+   * string checks throughout the codebase.  If Taddy adds new phrases in the
+   * future we can extend the `quotaPatterns` list here without touching other
+   * logic.
    * @param errorMessage Error message to check
    * @returns boolean True if quota exhausted
    */
