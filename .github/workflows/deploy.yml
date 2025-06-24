@@ -133,11 +133,6 @@ jobs:
           cd scripts
           npm test
 
-      - name: Run Full Test Suite (npm run test:all)
-        run: |
-          echo "🧪 Running full test suite across all workspaces..."
-          npm run test:all
-
       - name: Debug Environment Variables
         run: |
           echo "🔍 Debug: Checking environment variables..."

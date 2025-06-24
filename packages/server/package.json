@@ -16,7 +16,7 @@
     "test:coverage": "vitest run --coverage --exclude '**/*[Ii]ntegration*.test.ts'",
     "test:coverage:watch": "vitest --coverage --exclude '**/*[Ii]ntegration*.test.ts'",
     "test:unit": "vitest run --exclude '**/*[Ii]ntegration*.test.ts'",
-    "test:integration": "vitest run __tests__/subscriptionRefreshIntegration.test.ts __tests__/episodeSyncIntegration.test.ts __tests__/transcriptWorkerIntegration.test.ts routes/__tests__/spotifyTokens.integration.test.ts services/__tests__/TranscriptWorker.integration.test.ts",
+    "test:integration": "vitest run \"**/*[Ii]ntegration*.test.ts\"",
     "test:all": "vitest run",
     "test:ci": "vitest run --coverage --reporter=json --reporter=text",
     "test:debug": "vitest run --no-coverage --reporter=verbose",
