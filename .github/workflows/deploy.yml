@@ -90,20 +90,15 @@ jobs:
           cd packages/server
           npm install --save-dev pg @types/pg
 
-      - name: Set up test database with extensions
-        run: |
-          echo "🗄️ Setting up test database with required extensions..."
-          PGPASSWORD=postgres psql -h localhost -U postgres -d test_db -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d test_db -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
-          echo "✅ Database extensions installed"
+      - name: Install Supabase CLI (local)
+        uses: supabase/setup-cli@v1
+        with:
+          version: '2.23.4'
 
-      - name: Apply Supabase migrations to test_db
+      - name: Apply migrations to test_db via Supabase CLI
         run: |
-          echo "📦 Applying supabase/migrations/*.sql to test_db..."
-          for sql in $(ls supabase/migrations/*.sql | grep -v 'remote_schema' | sort); do
-            echo "▶ psql -f $sql"
-            PGPASSWORD=postgres psql -h localhost -U postgres -d test_db -v ON_ERROR_STOP=1 -f "$sql"
-          done
+          echo "📦 Resetting shadow DB and applying migrations via Supabase CLI..."
+          supabase db reset --db-url "postgres://postgres:postgres@localhost:5432/test_db" --no-confirm
           echo "✅ Migrations applied"
 
       - name: Run Migration Integration Tests
