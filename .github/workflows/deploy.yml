@@ -100,7 +100,7 @@ jobs:
       - name: Apply Supabase migrations to test_db
         run: |
           echo "📦 Applying supabase/migrations/*.sql to test_db..."
-          for sql in $(ls supabase/migrations/*.sql | sort); do
+          for sql in $(ls supabase/migrations/*.sql | grep -v 'remote_schema' | sort); do
             echo "▶ psql -f $sql"
             PGPASSWORD=postgres psql -h localhost -U postgres -d test_db -v ON_ERROR_STOP=1 -f "$sql"
           done
