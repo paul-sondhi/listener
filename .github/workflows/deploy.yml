@@ -95,10 +95,13 @@ jobs:
         with:
           version: '2.23.4'
 
-      - name: Apply migrations to test_db via Supabase CLI
+      - name: Reset & apply migrations to test_db via Supabase CLI
         run: |
-          echo "📦 Resetting shadow DB and applying migrations via Supabase CLI..."
-          yes | supabase db reset --db-url "postgres://postgres:postgres@localhost:5432/test_db"
+          echo "🗑 Dropping and recreating test_db..."
+          psql "postgres://postgres:postgres@localhost:5432/postgres" -c "DROP DATABASE IF EXISTS test_db;"
+          psql "postgres://postgres:postgres@localhost:5432/postgres" -c "CREATE DATABASE test_db;"
+          echo "📦 Applying migrations via Supabase CLI..."
+          supabase db push --db-url "postgres://postgres:postgres@localhost:5432/test_db"
           echo "✅ Migrations applied"
 
       - name: Run Migration Integration Tests
