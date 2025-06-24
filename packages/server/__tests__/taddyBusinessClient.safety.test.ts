@@ -24,7 +24,7 @@ const apiKey = process.env.TADDY_API_KEY;
 const userId = process.env.TADDY_USER_ID;
 
 // Skip tests if API credentials are not available
-const skipIfNoCredentials = apiKey && userId ? describe : describe.skip;
+const _skipIfNoCredentials = apiKey && userId ? describe : describe.skip;
 
 describe('TaddyBusinessClient Production Safety Tests', () => {
   let client: TaddyBusinessClient;

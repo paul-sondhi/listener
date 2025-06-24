@@ -344,7 +344,7 @@ export class TaddyBusinessClient {
       
       return cleanName || 'podcast';
       
-    } catch (error) {
+    } catch (_error) {
       // Fallback if URL parsing fails
       return 'podcast';
     }
