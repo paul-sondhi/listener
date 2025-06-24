@@ -32,6 +32,7 @@ describe('Transcript Worker Configuration', () => {
     delete process.env.TRANSCRIPT_WORKER_CRON;
     delete process.env.TRANSCRIPT_ADVISORY_LOCK;
     delete process.env.TRANSCRIPT_TIER;
+    delete process.env.TRANSCRIPT_WORKER_L10;
   });
 
   afterEach(() => {
@@ -50,7 +51,8 @@ describe('Transcript Worker Configuration', () => {
         enabled: true,
         cronSchedule: '0 1 * * *',
         tier: 'business',
-        useAdvisoryLock: true
+        useAdvisoryLock: true,
+        last10Mode: undefined
       });
     });
 
@@ -72,6 +74,7 @@ describe('Transcript Worker Configuration', () => {
       expect(config.cronSchedule).toBe('0 1 * * *');
       expect(config.tier).toBe('business');
       expect(config.useAdvisoryLock).toBe(true);
+      expect(config.last10Mode).toBeUndefined();
     });
   });
 
@@ -94,6 +97,7 @@ describe('Transcript Worker Configuration', () => {
       expect(config.cronSchedule).toBe('30 2 * * *');
       expect(config.tier).toBe('free');
       expect(config.useAdvisoryLock).toBe(false);
+      expect(config.last10Mode).toBeUndefined();
     });
 
     it('should handle string "false" for enabled flag', () => {
@@ -511,7 +515,8 @@ describe('Transcript Worker Configuration', () => {
         enabled: true,
         cronSchedule: '0 1 * * *',
         tier: 'business',
-        useAdvisoryLock: true
+        useAdvisoryLock: true,
+        last10Mode: undefined
       });
     });
 
@@ -533,7 +538,8 @@ describe('Transcript Worker Configuration', () => {
         enabled: false,
         cronSchedule: '*/5 * * * *',
         tier: 'free',
-        useAdvisoryLock: false
+        useAdvisoryLock: false,
+        last10Mode: undefined
       });
     });
   });

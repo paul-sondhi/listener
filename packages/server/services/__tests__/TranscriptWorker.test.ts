@@ -52,7 +52,8 @@ const defaultConfig: TranscriptWorkerConfig = {
   enabled: true,
   cronSchedule: '0 1 * * *',
   useAdvisoryLock: true,
-  tier: 'business'
+  tier: 'business',
+  last10Mode: undefined
 };
 
 describe('TranscriptWorker', () => {
@@ -90,7 +91,6 @@ describe('TranscriptWorker', () => {
     mockSupabaseClient.from.mockImplementation((table: string) => {
       if (table === 'podcast_episodes') {
         // First query: complex chain for podcast_episodes
-        // The actual chain is: .select().gte().not().not().not().not().order().limit()
         return {
           select: vi.fn().mockReturnValue({
             gte: vi.fn().mockReturnValue({
@@ -264,6 +264,9 @@ describe('TranscriptWorker', () => {
   });
 
   describe('Processing Status Handling', () => {
+    beforeEach(() => { defaultConfig.last10Mode = true; });
+    afterEach(() => { defaultConfig.last10Mode = false; });
+
     it('should include processingCount in summary metrics', async () => {
       const result = await worker.run();
 
@@ -392,6 +395,14 @@ describe('TranscriptWorker', () => {
   });
 
   describe('Quota Exhaustion Handling', () => {
+    beforeEach(() => {
+      defaultConfig.last10Mode = true;
+    });
+
+    afterEach(() => {
+      defaultConfig.last10Mode = false;
+    });
+
     it('should detect quota exhaustion from HTTP 429 error', async () => {
       // Mock episodes data with proper structure including joined podcast_shows
       const mockEpisodes = [{
@@ -568,6 +579,14 @@ describe('TranscriptWorker', () => {
   });
 
   describe('Storage Integration', () => {
+    beforeEach(() => {
+      defaultConfig.last10Mode = true;
+    });
+
+    afterEach(() => {
+      defaultConfig.last10Mode = false;
+    });
+
     it('should successfully store transcript file with correct MIME type', async () => {
       // Mock episodes data with proper structure including joined podcast_shows
       const mockEpisodes = [{

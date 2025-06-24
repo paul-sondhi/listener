@@ -304,6 +304,14 @@ export class TranscriptWorker {
    * @returns Promise<EpisodeWithShow[]> Episodes needing transcripts
    */
   private async queryEpisodesNeedingTranscripts(): Promise<EpisodeWithShow[]> {
+    // If last10Mode flag === false, skip all episodes entirely.
+    if (this.config.last10Mode === false) {
+      this.logger.info('system', 'TRANSCRIPT_WORKER_L10 disabled - skipping episode selection');
+      return [];
+    }
+
+    // When last10Mode === true, after query we will override filtering to include last 10.
+
     const startTime = Date.now();
     
     console.log('DEBUG: Starting episode query with lookback hours:', this.config.lookbackHours);
@@ -429,9 +437,17 @@ export class TranscriptWorker {
       );
 
       // Filter out episodes that already have transcripts
-      const episodesNeedingTranscripts = rawEpisodes.filter(episode => 
-        !episodesWithTranscripts.has(episode.id)
-      );
+      let episodesNeedingTranscripts = rawEpisodes.filter(episode => {
+        if (this.config.last10Mode) {
+          // In last10 mode, include episodes even if transcript exists
+          return true;
+        }
+        return !episodesWithTranscripts.has(episode.id);
+      });
+
+      if (this.config.last10Mode) {
+        episodesNeedingTranscripts = episodesNeedingTranscripts.slice(0, 10);
+      }
 
       // DEBUG: log how many episodes are deemed needing transcripts
       console.log('DEBUG: episodesNeedingTranscripts length:', episodesNeedingTranscripts.length);

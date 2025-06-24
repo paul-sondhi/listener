@@ -18,6 +18,8 @@ export interface TranscriptWorkerConfig {
   concurrency: number;
   /** Whether to use PostgreSQL advisory lock */
   useAdvisoryLock: boolean;
+  /** When true, re-process last 10; when false, skip all; undefined = normal */
+  last10Mode?: boolean;
 }
 
 /**
@@ -68,6 +70,11 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
   // Parse advisory lock flag
   const useAdvisoryLock = process.env.TRANSCRIPT_ADVISORY_LOCK !== 'false';
 
+  // Parse last10Mode flag
+  let last10Mode: boolean | undefined;
+  if (process.env.TRANSCRIPT_WORKER_L10 === 'true') last10Mode = true;
+  else if (process.env.TRANSCRIPT_WORKER_L10 === 'false') last10Mode = false;
+
   return {
     enabled,
     cronSchedule,
@@ -76,6 +83,7 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
     maxRequests,
     concurrency,
     useAdvisoryLock,
+    last10Mode,
   };
 }
 
@@ -128,5 +136,6 @@ export function getConfigSummary(config: TranscriptWorkerConfig): Record<string,
     max_requests_per_run: config.maxRequests,
     max_concurrent: config.concurrency,
     advisory_lock: config.useAdvisoryLock,
+    last10_mode: config.last10Mode,
   };
 } 
