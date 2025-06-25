@@ -27,6 +27,34 @@ UPDATE transcripts
   SET current_status  = 'no_transcript_found'
   WHERE current_status = 'not_found';
 
+-- 5️⃣.b Map additional legacy values to the new vocabulary
+-- → 'pending'  → 'processing' (was an in-progress state)
+-- → 'available' → 'full'      (assume full transcript when marked available)
+UPDATE transcripts
+  SET initial_status  = 'processing'
+  WHERE initial_status = 'pending';
+
+UPDATE transcripts
+  SET current_status  = 'processing'
+  WHERE current_status = 'pending';
+
+UPDATE transcripts
+  SET initial_status  = 'full'
+  WHERE initial_status = 'available';
+
+UPDATE transcripts
+  SET current_status  = 'full'
+  WHERE current_status = 'available';
+
+-- If any unexpected status values remain, coerce them to 'error' so constraints pass safely
+UPDATE transcripts
+  SET initial_status = 'error'
+  WHERE initial_status NOT IN ('full', 'partial', 'processing', 'no_transcript_found', 'no_match', 'error');
+
+UPDATE transcripts
+  SET current_status = 'error'
+  WHERE current_status NOT IN ('full', 'partial', 'processing', 'no_transcript_found', 'no_match', 'error');
+
 -- 6️⃣ Enforce NOT NULL on current_status now that data is populated
 ALTER TABLE transcripts
   ALTER COLUMN current_status SET NOT NULL;
