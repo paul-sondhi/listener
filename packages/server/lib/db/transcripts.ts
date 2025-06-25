@@ -372,7 +372,10 @@ export async function overwriteTranscript(
     storage_path: storagePath,
   };
 
-  if (errorDetails) {
+  // Handle error_details: empty string means clear the field, truthy value sets it, undefined/null leaves it unchanged
+  if (errorDetails === '') {
+    updateData.error_details = null;
+  } else if (errorDetails) {
     updateData.error_details = errorDetails;
   }
 

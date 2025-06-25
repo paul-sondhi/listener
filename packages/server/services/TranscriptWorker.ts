@@ -1009,7 +1009,8 @@ export class TranscriptWorker {
               initialStatus, // current_status same as initial by definition
               wordCountParam,
               source,
-              errorDetails
+              // Clear error_details when overwriting to a non-error status, otherwise preserve existing errorDetails
+              initialStatus === 'error' ? errorDetails : ''
             );
 
             this.logger.debug('system', 'Transcript overwritten (last10Mode)', {
