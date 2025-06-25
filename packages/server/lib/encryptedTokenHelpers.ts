@@ -123,7 +123,7 @@ export async function createUserSecret(
   try {
     const supabase = getSupabaseAdmin();
     const encryptionKey = getEncryptionKey();
-    const tokenJson = JSON.stringify(tokenData);
+    const tokenJson = tokenData;
     
     // Encrypt and store the token data using pgcrypto raw SQL
     const { error } = await supabase.rpc('update_encrypted_tokens', {
@@ -204,7 +204,8 @@ export async function getUserSecret(userId: string): Promise<EncryptedTokenOpera
     }
     
     // Parse the decrypted JSON token data
-    const tokenData: SpotifyTokenData = JSON.parse(userData);
+    const tokenData: SpotifyTokenData =
+      typeof userData === 'string' ? JSON.parse(userData) : (userData as SpotifyTokenData);
     
     const elapsedMs = Date.now() - startTime;
     logEncryptedTokenOperation(userId, 'read', elapsedMs, true);
@@ -243,7 +244,7 @@ export async function updateUserSecret(
   try {
     const supabase = getSupabaseAdmin();
     const encryptionKey = getEncryptionKey();
-    const tokenJson = JSON.stringify(tokenData);
+    const tokenJson = tokenData;
     
     // Encrypt and update the token data using pgcrypto raw SQL
     const { error } = await supabase.rpc('update_encrypted_tokens', {
@@ -419,7 +420,7 @@ export async function encryptedTokenHealthCheck(): Promise<boolean> {
      *    the migration that creates the function has not been applied).
      */
     const dummyUserId = '00000000-0000-0000-0000-000000000000';
-    const dummyTokenJson = JSON.stringify({ health_check: true });
+    const dummyTokenJson = { health_check: true };
     
     // ── update_encrypted_tokens ────────────────────────────────────────────
     const { error: updateFnErr } = await supabase.rpc('update_encrypted_tokens', {
