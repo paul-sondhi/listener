@@ -389,3 +389,84 @@ The migration was designed with these principles:
 ---
 
 **Migration completed successfully?** 🎉 You should now have access to Taddy Business tier with improved transcript coverage and processing capabilities! 
+
+---
+
+# Transcript Status Refactor (July 2025)
+
+## Overview
+This migration replaces the single `status` column in the `transcripts` table with a two-column model that provides a richer audit trail and better reflects provider states.
+
+* **Rename** `status` → `initial_status` (nullable ➜ NOT NULL)
+* **Add** `current_status text NOT NULL` – the live status that can evolve on subsequent worker runs
+* **Add** `error_details text NULL` – provider error payload (populated when `current_status='error'`)
+* **Allowed status values**: `full | partial | processing | no_transcript_found | no_match | error`
+* **Legacy values removed**: `available | pending | not_found`
+
+## Migration Steps
+
+### 1. Apply the Database Migration
+```bash
+# Apply transcript-status refactor migration (timestamp will vary)
+supabase db push --linked
+
+# This applies:
+# 20250701120000_rename_status_add_current_status.sql
+```
+
+### 2. Update Application Code
+The following PRs/commits must be deployed together:
+
+1. **Shared Types** – `TranscriptStatus` union and DTO interfaces updated
+2. **DB Helpers** – `insertProcessing`, `overwriteTranscript`, `markError`, etc. write to both status columns
+3. **TranscriptWorker** – writes both columns, maps provider kinds, implements re-check overwrite logic
+4. **Tests** – All transcript helpers / worker unit & integration tests updated (no regressions)
+
+### 3. Update Environment Docs
+No new environment variables are required, but the semantics of `TRANSCRIPT_WORKER_L10D` were tightened to **strict boolean**:
+
+* `false` – normal nightly run (skip processed episodes)
+* `true`  – re-check mode (process last 10 episodes per show regardless of existing records)
+
+Ensure `.env.example`, `README.md`, and internal run-books reflect the new behaviour.
+
+### 4. Deploy & Verify
+```bash
+# Run database migration
+supabase db push --linked
+
+# Deploy new application code
+# (CI/CD pipeline will run tests – expect 100 % pass)
+
+# Manually trigger worker in re-check mode to verify new columns update correctly
+TRANSCRIPT_WORKER_L10D=true npm run job:transcript_worker -- --once
+# Inspect 'transcripts' table – both columns should be populated
+```
+
+### 5. Rollback Plan
+The migration is **reversible** with minimal data loss:
+
+```sql
+-- Step 1: Restore legacy column
+ALTER TABLE transcripts ADD COLUMN IF NOT EXISTS status text;
+UPDATE transcripts SET status = initial_status;
+
+-- Step 2: Drop new fields (if absolutely necessary)
+ALTER TABLE transcripts DROP COLUMN IF EXISTS current_status;
+ALTER TABLE transcripts DROP COLUMN IF EXISTS error_details;
+
+-- Step 3: Drop initial_status rename (optional)
+-- (Only execute after confirming rollback)
+ALTER TABLE transcripts DROP COLUMN IF EXISTS initial_status;
+```
+
+**Note**: Rolling back will lose audit information stored in `current_status` and `error_details`.
+
+## Rationale
+Separating `initial_status` and `current_status` enables:
+
+1. **Full audit trail** – preserve what we saw first time for analytics
+2. **Accurate re-check logic** – can overwrite both fields in controlled scenarios
+3. **Better error handling** – store provider error payload without polluting status enum
+
+--- 

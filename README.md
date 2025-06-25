@@ -664,7 +664,30 @@ await runJob('transcript_worker');
 - Failed transcript fetches are logged with episode details
 - Advisory lock prevents overlapping runs in multi-instance deployments
 
-### Post-Deployment Cleanup
+# Transcript Status Columns (vNEXT July 2025)
+
+The `transcripts` table now distinguishes between the **first** status observed (`initial_status`) and the **live** status (`current_status`).
+
+* `initial_status` – what the worker discovered **on the first attempt**. Immutable after creation **except** when re-checking is enabled (see `TRANSCRIPT_WORKER_L10D`).
+* `current_status`  – the up-to-date status that can evolve across worker runs.
+* `error_details`   – optional text with provider error messages (populated only when `current_status='error'`).
+
+Allowed status values (superset of provider states):
+
+| Status                | Meaning                                                             |
+| --------------------- | ------------------------------------------------------------------- |
+| `full`                | Complete verbatim transcript obtained                               |
+| `partial`             | Transcript exists but is missing ≥5 % of content                    |
+| `processing`          | Transcript requested; provider has not finished generating it yet   |
+| `no_transcript_found` | Provider has **no** transcript for this episode                     |
+| `no_match`            | The episode could not be matched in provider catalogue              |
+| `error`               | Unexpected provider or network failure (see `error_details`)        |
+
+❌ **Legacy statuses** `available`, `pending`, `not_found` have been removed. Any references in code or docs should be updated.
+
+In **re-check mode** (`TRANSCRIPT_WORKER_L10D=true`) the worker *overwrites* both `initial_status` and `current_status` for the last 10 episodes per show, ensuring stale or erroneous states are refreshed.
+
+## Post-Deployment Cleanup
 
 After successful deployment, the backfill script should be disabled to prevent accidental re-runs:
 
