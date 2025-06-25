@@ -16,10 +16,14 @@ npm run supabase:status
 # or directly: supabase status
 ```
 
-### 3. Reset Database (with seed data)
+### 3. Apply New Migrations (Recommended)
+Keep your local data volume and apply **only** pending migrations (fast, preserves data):
+
 ```bash
-npm run db:reset
-# or directly: supabase db reset
+# Unlinked project (default) – local only
+supabase db push
+# Or explicit flag
+supabase db push --local
 ```
 
 ### 4. Stop Local Stack
@@ -84,6 +88,18 @@ supabase db dump --data-only > dump.sql
 # Restore data to local
 psql -h 127.0.0.1 -p 54322 -U postgres -d postgres < dump.sql
 ```
+
+## Clean-Start Recipe (rare)
+Need a completely blank database? Run:
+
+```bash
+supabase stop                                   # 1) shut down containers
+rm -rf ~/.supabase/volumes/listener             # 2) delete this project\'s data volume ONLY
+supabase start                                  # 3) spin up fresh cluster (no user migrations yet)
+supabase db push --local                        # 4) apply all migrations & seeds
+```
+
+Use this sparingly; day-to-day development should stick with step 3 above.
 
 ## Troubleshooting
 

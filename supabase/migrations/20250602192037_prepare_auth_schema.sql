@@ -1,0 +1,3 @@
+-- Placeholder migration re-added to satisfy Supabase CLI.
+-- Original grant statements were removed after being marked reverted.
+-- This file intentionally performs no schema changes. 
