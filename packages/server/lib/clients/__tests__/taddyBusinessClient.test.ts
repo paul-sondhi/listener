@@ -144,6 +144,9 @@ describe('TaddyBusinessClient', () => {
         creditsConsumed: 1,
       });
 
+      // Explicit check for source metadata preservation
+      expect(result.source).toBe('taddy');
+
       expect(mockGraphQLClient.request).toHaveBeenCalledTimes(3);
     });
 
@@ -175,6 +178,9 @@ describe('TaddyBusinessClient', () => {
         source: 'taddy',
         creditsConsumed: 1,
       });
+
+      // Explicit check for source metadata preservation
+      expect(result.source).toBe('taddy');
     });
 
     it('should return error when transcript generation failed', async () => {
@@ -385,6 +391,9 @@ describe('TaddyBusinessClient', () => {
         source: 'taddy',
         creditsConsumed: 1,
       });
+
+      // Explicit check for source metadata preservation
+      expect(result.source).toBe('taddy');
     });
 
     it('should filter out empty transcript items', async () => {
@@ -446,6 +455,9 @@ describe('TaddyBusinessClient', () => {
         source: 'taddy',
         creditsConsumed: 1,
       });
+
+      // Explicit check for source metadata preservation
+      expect(result.source).toBe('taddy');
     });
   });
 

@@ -167,7 +167,8 @@ describe('TaddyBusinessClient Regression Tests (Mocked)', () => {
         '05876a10-a210-428d-9f5c-6daf3a6a81c6'
       );
 
-      expect(result.kind).toBe('not_found');
+      expect(result.kind).toBe('error');
+      expect(result.message).toBe('taddyTranscribeStatus=FAILED');
       expect(result.creditsConsumed).toBe(1);
       expect('text' in result).toBe(false); // Should not have transcript text
     });
@@ -247,6 +248,8 @@ describe('TaddyBusinessClient Regression Tests (Mocked)', () => {
       
       if (result.kind === 'full') {
         expect(result.text).toContain('fallback method');
+        // Explicit check for source metadata preservation
+        expect(result.source).toBe('taddy');
       }
     });
 
@@ -354,21 +357,21 @@ describe('TaddyBusinessClient Regression Tests (Mocked)', () => {
           ],
         },
         {
-          name: 'not found',
-          expectedKind: 'not_found' as const,
+          name: 'failed transcript',
+          expectedKind: 'error' as const,
           mocks: [
             {
               getPodcastSeries: {
-                uuid: 'podcast-notfound-uuid',
-                name: 'Not Found Podcast',
-                rssUrl: 'https://feeds.example.com/not found',
+                uuid: 'podcast-failed-uuid',
+                name: 'Failed Podcast',
+                rssUrl: 'https://feeds.example.com/failed transcript',
               },
             },
             {
               getPodcastEpisode: {
-                uuid: 'episode-notfound-uuid',
-                name: 'Not Found Episode',
-                guid: 'notfound-guid',
+                uuid: 'episode-failed-uuid',
+                name: 'Failed Episode',
+                guid: 'failed-guid',
                 taddyTranscribeStatus: 'FAILED',
               },
             },
@@ -406,6 +409,16 @@ describe('TaddyBusinessClient Regression Tests (Mocked)', () => {
         expect(result.creditsConsumed).toBeDefined();
         expect(typeof result.creditsConsumed).toBe('number');
         expect(result.creditsConsumed).toBeGreaterThanOrEqual(0);
+        
+        // Check error message for failed transcript case
+        if (testCase.expectedKind === 'error') {
+          expect(result.message).toBe('taddyTranscribeStatus=FAILED');
+        }
+        
+        // Check source metadata for results that should have it
+        if (testCase.expectedKind === 'full' || testCase.expectedKind === 'partial' || testCase.expectedKind === 'processing') {
+          expect(result.source).toBe('taddy');
+        }
         
         // All mocked scenarios should report 1 credit consumed
         expect(result.creditsConsumed).toBe(1);
