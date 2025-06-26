@@ -531,7 +531,8 @@ export class TaddyBusinessClient {
       });
       
       return {
-        kind: 'not_found',
+        kind: 'error',
+        message: 'taddyTranscribeStatus=FAILED',
         creditsConsumed: estimatedCredits,
       };
     }
