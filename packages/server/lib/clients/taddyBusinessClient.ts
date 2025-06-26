@@ -477,7 +477,7 @@ export class TaddyBusinessClient {
   private async queryEpisodeTranscript(episodeUuid: string) {
     const query = `
       query GetEpisodeTranscript($episodeUuid: ID!) {
-        getEpisodeTranscript(uuid: $episodeUuid) {
+        getEpisodeTranscript(uuid: $episodeUuid, useOnDemandCreditsIfNeeded: true) {
           id
           text
           speaker
