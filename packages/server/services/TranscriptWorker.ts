@@ -861,7 +861,8 @@ export class TranscriptWorker {
 
       case 'error': {
         // API error or processing failure
-        await this.recordTranscriptInDatabase(episode.id, '', 'error', 0, transcriptResult.source, transcriptResult.message);
+        // Note: Error results don't have a source field, but we know we're using Taddy
+        await this.recordTranscriptInDatabase(episode.id, '', 'error', 0, 'taddy', transcriptResult.message);
         
         // Check if this is a quota exhaustion error
         if (this.isQuotaExhaustionError(transcriptResult.message)) {

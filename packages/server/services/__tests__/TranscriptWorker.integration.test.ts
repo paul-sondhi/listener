@@ -270,8 +270,8 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
 
           case 'test-episode-4-not-found':
             return Promise.resolve({
-              kind: 'not_found',
-              source: 'taddy',
+              kind: 'error',
+              message: 'taddyTranscribeStatus=FAILED',
               creditsConsumed: 1
             });
 
@@ -279,7 +279,6 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
             return Promise.resolve({
               kind: 'error',
               message: 'Unexpected episode GUID in test',
-              source: 'taddy',
               creditsConsumed: 0
             });
         }
@@ -386,8 +385,8 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
 
           case 'test-episode-4-not-found':
             return Promise.resolve({
-              kind: 'not_found',
-              source: 'taddy',
+              kind: 'error',
+              message: 'taddyTranscribeStatus=FAILED',
               creditsConsumed: 1
             });
 
@@ -395,7 +394,6 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
             return Promise.resolve({
               kind: 'error',
               message: 'Unexpected episode GUID in test',
-              source: 'taddy',
               creditsConsumed: 0
             });
         }
@@ -454,16 +452,16 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
     expect(processingTranscript!.storage_path).toBe('');
     expect(processingTranscript!.word_count).toBeUndefined();
 
-    // Verify not_found transcript record (previously stored as 'error', now stored as 'no_transcript_found')
-    // Accept either status to remain backward-compatible with older data.
-    const notFoundTranscript = transcripts.find(
-      (t) => t.current_status === 'no_transcript_found' || t.current_status === 'error'
+    // Verify error transcript record (FAILED transcripts now stored as 'error' with error_details)
+    const errorTranscript = transcripts.find(
+      (t) => t.current_status === 'error'
     );
-    expect(notFoundTranscript).toBeDefined();
-    expect(notFoundTranscript!.source).toBe('taddy');
-    // Storage path should be empty string or null for not_found records
-    expect(notFoundTranscript!.storage_path === '' || notFoundTranscript!.storage_path == null).toBe(true);
-    expect(notFoundTranscript!.word_count).toBeUndefined();
+    expect(errorTranscript).toBeDefined();
+    expect(errorTranscript!.source).toBe('taddy');
+    expect(errorTranscript!.error_details).toBe('taddyTranscribeStatus=FAILED');
+    // Storage path should be empty string or null for error records
+    expect(errorTranscript!.storage_path === '' || errorTranscript!.storage_path == null).toBe(true);
+    expect(errorTranscript!.word_count).toBeUndefined();
   });
 
   it('should store transcript files in Supabase Storage for available transcripts', async () => {
@@ -500,8 +498,8 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
 
           case 'test-episode-4-not-found':
             return Promise.resolve({
-              kind: 'not_found',
-              source: 'taddy',
+              kind: 'error',
+              message: 'taddyTranscribeStatus=FAILED',
               creditsConsumed: 1
             });
 
@@ -509,7 +507,6 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
             return Promise.resolve({
               kind: 'error',
               message: 'Unexpected episode GUID in test',
-              source: 'taddy',
               creditsConsumed: 0
             });
         }
@@ -624,7 +621,8 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
         'error',
         undefined,
         undefined,
-        'taddy'
+        'taddy',
+        'taddyTranscribeStatus=FAILED'
       );
       console.log(`DEBUG: Successfully inserted transcript 4:`, transcript4.id);
 
