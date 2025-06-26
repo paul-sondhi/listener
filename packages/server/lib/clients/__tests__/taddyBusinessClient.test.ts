@@ -177,7 +177,7 @@ describe('TaddyBusinessClient', () => {
       });
     });
 
-    it('should return not_found when transcript generation failed', async () => {
+    it('should return error when transcript generation failed', async () => {
       mockGraphQLClient.request
         .mockResolvedValueOnce({
           getPodcastSeries: {
@@ -201,7 +201,8 @@ describe('TaddyBusinessClient', () => {
       const result = await client.fetchTranscript(testFeedUrl, testEpisodeGuid);
 
       expect(result).toEqual({
-        kind: 'not_found',
+        kind: 'error',
+        message: 'taddyTranscribeStatus=FAILED',
         creditsConsumed: 1,
       });
     });
