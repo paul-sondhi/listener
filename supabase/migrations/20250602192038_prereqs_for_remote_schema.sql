@@ -10,23 +10,7 @@
 -- 1️⃣  Make sure uuid_generate_v4() exists
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2️⃣  Stub out the auth schema and users table so that FK constraints
---     in remote_schema.sql are satisfied. These are *minimal* stubs –
---     we only declare the primary key the FK points to.
-CREATE SCHEMA IF NOT EXISTS auth;
-
-CREATE TABLE IF NOT EXISTS auth.users (
-  id uuid PRIMARY KEY
-);
-
-CREATE TABLE IF NOT EXISTS auth.identities (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL,
-  provider text,
-  identity_data jsonb,
-  created_at timestamptz DEFAULT now(),
-  CONSTRAINT identities_user_fk FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
+-- Local Supabase already ships the auth schema, users table, and helper functions; stubs removed to avoid 42501 permission errors.
 
 -- 3️⃣  Create Supabase roles expected by remote_schema.sql
 DO $$
@@ -44,12 +28,3 @@ BEGIN
     CREATE ROLE service_role NOLOGIN;
   END IF;
 END $$;
-
--- 4️⃣  Stub auth.uid() so RLS policies in remote_schema.sql compile.
-CREATE OR REPLACE FUNCTION auth.uid()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT NULL::uuid;
-$$; 
