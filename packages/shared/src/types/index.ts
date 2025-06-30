@@ -18,6 +18,9 @@ export * from './supabase.js';
 // Transcript types
 export * from './transcript.js';
 
+// Episode transcript notes types
+export * from './episode-transcript-notes.js';
+
 // Transcript Result types (shared across all transcript providers)
 export * from './TranscriptResult.js';
 
