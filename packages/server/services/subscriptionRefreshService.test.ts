@@ -1203,6 +1203,230 @@ describe('Rate Limiting and Retry Logic', () => {
   });
 });
 
+/**
+ * Test Suite: Manual RSS Override Safeguard
+ * Tests the safeguard logic that preserves manual rss_url overrides
+ */
+describe('Manual RSS Override Safeguard', () => {
+  let supabaseMock: any;
+  const mockGetTitleSlug = getTitleSlug as Mock;
+  const mockGetFeedUrl = getFeedUrl as Mock;
 
+  beforeEach(() => {
+    // Set up required environment variables for Supabase
+    process.env.SUPABASE_URL = 'http://localhost:54321';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+    
+    vi.clearAllMocks();
+    
+    // Set up comprehensive Supabase mock
+    supabaseMock = {
+      from: vi.fn(),
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn(),
+      single: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      in: vi.fn()
+    };
+    
+    // Set up method chaining
+    const chainableMethods = ['from', 'select', 'eq', 'upsert', 'update', 'in'];
+    chainableMethods.forEach(method => {
+      supabaseMock[method].mockReturnValue(supabaseMock);
+    });
+    
+    __resetSupabaseAdminForTesting();
+    __setSupabaseAdminForTesting(supabaseMock);
+    
+    // Mock successful token retrieval
+    mockGetValidTokens.mockResolvedValue({
+      success: true,
+      tokens: TestDataFactory.createMockTokens()
+    });
+    
+    // Mock logger
+    mockCreateSubscriptionRefreshLogger.mockReturnValue({
+      refreshStart: vi.fn(),
+      refreshComplete: vi.fn(),
+      spotifyApiCall: vi.fn(),
+      databaseOperation: vi.fn(),
+      logError: vi.fn()
+    });
+    
+    // Mock successful Spotify API response
+    const fetchMock = global.fetch as Mock;
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue(TestDataFactory.createMockSpotifyShowsResponse([
+        TestDataFactory.createMockSpotifyShow({ id: 'test-show-123' })
+      ])),
+      headers: new Map()
+    });
+  });
+
+  /**
+   * Case A: Existing manual rss_url different from fallback, getFeedUrl returns null
+   * → safeguard keeps stored value
+   */
+  it('should preserve manual override when getFeedUrl returns null', async () => {
+    const spotifyUrl = 'https://open.spotify.com/show/test-show-123';
+    const manualRssUrl = 'https://feeds.example.com/manual-override.xml';
+    
+    // Arrange: Mock existing show with manual rss_url
+    supabaseMock.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'show-uuid-123', rss_url: manualRssUrl },
+      error: null
+    });
+    
+    // Arrange: Mock getTitleSlug and getFeedUrl
+    mockGetTitleSlug.mockResolvedValue('test show title');
+    mockGetFeedUrl.mockResolvedValue(null); // No RSS feed found
+    
+    // Arrange: Mock successful upsert
+    supabaseMock.upsert.mockResolvedValue({
+      data: [{ id: 'show-uuid-123' }],
+      error: null
+    });
+    
+    // Arrange: Mock subscription operations
+    supabaseMock.eq.mockResolvedValue({ data: [], error: null });
+    
+    // Act: Execute subscription refresh
+    const result = await refreshUserSubscriptions('user-123');
+    
+    // Assert: Verify success
+    expect(result.success).toBe(true);
+    
+    // Assert: Verify upsert was called with preserved rss_url
+    expect(supabaseMock.upsert).toHaveBeenCalledWith(
+      [expect.objectContaining({
+        spotify_url: spotifyUrl,
+        rss_url: manualRssUrl // Should preserve manual override
+      })],
+      expect.any(Object)
+    );
+    
+    // Assert: Verify override log was emitted
+    expect(mockLog.info).toHaveBeenCalledWith(
+      'subscription_refresh',
+      'Preserved existing rss_url override',
+      expect.objectContaining({
+        manual_rss_override: true,
+        stored: manualRssUrl,
+        candidate: spotifyUrl, // fallback since getFeedUrl returned null
+        show_spotify_url: spotifyUrl
+      })
+    );
+  });
+
+  /**
+   * Case B: Existing manual rss_url; getFeedUrl returns a different real feed
+   * → stored value wins (override persists)
+   */
+  it('should preserve manual override even when getFeedUrl returns different feed', async () => {
+    const spotifyUrl = 'https://open.spotify.com/show/test-show-123';
+    const manualRssUrl = 'https://feeds.example.com/manual-override.xml';
+    const discoveredRssUrl = 'https://feeds.example.com/discovered-feed.xml';
+    
+    // Arrange: Mock existing show with manual rss_url
+    supabaseMock.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'show-uuid-123', rss_url: manualRssUrl },
+      error: null
+    });
+    
+    // Arrange: Mock getTitleSlug and getFeedUrl returning different feed
+    mockGetTitleSlug.mockResolvedValue('test show title');
+    mockGetFeedUrl.mockResolvedValue(discoveredRssUrl); // Returns different RSS feed
+    
+    // Arrange: Mock successful upsert
+    supabaseMock.upsert.mockResolvedValue({
+      data: [{ id: 'show-uuid-123' }],
+      error: null
+    });
+    
+    // Arrange: Mock subscription operations
+    supabaseMock.eq.mockResolvedValue({ data: [], error: null });
+    
+    // Act: Execute subscription refresh
+    const result = await refreshUserSubscriptions('user-123');
+    
+    // Assert: Verify success
+    expect(result.success).toBe(true);
+    
+    // Assert: Verify upsert was called with preserved manual rss_url (not discovered one)
+    expect(supabaseMock.upsert).toHaveBeenCalledWith(
+      [expect.objectContaining({
+        spotify_url: spotifyUrl,
+        rss_url: manualRssUrl // Should preserve manual override, NOT use discoveredRssUrl
+      })],
+      expect.any(Object)
+    );
+    
+    // Assert: Verify override log was emitted
+    expect(mockLog.info).toHaveBeenCalledWith(
+      'subscription_refresh',
+      'Preserved existing rss_url override',
+      expect.objectContaining({
+        manual_rss_override: true,
+        stored: manualRssUrl,
+        candidate: discoveredRssUrl, // candidate was the discovered feed
+        show_spotify_url: spotifyUrl
+      })
+    );
+  });
+
+  /**
+   * Case C: Existing row has fallback rss_url equal to spotifyUrl; getFeedUrl returns a real feed
+   * → new feed is written (override not triggered)
+   */
+  it('should update rss_url when existing value is fallback and real feed is discovered', async () => {
+    const spotifyUrl = 'https://open.spotify.com/show/test-show-123';
+    const discoveredRssUrl = 'https://feeds.example.com/discovered-feed.xml';
+    
+    // Arrange: Mock existing show with fallback rss_url (same as spotify_url)
+    supabaseMock.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'show-uuid-123', rss_url: spotifyUrl }, // fallback value
+      error: null
+    });
+    
+    // Arrange: Mock getTitleSlug and getFeedUrl returning real feed
+    mockGetTitleSlug.mockResolvedValue('test show title');
+    mockGetFeedUrl.mockResolvedValue(discoveredRssUrl); // Returns real RSS feed
+    
+    // Arrange: Mock successful upsert
+    supabaseMock.upsert.mockResolvedValue({
+      data: [{ id: 'show-uuid-123' }],
+      error: null
+    });
+    
+    // Arrange: Mock subscription operations
+    supabaseMock.eq.mockResolvedValue({ data: [], error: null });
+    
+    // Act: Execute subscription refresh
+    const result = await refreshUserSubscriptions('user-123');
+    
+    // Assert: Verify success
+    expect(result.success).toBe(true);
+    
+    // Assert: Verify upsert was called with discovered rss_url (not preserved fallback)
+    expect(supabaseMock.upsert).toHaveBeenCalledWith(
+      [expect.objectContaining({
+        spotify_url: spotifyUrl,
+        rss_url: discoveredRssUrl // Should use discovered feed, NOT preserve fallback
+      })],
+      expect.any(Object)
+    );
+    
+    // Assert: Verify NO override log was emitted (safeguard not triggered)
+    expect(mockLog.info).not.toHaveBeenCalledWith(
+      'subscription_refresh',
+      'Preserved existing rss_url override',
+      expect.any(Object)
+    );
+  });
+});
 
 export {}; // Ensure this is treated as a module 
