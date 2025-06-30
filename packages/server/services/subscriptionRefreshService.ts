@@ -326,12 +326,7 @@ async function updateSubscriptionStatus(
                     .from('podcast_shows')
                     .select('id,rss_url')
                     .eq('spotify_url', spotifyUrl)
-                    .maybeSingle?.() ??
-                getSupabaseAdmin()
-                    .from('podcast_shows')
-                    .select('id,rss_url')
-                    .eq('spotify_url', spotifyUrl)
-                    .single()
+                    .maybeSingle()
             );
 
             const storedRss: string | null | undefined = (existingShowRes as any)?.data?.rss_url;
@@ -351,10 +346,10 @@ async function updateSubscriptionStatus(
 
                 // -----------------------------------------------------
                 // ❷ Safeguard: if we already have a non-null rss_url
-                //    that differs from what we are about to write, keep it
-                //    (full logic completed in later subtasks)
+                //    that differs from what we are about to write AND
+                //    is not a fallback value, keep it (preserve manual overrides)
                 // -----------------------------------------------------
-                if (storedRss && storedRss !== candidateRss) {
+                if (storedRss && storedRss !== candidateRss && storedRss !== spotifyUrl) {
                     // Preserve manual override and emit structured log for observability
                     rssUrl = storedRss;
                     log.info('subscription_refresh', 'Preserved existing rss_url override', {
