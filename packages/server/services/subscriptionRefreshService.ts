@@ -318,6 +318,24 @@ async function updateSubscriptionStatus(
         const spotifyUrl = podcastUrl; // Directly map Spotify URL to the spotify_url column
         
         try {
+            // ---------------------------------------------------------
+            // ❶ Fetch any existing show row so we can inspect rss_url
+            // ---------------------------------------------------------
+            const existingShowRes = await safeAwait(
+                getSupabaseAdmin()
+                    .from('podcast_shows')
+                    .select('id,rss_url')
+                    .eq('spotify_url', spotifyUrl)
+                    .maybeSingle?.() ??
+                getSupabaseAdmin()
+                    .from('podcast_shows')
+                    .select('id,rss_url')
+                    .eq('spotify_url', spotifyUrl)
+                    .single()
+            );
+
+            const storedRss: string | null | undefined = (existingShowRes as any)?.data?.rss_url;
+
             // Try to fetch actual RSS feed URL for this Spotify show
             let rssUrl: string = spotifyUrl; // Default fallback to Spotify URL
             let showTitle: string = `Show ${showId}`; // Default placeholder title
@@ -329,15 +347,24 @@ async function updateSubscriptionStatus(
                 
                 // Try to find the RSS feed URL using the title slug
                 const fetchedRssUrl = await getFeedUrl(titleSlug);
-                if (fetchedRssUrl) {
-                    rssUrl = fetchedRssUrl;
-                                if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SUBSCRIPTION_REFRESH === 'true') {
-                console.log(`[SubscriptionRefresh] Found RSS feed for ${spotifyUrl}: ${rssUrl}`);
-            }
-        } else {
-            if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SUBSCRIPTION_REFRESH === 'true') {
-                console.log(`[SubscriptionRefresh] No RSS feed found for ${spotifyUrl}, using Spotify URL as fallback`);
-            }
+                const candidateRss = fetchedRssUrl ?? spotifyUrl;
+
+                // -----------------------------------------------------
+                // ❷ Safeguard: if we already have a non-null rss_url
+                //    that differs from what we are about to write, keep it
+                //    (full logic completed in later subtasks)
+                // -----------------------------------------------------
+                if (storedRss && storedRss !== candidateRss) {
+                    // Preserve manual override and emit structured log for observability
+                    rssUrl = storedRss;
+                    log.info('subscription_refresh', 'Preserved existing rss_url override', {
+                        manual_rss_override: true,
+                        stored: storedRss,
+                        candidate: candidateRss,
+                        show_spotify_url: spotifyUrl
+                    });
+                } else if (fetchedRssUrl) {
+                    rssUrl = fetchedRssUrl; // use newly discovered feed
                 }
             } catch (rssError) {
                 // If RSS lookup fails, we'll use the Spotify URL as fallback
