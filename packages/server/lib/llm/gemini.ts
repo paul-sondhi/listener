@@ -36,11 +36,14 @@ function validateEnvironment(): void {
 }
 
 /**
- * Get the configured Gemini model name
- * @returns {string} The model name to use for API requests
+ * Return the Gemini model identifier without a leading "models/" prefix so we
+ * don't accidentally create a path like "models/models/...". If callers supply
+ * the full path we strip it; otherwise we use the short default.
  */
 function getModelName(): string {
-  return process.env.GEMINI_MODEL_NAME || 'models/gemini-1.5-flash-latest';
+  const raw = process.env.GEMINI_MODEL_NAME || 'gemini-1.5-flash-latest';
+  // Remove any leading "models/" just in case.
+  return raw.replace(/^models\//, '');
 }
 
 // Validate environment on module load

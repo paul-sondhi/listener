@@ -109,7 +109,7 @@ describe('Gemini Client Utility', () => {
 
       // Should use default model in API call
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://generativelanguage.googleapis.com/v1beta/models/models/gemini-1.5-flash-latest:generateContent',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent',
         expect.any(Object)
       )
     })
@@ -137,12 +137,12 @@ describe('Gemini Client Utility', () => {
       // Assert
       expect(result).toEqual({
         notes: '**Main Topics:**\n• AI and technology\n• Future trends',
-        model: 'models/gemini-1.5-flash-latest'
+        model: 'gemini-1.5-flash-latest'
       })
 
       expect(mockFetch).toHaveBeenCalledTimes(1)
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://generativelanguage.googleapis.com/v1beta/models/models/gemini-1.5-flash-latest:generateContent',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent',
         {
           method: 'POST',
           headers: {
@@ -211,9 +211,9 @@ describe('Gemini Client Utility', () => {
       const geminiModule = await import('../llm/gemini.js')
       const result = await geminiModule.generateEpisodeNotes('test')
 
-      expect(result.model).toBe('models/gemini-1.5-pro')
+      expect(result.model).toBe('gemini-1.5-pro')
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://generativelanguage.googleapis.com/v1beta/models/models/gemini-1.5-pro:generateContent',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent',
         expect.any(Object)
       )
     })
@@ -346,7 +346,7 @@ describe('Gemini Client Utility', () => {
       // Assert
       const [url, options] = mockFetch.mock.calls[0]
       
-      expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/models/gemini-1.5-flash-latest:generateContent')
+      expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent')
       expect(options.method).toBe('POST')
       expect(options.headers['Content-Type']).toBe('application/json')
       expect(options.headers['x-goog-api-key']).toBe('test-api-key-12345')
