@@ -804,6 +804,247 @@ To customize the generated notes:
 - Depends on transcript worker output (transcripts must exist first)
 - Uses Supabase Storage to download transcript files
 
+#### 8. Cron Setup & Troubleshooting
+
+The application uses internal cron jobs managed by the `node-cron` library within the main server process. All background jobs are configured via environment variables and run automatically in production.
+
+**Job Schedule Overview:**
+```bash
+# Daily subscription refresh (midnight PT)
+DAILY_SUBSCRIPTION_REFRESH_CRON=0 0 * * *
+
+# Episode sync (1 hour after subscription refresh)
+EPISODE_SYNC_CRON=0 1 * * *
+
+# Transcript worker (1 hour after episode sync)
+TRANSCRIPT_WORKER_CRON=0 1 * * *
+
+# Notes worker (1 hour after transcript worker)
+NOTES_WORKER_CRON=0 2 * * *
+```
+
+**Production Deployment (Render):**
+
+1. **Environment Variables Setup:**
+   ```bash
+   # In Render dashboard → Environment → Environment Variables
+   
+   # Enable all background jobs
+   DAILY_SUBSCRIPTION_REFRESH_ENABLED=true
+   EPISODE_SYNC_ENABLED=true
+   TRANSCRIPT_WORKER_ENABLED=true
+   NOTES_WORKER_ENABLED=true
+   
+   # Configure job schedules (Pacific Time)
+   DAILY_SUBSCRIPTION_REFRESH_CRON=0 0 * * *
+   EPISODE_SYNC_CRON=0 1 * * *
+   TRANSCRIPT_WORKER_CRON=0 1 * * *
+   NOTES_WORKER_CRON=0 2 * * *
+   
+   # Job-specific configuration
+   TRANSCRIPT_TIER=business
+   TRANSCRIPT_LOOKBACK=24
+   TRANSCRIPT_MAX_REQUESTS=15
+   TRANSCRIPT_CONCURRENCY=10
+   
+   NOTES_LOOKBACK_HOURS=24
+   NOTES_MAX_CONCURRENCY=30
+   NOTES_PROMPT_PATH=prompts/episode-notes.md
+   ```
+
+2. **Timezone Configuration:**
+   ```bash
+   # All cron schedules use Pacific Time (PT)
+   # Cron format: minute hour day-of-month month day-of-week
+   # Example: 0 2 * * * = 2:00 AM PT daily
+   ```
+
+3. **Manual Job Execution (Production):**
+   ```bash
+   # Via Render shell or SSH access
+   cd packages/server
+   npx tsx -e "
+   import { runJob } from './services/backgroundJobs.js';
+   await runJob('daily_subscription_refresh');
+   await runJob('episode_sync');
+   await runJob('transcript_worker');
+   await runJob('notes_worker');
+   "
+   ```
+
+**Troubleshooting Common Issues:**
+
+1. **Jobs Not Running:**
+   ```bash
+   # Check if jobs are enabled
+   echo $DAILY_SUBSCRIPTION_REFRESH_ENABLED
+   echo $EPISODE_SYNC_ENABLED
+   echo $TRANSCRIPT_WORKER_ENABLED
+   echo $NOTES_WORKER_ENABLED
+   
+   # Check cron schedules
+   echo $DAILY_SUBSCRIPTION_REFRESH_CRON
+   echo $EPISODE_SYNC_CRON
+   echo $TRANSCRIPT_WORKER_CRON
+   echo $NOTES_WORKER_CRON
+   ```
+
+2. **Job Execution Failures:**
+   ```bash
+   # Check application logs for job execution
+   # Look for these log patterns:
+   # - "Starting scheduled [job_name] job"
+   # - "BACKGROUND_JOBS: Starting scheduled [job_name] job"
+   # - "Job [job_name] completed successfully"
+   # - "Job [job_name] failed"
+   
+   # Common error patterns:
+   # - "Database connection failed"
+   # - "API rate limit exceeded"
+   # - "Missing required environment variable"
+   ```
+
+3. **Database Connection Issues:**
+   ```bash
+   # Verify database connection
+   # Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+   # Ensure database is accessible from Render
+   
+   # Test connection manually
+   cd packages/server
+   npx tsx -e "
+   import { createClient } from '@supabase/supabase-js';
+   const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+   const { data, error } = await supabase.from('users').select('count').limit(1);
+   console.log('DB connection test:', error ? 'FAILED' : 'SUCCESS');
+   "
+   ```
+
+4. **API Rate Limiting:**
+   ```bash
+   # For transcript worker (Taddy API)
+   # Reduce concurrency and max requests
+   TRANSCRIPT_CONCURRENCY=5
+   TRANSCRIPT_MAX_REQUESTS=10
+   
+   # For notes worker (Gemini API)
+   # Reduce concurrency
+   NOTES_MAX_CONCURRENCY=10
+   
+   # Check API quotas
+   # Taddy Business: 1,000 transcriptions, 350,000 API requests
+   # Gemini: Check Google AI Studio dashboard
+   ```
+
+5. **Job Timing Issues:**
+   ```bash
+   # Verify timezone settings
+   # All jobs run in Pacific Time (PT)
+   # Adjust schedules if needed:
+   
+   # For Eastern Time (ET) - add 3 hours
+   TRANSCRIPT_WORKER_CRON=0 4 * * *  # 4 AM ET = 1 AM PT
+   NOTES_WORKER_CRON=0 5 * * *       # 5 AM ET = 2 AM PT
+   
+   # For UTC - subtract 8 hours (or add 16)
+   TRANSCRIPT_WORKER_CRON=0 9 * * *  # 9 AM UTC = 1 AM PT
+   NOTES_WORKER_CRON=0 10 * * *      # 10 AM UTC = 2 AM PT
+   ```
+
+6. **Storage and File Issues:**
+   ```bash
+   # Check Supabase Storage buckets
+   # Ensure transcripts bucket exists and is accessible
+   
+   # Verify storage permissions
+   # Service role key should have storage access
+   
+   # Check file paths in database
+   # Look for missing or malformed storage_path values
+   ```
+
+7. **Memory and Performance:**
+   ```bash
+   # Monitor memory usage during job execution
+   # Large transcript files can consume significant memory
+   
+   # Reduce concurrency if memory issues occur
+   TRANSCRIPT_CONCURRENCY=5
+   NOTES_MAX_CONCURRENCY=15
+   
+   # Check for memory leaks in long-running jobs
+   # Monitor heap usage in application logs
+   ```
+
+**Monitoring and Alerting:**
+
+1. **Log Monitoring:**
+   ```bash
+   # Key log patterns to monitor:
+   # - "Job [job_name] completed successfully"
+   # - "Job [job_name] failed with error"
+   # - "BACKGROUND_JOBS: Starting scheduled [job_name] job"
+   # - "EPISODE_NOTES_WORKER: Starting notes worker"
+   # - "TRANSCRIPT_WORKER: Starting transcript worker"
+   ```
+
+2. **Success Metrics:**
+   ```bash
+   # Daily subscription refresh: Users processed count
+   # Episode sync: New episodes discovered count
+   # Transcript worker: Transcripts processed count
+   # Notes worker: Notes generated count
+   
+   # Check these in application logs after each job run
+   ```
+
+3. **Error Tracking:**
+   ```bash
+   # Monitor error rates and types
+   # Common errors to track:
+   # - Database connection failures
+   # - API rate limit exceeded
+   # - Missing environment variables
+   # - File download failures
+   # - Gemini API errors
+   ```
+
+**Emergency Procedures:**
+
+1. **Disable All Jobs:**
+   ```bash
+   # Set all job enabled flags to false
+   DAILY_SUBSCRIPTION_REFRESH_ENABLED=false
+   EPISODE_SYNC_ENABLED=false
+   TRANSCRIPT_WORKER_ENABLED=false
+   NOTES_WORKER_ENABLED=false
+   ```
+
+2. **Manual Recovery:**
+   ```bash
+   # Run jobs manually in correct order
+   # 1. Daily subscription refresh
+   # 2. Episode sync
+   # 3. Transcript worker
+   # 4. Notes worker
+   
+   cd packages/server
+   npx tsx -e "
+   import { runJob } from './services/backgroundJobs.js';
+   await runJob('daily_subscription_refresh');
+   await runJob('episode_sync');
+   await runJob('transcript_worker');
+   await runJob('notes_worker');
+   "
+   ```
+
+3. **Database Recovery:**
+   ```bash
+   # Check for failed job states
+   # Clear advisory locks if needed
+   # Reset job statuses if necessary
+   ```
+
 ## Post-Deployment Cleanup
 
 After successful deployment, the backfill script should be disabled to prevent accidental re-runs:
