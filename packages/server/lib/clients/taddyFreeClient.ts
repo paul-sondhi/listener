@@ -108,14 +108,19 @@ export class TaddyFreeClient {
       // Step 2: Look up the specific episode by GUID with retry logic
       const episodeResult = await withHttpRetry(
         () => this.sdk.getPodcastEpisode?.({
-          podcastGuid: podcastResult.podcastGuid || undefined,
-          episodeGuid,
+          guid: episodeGuid,
+          seriesUuidForLookup: podcastResult.uuid,
         }),
         { maxAttempts: 2 }
       );
 
       if (!episodeResult) {
-        logger.debug('No episode found for GUID', { episodeGuid, podcastGuid: podcastResult.podcastGuid });
+        logger.debug('No episode found for GUID', { 
+          episodeGuid, 
+          podcastUuid: podcastResult.uuid,
+          podcastName: podcastResult.name,
+          context: 'This would result in no_match status'
+        });
         return { kind: 'no_match' };
       }
 

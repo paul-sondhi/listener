@@ -120,7 +120,10 @@ export class TaddyBusinessClient {
       );
 
       if (!podcastResult) {
-        logger.debug('No podcast series found for RSS URL', { feedUrl });
+        logger.debug('No podcast series found for RSS URL', { 
+          feedUrl,
+          context: 'This would result in no_match status'
+        });
         return { kind: 'no_match', creditsConsumed: 1 };
       }
 
@@ -131,7 +134,12 @@ export class TaddyBusinessClient {
       );
 
       if (!episodeResult) {
-        logger.debug('No episode found for GUID', { episodeGuid, podcastUuid: podcastResult.uuid });
+        logger.debug('No episode found for GUID', { 
+          episodeGuid, 
+          podcastUuid: podcastResult.uuid,
+          podcastName: podcastResult.name,
+          context: 'This would result in no_match status'
+        });
         return { kind: 'no_match', creditsConsumed: 1 };
       }
 
@@ -351,17 +359,17 @@ export class TaddyBusinessClient {
   }
 
   /**
-   * Query for podcast episode by podcast UUID and episode GUID
+   * Query for podcast episode by GUID with fallback strategies
    * 
-   * Attempts direct episode lookup first, then falls back to series-then-filter
-   * approach if the direct query fails due to schema issues.
+   * ATTEMPT 1: Direct episode query with seriesUuidForLookup (preferred approach)
+   * ATTEMPT 2: Series lookup with client-side filtering (fallback)
    */
   private async queryPodcastEpisode(podcastUuid: string, episodeGuid: string) {
     // ATTEMPT 1: Direct episode query (preferred approach)
     try {
       const directQuery = `
-        query GetPodcastEpisode($guid: String!) {
-          getPodcastEpisode(guid: $guid) {
+        query GetPodcastEpisode($guid: String!, $seriesUuidForLookup: ID!) {
+          getPodcastEpisode(guid: $guid, seriesUuidForLookup: $seriesUuidForLookup) {
             uuid
             name
             guid
@@ -370,7 +378,10 @@ export class TaddyBusinessClient {
         }
       `;
 
-      const result = await this.client.request(directQuery, { guid: episodeGuid });
+      const result = await this.client.request(directQuery, { 
+        guid: episodeGuid,
+        seriesUuidForLookup: podcastUuid
+      });
       
       if (result.getPodcastEpisode) {
         logger.debug('Found episode via direct query', {
@@ -384,7 +395,11 @@ export class TaddyBusinessClient {
       }
       
       // Episode not found via direct query
-      logger.debug('No episode found via direct query', { episodeGuid });
+      logger.debug('No episode found via direct query', { 
+        episodeGuid,
+        podcastUuid,
+        context: 'This would result in no_match status'
+      });
       return null;
       
     } catch (error) {
@@ -432,14 +447,18 @@ export class TaddyBusinessClient {
     const series = result.getPodcastSeries;
     
     if (!series) {
-      logger.debug('No podcast series found for UUID', { podcastUuid });
+      logger.debug('No podcast series found for UUID', { 
+        podcastUuid,
+        context: 'This would result in no_match status'
+      });
       return null;
     }
 
     if (!series.episodes || series.episodes.length === 0) {
       logger.debug('Podcast series has no episodes', { 
         podcastUuid, 
-        seriesName: series.name 
+        seriesName: series.name,
+        context: 'This would result in no_match status'
       });
       return null;
     }
@@ -454,7 +473,9 @@ export class TaddyBusinessClient {
         podcastUuid, 
         episodeGuid,
         seriesName: series.name,
-        availableEpisodes: series.episodes.length
+        availableEpisodes: series.episodes.length,
+        context: 'This would result in no_match status',
+        availableGuids: series.episodes.slice(0, 3).map((e: any) => e.guid) // Log first 3 GUIDs for debugging
       });
       return null;
     }
