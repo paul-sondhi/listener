@@ -39,7 +39,7 @@ BEGIN
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'auth' AND c.relname = 'identities'
   ) THEN
-    EXECUTE ''CREATE TABLE auth.identities (
+    EXECUTE 'CREATE TABLE auth.identities (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id uuid NOT NULL,
       provider text,
@@ -47,7 +47,7 @@ BEGIN
       created_at timestamptz DEFAULT now(),
       CONSTRAINT identities_user_fk
         FOREIGN KEY (user_id) REFERENCES auth.users(id)
-    )'';
+    )';
   END IF;
 EXCEPTION
   WHEN insufficient_privilege THEN
