@@ -106,7 +106,9 @@ export async function upsertEpisodeNotes(
       // Prepare trimmed & classified error message
       const rawError = params.errorMessage || 'Unknown error';
       const errorType = classifyError(rawError);
-      const trimmed = rawError.length > 250 ? rawError.substring(0, 247) + '...' : rawError;
+      const prefix = `${errorType}: `;
+      const maxErrorLength = 260 - prefix.length; // Reserve space for prefix
+      const trimmed = rawError.length > maxErrorLength ? rawError.substring(0, maxErrorLength - 3) + '...' : rawError;
       upsertData.notes = null; // Clear notes on error
       upsertData.model = null; // Clear model on error
       upsertData.error_message = `${errorType}: ${trimmed}`;

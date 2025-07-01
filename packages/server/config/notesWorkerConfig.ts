@@ -47,6 +47,17 @@ export function getNotesWorkerConfig(): NotesWorkerConfig {
     throw new Error(`Invalid NOTES_MAX_CONCURRENCY: "${process.env.NOTES_MAX_CONCURRENCY}". Must be a number between 1 and 100.`);
   }
 
+  // Validate Gemini API key first (required)
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey || geminiApiKey.trim().length === 0) {
+    throw new Error('GEMINI_API_KEY environment variable is required but not set.');
+  }
+
+  // Validate API key format (basic check)
+  if (!geminiApiKey.startsWith('AIza')) {
+    console.warn('Warning: GEMINI_API_KEY does not start with "AIza" - this may not be a valid Google API key.');
+  }
+
   // Parse prompt path with validation
   const promptPath = process.env.NOTES_PROMPT_PATH || 'prompts/episode-notes.md';
   
@@ -71,17 +82,6 @@ export function getNotesWorkerConfig(): NotesWorkerConfig {
       throw new Error(`Failed to load prompt template from "${promptPath}": ${error.message}`);
     }
     throw new Error(`Failed to load prompt template from "${promptPath}": Unknown error`);
-  }
-
-  // Validate Gemini API key
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey || geminiApiKey.trim().length === 0) {
-    throw new Error('GEMINI_API_KEY environment variable is required but not set.');
-  }
-
-  // Validate API key format (basic check)
-  if (!geminiApiKey.startsWith('AIza')) {
-    console.warn('Warning: GEMINI_API_KEY does not start with "AIza" - this may not be a valid Google API key.');
   }
 
   return {
