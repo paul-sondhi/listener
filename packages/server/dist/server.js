@@ -229,7 +229,7 @@ async function createUserSecret(userId, tokenData) {
   try {
     const supabase2 = getSupabaseAdmin();
     const encryptionKey = getEncryptionKey();
-    const tokenJson = JSON.stringify(tokenData);
+    const tokenJson = tokenData;
     const { error } = await supabase2.rpc("update_encrypted_tokens", {
       p_user_id: userId,
       p_token_data: tokenJson,
@@ -289,7 +289,7 @@ async function getUserSecret(userId) {
         elapsed_ms: elapsedMs2
       };
     }
-    const tokenData = JSON.parse(userData);
+    const tokenData = typeof userData === "string" ? JSON.parse(userData) : userData;
     const elapsedMs = Date.now() - startTime;
     logEncryptedTokenOperation(userId, "read", elapsedMs, true);
     return {
@@ -313,7 +313,7 @@ async function updateUserSecret(userId, tokenData) {
   try {
     const supabase2 = getSupabaseAdmin();
     const encryptionKey = getEncryptionKey();
-    const tokenJson = JSON.stringify(tokenData);
+    const tokenJson = tokenData;
     const { error } = await supabase2.rpc("update_encrypted_tokens", {
       p_user_id: userId,
       p_token_data: tokenJson,
@@ -409,14 +409,14 @@ async function storeUserSecret(userId, tokenData) {
   }
 }
 async function encryptedTokenHealthCheck() {
-  if (process.env.NODE_ENV === "test") {
+  if (process.env.NODE_ENV === "test" && process.env.RUN_DB_HEALTHCHECK !== "true") {
     return true;
   }
   try {
     const supabase2 = getSupabaseAdmin();
     const encryptionKey = getEncryptionKey();
     const dummyUserId = "00000000-0000-0000-0000-000000000000";
-    const dummyTokenJson = JSON.stringify({ health_check: true });
+    const dummyTokenJson = { health_check: true };
     const { error: updateFnErr } = await supabase2.rpc("update_encrypted_tokens", {
       p_user_id: dummyUserId,
       p_token_data: dummyTokenJson,
@@ -2440,21 +2440,27 @@ async function updateSubscriptionStatus(userId, currentPodcastUrls) {
     const showId = podcastUrl.split("/").pop();
     const spotifyUrl = podcastUrl;
     try {
+      const existingShowRes = await safeAwait2(
+        getSupabaseAdmin5().from("podcast_shows").select("id,rss_url").eq("spotify_url", spotifyUrl).maybeSingle()
+      );
+      const storedRss = existingShowRes?.data?.rss_url;
       let rssUrl = spotifyUrl;
       let showTitle = `Show ${showId}`;
       try {
         const titleSlug = await getTitleSlug(spotifyUrl);
         showTitle = titleSlug;
         const fetchedRssUrl = await getFeedUrl(titleSlug);
-        if (fetchedRssUrl) {
+        const candidateRss = fetchedRssUrl ?? spotifyUrl;
+        if (storedRss && storedRss !== candidateRss && storedRss !== spotifyUrl) {
+          rssUrl = storedRss;
+          log.info("subscription_refresh", "Preserved existing rss_url override", {
+            manual_rss_override: true,
+            stored: storedRss,
+            candidate: candidateRss,
+            show_spotify_url: spotifyUrl
+          });
+        } else if (fetchedRssUrl) {
           rssUrl = fetchedRssUrl;
-          if (process.env.NODE_ENV === "development" || process.env.DEBUG_SUBSCRIPTION_REFRESH === "true") {
-            console.log(`[SubscriptionRefresh] Found RSS feed for ${spotifyUrl}: ${rssUrl}`);
-          }
-        } else {
-          if (process.env.NODE_ENV === "development" || process.env.DEBUG_SUBSCRIPTION_REFRESH === "true") {
-            console.log(`[SubscriptionRefresh] No RSS feed found for ${spotifyUrl}, using Spotify URL as fallback`);
-          }
         }
       } catch (rssError) {
         console.warn(`[SubscriptionRefresh] RSS lookup failed for ${spotifyUrl}:`, rssError.message);
@@ -3332,7 +3338,7 @@ import { GraphQLClient } from "graphql-request";
 
 // generated/taddy.ts
 var defaultWrapper = (action, _operationName, _operationType, _variables) => action();
-function getSdk(client, withWrapper = defaultWrapper) {
+function getSdk(client, _withWrapper = defaultWrapper) {
   return {};
 }
 
@@ -3593,29 +3599,652 @@ var TaddyFreeClient = class {
   }
 };
 
+// lib/clients/taddyBusinessClient.ts
+import { GraphQLClient as GraphQLClient2 } from "graphql-request";
+var TaddyBusinessClient = class {
+  constructor(config) {
+    this.config = {
+      endpoint: "https://api.taddy.org/graphql",
+      timeout: 3e4,
+      // 30 seconds - Business tier may take longer for generation
+      userAgent: "listener-app/1.0.0 (GraphQL Business Client)",
+      ...config
+    };
+    this.client = new GraphQLClient2(this.config.endpoint, {
+      headers: {
+        "X-API-KEY": this.config.apiKey,
+        "X-USER-ID": this.config.userId,
+        // Required by Taddy API
+        "User-Agent": this.config.userAgent,
+        "Content-Type": "application/json"
+      },
+      timeout: this.config.timeout
+    });
+    globalLogger.debug("TaddyBusinessClient initialized", {
+      endpoint: this.config.endpoint,
+      timeout: this.config.timeout,
+      hasApiKey: !!this.config.apiKey,
+      hasUserId: !!this.config.userId
+    });
+  }
+  /**
+   * Fetches transcript for a podcast episode using RSS feed URL and episode GUID
+   * 
+   * This method implements the Business tier lookup logic:
+   * 1. Query for the podcast series by RSS URL
+   * 2. Query for the specific episode by GUID
+   * 3. Extract transcript data if available, or trigger generation if not
+   * 4. Classify the result based on transcript status and completeness
+   * 5. Track credits consumed for the operation
+   * 
+   * @param feedUrl - RSS feed URL of the podcast
+   * @param episodeGuid - Unique identifier for the episode
+   * @returns Promise resolving to BusinessTranscriptResult discriminated union
+   */
+  async fetchTranscript(feedUrl, episodeGuid) {
+    const startTime = Date.now();
+    globalLogger.debug("Starting Taddy Business transcript lookup", {
+      feedUrl,
+      episodeGuid
+    });
+    try {
+      const podcastResult = await withHttpRetry(
+        () => this.queryPodcastSeries(feedUrl),
+        { maxAttempts: 2 }
+      );
+      if (!podcastResult) {
+        globalLogger.debug("No podcast series found for RSS URL", { feedUrl });
+        return { kind: "no_match", creditsConsumed: 1 };
+      }
+      const episodeResult = await withHttpRetry(
+        () => this.queryPodcastEpisode(podcastResult.uuid, episodeGuid),
+        { maxAttempts: 2 }
+      );
+      if (!episodeResult) {
+        globalLogger.debug("No episode found for GUID", { episodeGuid, podcastUuid: podcastResult.uuid });
+        return { kind: "no_match", creditsConsumed: 1 };
+      }
+      const transcriptResult = await withHttpRetry(
+        () => this.queryEpisodeTranscript(episodeResult.uuid),
+        { maxAttempts: 2 }
+      );
+      const result = this.classifyBusinessTranscriptResult(transcriptResult, episodeResult);
+      const duration = Date.now() - startTime;
+      globalLogger.info("Taddy Business transcript lookup completed", {
+        feedUrl,
+        episodeGuid,
+        result: result.kind,
+        duration,
+        creditsConsumed: result.creditsConsumed,
+        // Estimated - may not reflect actual API usage
+        wordCount: "wordCount" in result ? result.wordCount : void 0
+      });
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (error instanceof Error && (error.message.includes("Cannot query field") || error.message.includes("Unknown argument") || error.message.includes("GraphQL Error"))) {
+        globalLogger.error("GraphQL schema mismatch detected in Business client", {
+          feedUrl,
+          episodeGuid,
+          error: errorMessage,
+          duration,
+          context: "This indicates the Taddy Business API schema has changed or our queries are incorrect"
+        });
+        return {
+          kind: "error",
+          message: `SCHEMA_MISMATCH: ${errorMessage}`,
+          creditsConsumed: 0
+        };
+      }
+      if (this.isQuotaExhaustedError(error)) {
+        globalLogger.warn("Taddy Business API quota exhausted", {
+          feedUrl,
+          episodeGuid,
+          error: errorMessage,
+          duration
+        });
+        return {
+          kind: "error",
+          message: "CREDITS_EXCEEDED",
+          creditsConsumed: 0
+        };
+      }
+      globalLogger.error("Taddy Business transcript lookup failed", {
+        feedUrl,
+        episodeGuid,
+        error: errorMessage,
+        duration
+      });
+      return {
+        kind: "error",
+        message: `Taddy Business API error: ${errorMessage}`,
+        creditsConsumed: 0
+      };
+    }
+  }
+  /**
+   * Query for podcast series by RSS URL
+   * 
+   * ISSUE: The Taddy Business API schema shows getPodcastSeries has no arguments,
+   * but we need to find a series by RSS URL. This is a fundamental API design issue.
+   * 
+   * OPTIONS:
+   * 1. Use search API to find series by RSS URL
+   * 2. The API might actually accept arguments despite schema
+   * 3. Need to contact Taddy support for proper Business API documentation
+   * 
+   * For now, trying the original approach to see if it works despite schema mismatch.
+   */
+  async queryPodcastSeries(rssUrl) {
+    const query = `
+      query GetPodcastSeries($rssUrl: String!) {
+        getPodcastSeries(rssUrl: $rssUrl) {
+          uuid
+          name
+          rssUrl
+        }
+      }
+    `;
+    try {
+      const result = await this.client.request(query, { rssUrl });
+      return result.getPodcastSeries;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("Cannot query field")) {
+        globalLogger.error("getPodcastSeries schema mismatch - trying search approach", {
+          rssUrl,
+          originalError: error.message
+        });
+        return this.searchForPodcastSeries(rssUrl);
+      }
+      throw error;
+    }
+  }
+  /**
+   * Fallback method to find podcast series using search API
+   * Used when direct getPodcastSeries fails due to schema issues
+   */
+  async searchForPodcastSeries(rssUrl) {
+    const searchTerm = this.extractPodcastNameFromUrl(rssUrl);
+    globalLogger.debug("Attempting podcast series search fallback", {
+      rssUrl,
+      searchTerm
+    });
+    const searchQuery = `
+      query SearchPodcastSeries($searchTerm: String!) {
+        search(searchTerm: $searchTerm) {
+          podcastSeries {
+            uuid
+            name
+            rssUrl
+          }
+        }
+      }
+    `;
+    try {
+      const result = await this.client.request(searchQuery, { searchTerm });
+      const series = result.search?.podcastSeries;
+      if (!series || series.length === 0) {
+        globalLogger.debug("No podcast series found via search", { searchTerm, rssUrl });
+        return null;
+      }
+      const matchingSeries = series.find((s) => s.rssUrl === rssUrl);
+      if (matchingSeries) {
+        globalLogger.debug("Found matching series via search", {
+          seriesName: matchingSeries.name,
+          seriesUuid: matchingSeries.uuid
+        });
+        return matchingSeries;
+      }
+      globalLogger.debug("No exact RSS match, using first search result", {
+        searchTerm,
+        resultCount: series.length,
+        firstResult: series[0]?.name
+      });
+      return series[0];
+    } catch (searchError) {
+      globalLogger.error("Search fallback also failed", {
+        rssUrl,
+        searchTerm,
+        error: searchError instanceof Error ? searchError.message : String(searchError)
+      });
+      return null;
+    }
+  }
+  /**
+   * Extract podcast name from RSS URL for search purposes
+   * This is a heuristic approach that may need refinement
+   */
+  extractPodcastNameFromUrl(rssUrl) {
+    try {
+      const url = new URL(rssUrl);
+      const pathParts = url.pathname.split("/").filter((part) => part.length > 0);
+      const lastPart = pathParts[pathParts.length - 1];
+      const cleanName = lastPart.replace(/\.(xml|rss)$/i, "").replace(/[-_]/g, " ").toLowerCase();
+      return cleanName || "podcast";
+    } catch (_error) {
+      return "podcast";
+    }
+  }
+  /**
+   * Query for podcast episode by podcast UUID and episode GUID
+   * 
+   * Attempts direct episode lookup first, then falls back to series-then-filter
+   * approach if the direct query fails due to schema issues.
+   */
+  async queryPodcastEpisode(podcastUuid, episodeGuid) {
+    try {
+      const directQuery = `
+        query GetPodcastEpisode($guid: String!) {
+          getPodcastEpisode(guid: $guid) {
+            uuid
+            name
+            guid
+            taddyTranscribeStatus
+          }
+        }
+      `;
+      const result = await this.client.request(directQuery, { guid: episodeGuid });
+      if (result.getPodcastEpisode) {
+        globalLogger.debug("Found episode via direct query", {
+          episodeGuid,
+          episodeUuid: result.getPodcastEpisode.uuid,
+          episodeName: result.getPodcastEpisode.name,
+          transcribeStatus: result.getPodcastEpisode.taddyTranscribeStatus
+        });
+        return result.getPodcastEpisode;
+      }
+      globalLogger.debug("No episode found via direct query", { episodeGuid });
+      return null;
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes("Cannot query field") || error.message.includes("Unknown argument") || error.message.includes("getPodcastEpisode"))) {
+        globalLogger.debug("Direct episode query failed, falling back to series lookup", {
+          episodeGuid,
+          podcastUuid,
+          error: error.message
+        });
+        return this.queryPodcastEpisodeViaSeriesLookup(podcastUuid, episodeGuid);
+      }
+      throw error;
+    }
+  }
+  /**
+   * Fallback method to find episode via series lookup when direct query fails
+   */
+  async queryPodcastEpisodeViaSeriesLookup(podcastUuid, episodeGuid) {
+    const query = `
+      query GetPodcastSeriesWithEpisodes($podcastUuid: ID!) {
+        getPodcastSeries(uuid: $podcastUuid) {
+          uuid
+          name
+          rssUrl
+          episodes {
+            uuid
+            name
+            guid
+            taddyTranscribeStatus
+          }
+        }
+      }
+    `;
+    const result = await this.client.request(query, { podcastUuid });
+    const series = result.getPodcastSeries;
+    if (!series) {
+      globalLogger.debug("No podcast series found for UUID", { podcastUuid });
+      return null;
+    }
+    if (!series.episodes || series.episodes.length === 0) {
+      globalLogger.debug("Podcast series has no episodes", {
+        podcastUuid,
+        seriesName: series.name
+      });
+      return null;
+    }
+    const matchingEpisode = series.episodes.find(
+      (episode) => episode.guid === episodeGuid
+    );
+    if (!matchingEpisode) {
+      globalLogger.debug("No episode found with matching GUID via series lookup", {
+        podcastUuid,
+        episodeGuid,
+        seriesName: series.name,
+        availableEpisodes: series.episodes.length
+      });
+      return null;
+    }
+    globalLogger.debug("Found matching episode via series lookup fallback", {
+      podcastUuid,
+      episodeGuid,
+      episodeUuid: matchingEpisode.uuid,
+      episodeName: matchingEpisode.name,
+      transcribeStatus: matchingEpisode.taddyTranscribeStatus
+    });
+    return matchingEpisode;
+  }
+  /**
+   * Query for episode transcript by episode UUID
+   * This may trigger transcript generation for Business tier clients
+   */
+  async queryEpisodeTranscript(episodeUuid) {
+    const query = `
+      query GetEpisodeTranscript($episodeUuid: ID!) {
+        getEpisodeTranscript(uuid: $episodeUuid, useOnDemandCreditsIfNeeded: true) {
+          id
+          text
+          speaker
+          startTimecode
+          endTimecode
+        }
+      }
+    `;
+    const result = await this.client.request(query, { episodeUuid });
+    return result.getEpisodeTranscript;
+  }
+  /**
+   * Classifies a Business tier transcript result into the appropriate result type
+   * Takes into account transcript status, completeness, and credit consumption
+   * 
+   * NOTE: Taddy API doesn't provide actual credit consumption in response headers.
+   * According to their documentation, cached responses don't consume credits, but
+   * we have no way to detect this from the API response. This method estimates
+   * credit consumption based on request patterns, but may not be 100% accurate.
+   */
+  classifyBusinessTranscriptResult(transcriptItems, episodeInfo, requestMetadata) {
+    const estimatedCredits = this.estimateCreditConsumption(requestMetadata);
+    if (episodeInfo?.taddyTranscribeStatus === "PROCESSING") {
+      globalLogger.debug("Episode transcript is still processing", {
+        episodeUuid: episodeInfo.uuid,
+        status: episodeInfo.taddyTranscribeStatus
+      });
+      return {
+        kind: "processing",
+        source: "taddy",
+        creditsConsumed: estimatedCredits
+      };
+    }
+    if (episodeInfo?.taddyTranscribeStatus === "FAILED") {
+      globalLogger.debug("Episode transcript generation failed", {
+        episodeUuid: episodeInfo.uuid,
+        status: episodeInfo.taddyTranscribeStatus
+      });
+      return {
+        kind: "error",
+        message: "taddyTranscribeStatus=FAILED",
+        creditsConsumed: estimatedCredits
+      };
+    }
+    if (!transcriptItems || transcriptItems.length === 0) {
+      globalLogger.debug("No transcript items found for episode", {
+        episodeUuid: episodeInfo.uuid
+      });
+      return {
+        kind: "not_found",
+        creditsConsumed: estimatedCredits
+      };
+    }
+    const fullText = this.assembleTranscriptText(transcriptItems);
+    const wordCount = this.estimateWordCount(fullText);
+    const isComplete = this.isTranscriptComplete(transcriptItems, episodeInfo);
+    if (isComplete) {
+      globalLogger.debug("Classified as full Business transcript", {
+        episodeUuid: episodeInfo.uuid,
+        wordCount,
+        textLength: fullText.length,
+        itemCount: transcriptItems.length
+      });
+      return {
+        kind: "full",
+        text: fullText,
+        wordCount,
+        source: "taddy",
+        creditsConsumed: estimatedCredits
+      };
+    } else {
+      globalLogger.debug("Classified as partial Business transcript", {
+        episodeUuid: episodeInfo.uuid,
+        wordCount,
+        textLength: fullText.length,
+        itemCount: transcriptItems.length
+      });
+      return {
+        kind: "partial",
+        text: fullText,
+        wordCount,
+        source: "taddy",
+        creditsConsumed: estimatedCredits
+      };
+    }
+  }
+  /**
+   * Estimates credit consumption for a request
+   * 
+   * Since Taddy API doesn't provide actual credit consumption in response headers,
+   * this method provides a best-effort estimate based on available information.
+   * 
+   * According to Taddy documentation:
+   * - Cached responses don't consume credits
+   * - Fresh requests consume 1 credit
+   * 
+   * Without response headers, we can't definitively know if a response was cached,
+   * so this method makes educated guesses based on request patterns and timing.
+   */
+  estimateCreditConsumption(requestMetadata) {
+    if (requestMetadata?.isLikelyCached === true) {
+      return 0;
+    }
+    if (requestMetadata?.isLikelyCached === false) {
+      return 1;
+    }
+    return 1;
+  }
+  /**
+   * Assembles transcript items into a single text string
+   * Preserves speaker information and timing when available
+   */
+  assembleTranscriptText(items) {
+    return items.filter((item) => item.text && item.text.trim().length > 0).map((item) => {
+      if (item.speaker && item.speaker.trim().length > 0) {
+        return `${item.speaker}: ${item.text}`;
+      }
+      return item.text;
+    }).join("\n").trim();
+  }
+  /**
+   * Determines if a transcript is complete based on available metadata
+   * This is a heuristic that may need refinement based on actual API behavior
+   */
+  isTranscriptComplete(items, episodeInfo) {
+    if (episodeInfo?.taddyTranscribeStatus === "COMPLETED") {
+      return true;
+    }
+    return true;
+  }
+  /**
+   * Estimates word count from text when not provided by API
+   * Simple whitespace-based counting
+   */
+  estimateWordCount(text) {
+    return text.trim().split(/\s+/).filter((word) => word.length > 0).length;
+  }
+  /**
+   * Checks if an error indicates quota exhaustion
+   */
+  isQuotaExhaustedError(error) {
+    if (!error) return false;
+    const errorMessage = error.message || "";
+    const errorResponse = error.response;
+    if (errorResponse?.status === 429) {
+      return true;
+    }
+    const quotaIndicators = [
+      "credits exceeded",
+      "quota exceeded",
+      "rate limit",
+      "too many requests",
+      "CREDITS_EXCEEDED"
+    ];
+    return quotaIndicators.some(
+      (indicator) => errorMessage.toLowerCase().includes(indicator.toLowerCase())
+    );
+  }
+  /**
+   * Health check method to verify API connectivity and plan status
+   * Useful for monitoring and debugging Business tier access
+   */
+  async healthCheck() {
+    try {
+      const query = `
+        query HealthCheck {
+          me {
+            id
+            myDeveloperDetails {
+              isBusinessPlan
+              allowedOnDemandTranscriptsLimit
+              currentOnDemandTranscriptsUsage
+            }
+          }
+        }
+      `;
+      const result = await withHttpRetry(
+        () => this.client.request(query),
+        { maxAttempts: 1 }
+        // Only one attempt for health checks
+      );
+      const userDetails = result.me?.myDeveloperDetails;
+      globalLogger.debug("Taddy Business health check completed", {
+        isBusinessPlan: userDetails?.isBusinessPlan,
+        transcriptLimit: userDetails?.allowedOnDemandTranscriptsLimit,
+        transcriptUsage: userDetails?.currentOnDemandTranscriptsUsage
+      });
+      return {
+        connected: true,
+        isBusinessPlan: userDetails?.isBusinessPlan || false
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      globalLogger.error("Taddy Business health check failed", {
+        error: errorMessage
+      });
+      return {
+        connected: false,
+        isBusinessPlan: false,
+        error: errorMessage
+      };
+    }
+  }
+};
+
+// config/transcriptWorkerConfig.ts
+function getTranscriptWorkerConfig() {
+  const enabled = process.env.TRANSCRIPT_WORKER_ENABLED !== "false";
+  const cronSchedule = process.env.TRANSCRIPT_WORKER_CRON || "0 1 * * *";
+  if (!isValidCronExpression(cronSchedule)) {
+    throw new Error(`Invalid TRANSCRIPT_WORKER_CRON: "${cronSchedule}". Must be a valid cron expression.`);
+  }
+  const tierString = process.env.TRANSCRIPT_TIER || "business";
+  if (tierString !== "free" && tierString !== "business") {
+    throw new Error(`Invalid TRANSCRIPT_TIER: "${tierString}". Must be either 'free' or 'business'.`);
+  }
+  const tier = tierString;
+  const lookbackHours = parseInt(process.env.TRANSCRIPT_LOOKBACK || "24", 10);
+  if (isNaN(lookbackHours) || lookbackHours < 1 || lookbackHours > 168) {
+    throw new Error(`Invalid TRANSCRIPT_LOOKBACK: "${process.env.TRANSCRIPT_LOOKBACK}". Must be a number between 1 and 168 (hours).`);
+  }
+  const maxRequests = parseInt(process.env.TRANSCRIPT_MAX_REQUESTS || "15", 10);
+  if (isNaN(maxRequests) || maxRequests < 1 || maxRequests > 100) {
+    throw new Error(`Invalid TRANSCRIPT_MAX_REQUESTS: "${process.env.TRANSCRIPT_MAX_REQUESTS}". Must be a number between 1 and 100.`);
+  }
+  const concurrency = parseInt(process.env.TRANSCRIPT_CONCURRENCY || "10", 10);
+  if (isNaN(concurrency) || concurrency < 1 || concurrency > 50) {
+    throw new Error(`Invalid TRANSCRIPT_CONCURRENCY: "${process.env.TRANSCRIPT_CONCURRENCY}". Must be a number between 1 and 50.`);
+  }
+  if (concurrency > maxRequests) {
+    throw new Error(`TRANSCRIPT_CONCURRENCY (${concurrency}) cannot exceed TRANSCRIPT_MAX_REQUESTS (${maxRequests}).`);
+  }
+  const useAdvisoryLock = process.env.TRANSCRIPT_ADVISORY_LOCK !== "false";
+  const last10Mode = process.env.TRANSCRIPT_WORKER_L10D === "true";
+  return {
+    enabled,
+    cronSchedule,
+    tier,
+    lookbackHours,
+    maxRequests,
+    concurrency,
+    useAdvisoryLock,
+    last10Mode
+  };
+}
+function isValidCronExpression(cronExpression) {
+  const parts = cronExpression.trim().split(/\s+/);
+  if (parts.length !== 5) {
+    return false;
+  }
+  return parts.every((part, index) => {
+    if (part === "*") return true;
+    switch (index) {
+      case 0:
+        return /^(\*|([0-5]?\d)(-[0-5]?\d)?(,[0-5]?\d(-[0-5]?\d)?)*|(\*\/\d+))$/.test(part);
+      case 1:
+        return /^(\*|(1?\d|2[0-3])(-?(1?\d|2[0-3]))?(,(1?\d|2[0-3])(-?(1?\d|2[0-3]))?)*|(\*\/\d+))$/.test(part);
+      case 2:
+        return /^(\*|([1-9]|[12]\d|3[01])(-?([1-9]|[12]\d|3[01]))?(,([1-9]|[12]\d|3[01])(-?([1-9]|[12]\d|3[01]))?)*|(\*\/\d+))$/.test(part);
+      case 3:
+        return /^(\*|([1-9]|1[0-2])(-?([1-9]|1[0-2]))?(,([1-9]|1[0-2])(-?([1-9]|1[0-2]))?)*|(\*\/\d+))$/.test(part);
+      case 4:
+        return /^(\*|[0-7](-?[0-7])?(,[0-7](-?[0-7])?)*|(\*\/\d+))$/.test(part);
+      default:
+        return false;
+    }
+  });
+}
+
 // lib/services/TranscriptService.ts
 var TranscriptService = class {
   // In-memory cache for podcast IDs
   constructor() {
     this.podcastIdCache = /* @__PURE__ */ new Map();
     this.logger = createLogger();
+    const config = getTranscriptWorkerConfig();
+    this.tier = config.tier;
     const taddyApiKey = process.env.TADDY_API_KEY;
-    if (taddyApiKey) {
-      this.taddyClient = new TaddyFreeClient({ apiKey: taddyApiKey });
-      this.logger.debug("system", "Taddy Free client initialized", {
-        metadata: { hasApiKey: true }
+    const taddyUserId = process.env.TADDY_USER_ID;
+    if (!taddyApiKey) {
+      this.logger.warn("system", "TADDY_API_KEY not found - Taddy lookup disabled", {
+        metadata: { hasApiKey: false, tier: this.tier }
+      });
+      this.taddyFreeClient = null;
+      this.taddyBusinessClient = null;
+      return;
+    }
+    if (this.tier === "business") {
+      if (!taddyUserId) {
+        this.logger.warn("system", "TADDY_USER_ID required for Business tier - falling back to Free tier", {
+          metadata: { hasApiKey: true, hasUserId: false, tier: this.tier }
+        });
+        this.taddyFreeClient = new TaddyFreeClient({ apiKey: taddyApiKey });
+        this.taddyBusinessClient = null;
+      } else {
+        this.taddyBusinessClient = new TaddyBusinessClient({
+          apiKey: taddyApiKey,
+          userId: taddyUserId
+        });
+        this.taddyFreeClient = null;
+      }
+      this.logger.debug("system", "Taddy Business client initialized", {
+        metadata: { hasApiKey: true, tier: this.tier }
       });
     } else {
-      this.logger.warn("system", "TADDY_API_KEY not found - Taddy Free lookup disabled", {
-        metadata: { hasApiKey: false }
+      this.taddyFreeClient = new TaddyFreeClient({ apiKey: taddyApiKey });
+      this.taddyBusinessClient = null;
+      this.logger.debug("system", "Taddy Free client initialized", {
+        metadata: { hasApiKey: true, tier: this.tier }
       });
-      this.taddyClient = null;
     }
   }
   /**
    * Implementation signature - handles both overloads
    * @param arg - Either episode ID string or episode row object
-   * @returns Promise resolving to TranscriptResult discriminated union
+   * @returns Promise resolving to ExtendedTranscriptResult with metadata
    */
   async getTranscript(arg) {
     if (typeof arg === "string") {
@@ -3625,49 +4254,215 @@ var TranscriptService = class {
     }
     const episode = arg;
     if (!this.isEpisodeEligible(episode)) {
-      return { kind: "error", message: "Episode is not eligible for transcript processing" };
+      return {
+        kind: "error",
+        message: "Episode is not eligible for transcript processing",
+        source: "taddy",
+        creditsConsumed: 0
+      };
     }
-    if (this.taddyClient && episode.show?.rss_url && episode.guid) {
-      this.logger.debug("system", "Attempting Taddy Free transcript lookup", {
-        metadata: {
-          episode_id: episode.id,
-          rss_url: episode.show.rss_url,
-          guid: episode.guid
-        }
-      });
-      try {
-        const result = await this.taddyClient.fetchTranscript(episode.show.rss_url, episode.guid);
-        this.logger.info("system", "Taddy Free lookup completed", {
-          metadata: {
-            episode_id: episode.id,
-            result_kind: result.kind,
-            has_text: "text" in result && result.text.length > 0
-          }
-        });
-        return result;
-      } catch (error) {
-        this.logger.error("system", "Taddy Free lookup failed", {
-          metadata: {
-            episode_id: episode.id,
-            error: error instanceof Error ? error.message : String(error)
-          }
-        });
-        return {
-          kind: "error",
-          message: `Taddy lookup failed: ${error instanceof Error ? error.message : String(error)}`
-        };
-      }
+    if (this.tier === "business" && this.taddyBusinessClient) {
+      return this.getTranscriptFromBusiness(episode);
+    } else if (this.tier === "free" && this.taddyFreeClient) {
+      return this.getTranscriptFromFree(episode);
     }
-    this.logger.debug("system", "Taddy Free lookup skipped", {
+    this.logger.debug("system", "Taddy lookup skipped - no client available", {
       metadata: {
         episode_id: episode.id,
-        has_client: !!this.taddyClient,
-        has_rss_url: !!episode.show?.rss_url,
-        has_guid: !!episode.guid,
-        reason: !this.taddyClient ? "no_client" : !episode.show?.rss_url ? "no_rss_url" : "no_guid"
+        tier: this.tier,
+        has_business_client: !!this.taddyBusinessClient,
+        has_free_client: !!this.taddyFreeClient,
+        reason: "no_client"
       }
     });
-    return { kind: "not_found" };
+    return {
+      kind: "not_found",
+      source: "taddy",
+      creditsConsumed: 0
+    };
+  }
+  /**
+   * Get transcript using Business tier client
+   * @private
+   */
+  async getTranscriptFromBusiness(episode) {
+    if (!this.taddyBusinessClient || !episode.show?.rss_url || !episode.guid) {
+      this.logger.debug("system", "Business tier lookup skipped - missing requirements", {
+        metadata: {
+          episode_id: episode.id,
+          has_client: !!this.taddyBusinessClient,
+          has_rss_url: !!episode.show?.rss_url,
+          has_guid: !!episode.guid,
+          reason: !this.taddyBusinessClient ? "no_client" : !episode.show?.rss_url ? "no_rss_url" : "no_guid"
+        }
+      });
+      return {
+        kind: "not_found",
+        source: "taddy",
+        creditsConsumed: 0
+      };
+    }
+    this.logger.debug("system", "Attempting Taddy Business transcript lookup", {
+      metadata: {
+        episode_id: episode.id,
+        rss_url: episode.show.rss_url,
+        guid: episode.guid,
+        tier: "business"
+      }
+    });
+    try {
+      const businessResult = await this.taddyBusinessClient.fetchTranscript(episode.show.rss_url, episode.guid);
+      const mappedResult = this.mapBusinessToTranscriptResult(businessResult);
+      this.logger.info("system", "Taddy Business lookup completed", {
+        metadata: {
+          episode_id: episode.id,
+          result_kind: mappedResult.kind,
+          business_result_kind: businessResult.kind,
+          credits_consumed: businessResult.creditsConsumed,
+          has_text: "text" in mappedResult && mappedResult.text.length > 0,
+          tier: "business"
+        }
+      });
+      return mappedResult;
+    } catch (error) {
+      this.logger.error("system", "Taddy Business lookup failed", {
+        metadata: {
+          episode_id: episode.id,
+          error: error instanceof Error ? error.message : String(error),
+          tier: "business"
+        }
+      });
+      return {
+        kind: "error",
+        message: `Taddy Business lookup failed: ${error instanceof Error ? error.message : String(error)}`,
+        source: "taddy",
+        creditsConsumed: 0
+      };
+    }
+  }
+  /**
+   * Get transcript using Free tier client
+   * @private
+   */
+  async getTranscriptFromFree(episode) {
+    if (!this.taddyFreeClient || !episode.show?.rss_url || !episode.guid) {
+      this.logger.debug("system", "Free tier lookup skipped - missing requirements", {
+        metadata: {
+          episode_id: episode.id,
+          has_client: !!this.taddyFreeClient,
+          has_rss_url: !!episode.show?.rss_url,
+          has_guid: !!episode.guid,
+          reason: !this.taddyFreeClient ? "no_client" : !episode.show?.rss_url ? "no_rss_url" : "no_guid"
+        }
+      });
+      return {
+        kind: "not_found",
+        source: "taddy",
+        creditsConsumed: 0
+      };
+    }
+    this.logger.debug("system", "Attempting Taddy Free transcript lookup", {
+      metadata: {
+        episode_id: episode.id,
+        rss_url: episode.show.rss_url,
+        guid: episode.guid,
+        tier: "free"
+      }
+    });
+    try {
+      const result = await this.taddyFreeClient.fetchTranscript(episode.show.rss_url, episode.guid);
+      this.logger.info("system", "Taddy Free lookup completed", {
+        metadata: {
+          episode_id: episode.id,
+          result_kind: result.kind,
+          has_text: "text" in result && result.text.length > 0,
+          tier: "free"
+        }
+      });
+      return {
+        ...result,
+        source: "taddy",
+        creditsConsumed: 0
+        // Free tier doesn't consume credits
+      };
+    } catch (error) {
+      this.logger.error("system", "Taddy Free lookup failed", {
+        metadata: {
+          episode_id: episode.id,
+          error: error instanceof Error ? error.message : String(error),
+          tier: "free"
+        }
+      });
+      return {
+        kind: "error",
+        message: `Taddy Free lookup failed: ${error instanceof Error ? error.message : String(error)}`,
+        source: "taddy",
+        creditsConsumed: 0
+      };
+    }
+  }
+  /**
+   * Maps BusinessTranscriptResult to ExtendedTranscriptResult
+   * Handles all Business tier response variants including 'processing'
+   * Preserves source and credit consumption metadata for cost tracking
+   * @private
+   */
+  mapBusinessToTranscriptResult(businessResult) {
+    this.logger.debug("system", "Business tier result with metadata", {
+      metadata: {
+        kind: businessResult.kind,
+        source: businessResult.source || "taddy",
+        credits_consumed: businessResult.creditsConsumed,
+        has_text: "text" in businessResult && businessResult.text ? businessResult.text.length > 0 : false
+      }
+    });
+    const metadata = {
+      source: businessResult.source || "taddy",
+      creditsConsumed: businessResult.creditsConsumed
+    };
+    switch (businessResult.kind) {
+      case "full":
+        return {
+          kind: "full",
+          text: businessResult.text,
+          wordCount: businessResult.wordCount,
+          ...metadata
+        };
+      case "partial":
+        return {
+          kind: "partial",
+          text: businessResult.text,
+          wordCount: businessResult.wordCount,
+          reason: businessResult.reason,
+          ...metadata
+        };
+      case "processing":
+        return {
+          kind: "processing",
+          ...metadata
+        };
+      case "not_found":
+        return {
+          kind: "not_found",
+          ...metadata
+        };
+      case "no_match":
+        return {
+          kind: "no_match",
+          reason: businessResult.reason,
+          ...metadata
+        };
+      case "error":
+        return {
+          kind: "error",
+          message: businessResult.message,
+          ...metadata
+        };
+      default: {
+        const _exhaustive = businessResult;
+        throw new Error(`Unhandled business result kind: ${JSON.stringify(businessResult)}`);
+      }
+    }
   }
   /**
    * Private helper to check if an episode is eligible for transcript processing
@@ -3702,6 +4497,7 @@ var TranscriptService = class {
         episode_id: episode.id,
         show_id: episode.show_id,
         rss_url: episode.show?.rss_url,
+        tier: this.tier,
         status: "eligible"
       }
     });
@@ -3757,12 +4553,28 @@ function getSupabaseClient() {
   }
   return supabase;
 }
-async function insertTranscript(episodeId, storagePath, status) {
-  const { data, error } = await getSupabaseClient().from("transcripts").insert({
+async function insertTranscript(episodeId, storagePath, initialStatus, currentStatus, wordCount, source, errorDetails) {
+  const resolvedCurrentStatus = currentStatus ?? initialStatus;
+  const insertData = {
     episode_id: episodeId,
-    storage_path: storagePath,
-    status
-  }).select().single();
+    initial_status: initialStatus,
+    current_status: resolvedCurrentStatus
+  };
+  if (errorDetails) {
+    insertData.error_details = errorDetails;
+  }
+  if (wordCount !== void 0) {
+    insertData.word_count = wordCount;
+  }
+  if (storagePath) {
+    insertData.storage_path = storagePath;
+  } else if (resolvedCurrentStatus === "error" || resolvedCurrentStatus === "processing") {
+    insertData.storage_path = "";
+  }
+  if (source) {
+    insertData.source = source;
+  }
+  const { data, error } = await getSupabaseClient().from("transcripts").insert(insertData).select().single();
   if (error) {
     throw new Error(`Failed to insert transcript: ${error.message}`);
   }
@@ -3771,61 +4583,31 @@ async function insertTranscript(episodeId, storagePath, status) {
   }
   return data;
 }
-
-// config/transcriptWorkerConfig.ts
-function getTranscriptWorkerConfig() {
-  const enabled = process.env.TRANSCRIPT_WORKER_ENABLED !== "false";
-  const cronSchedule = process.env.TRANSCRIPT_WORKER_CRON || "0 1 * * *";
-  if (!isValidCronExpression(cronSchedule)) {
-    throw new Error(`Invalid TRANSCRIPT_WORKER_CRON: "${cronSchedule}". Must be a valid cron expression.`);
-  }
-  const lookbackHours = parseInt(process.env.TRANSCRIPT_LOOKBACK || "24", 10);
-  if (isNaN(lookbackHours) || lookbackHours < 1 || lookbackHours > 168) {
-    throw new Error(`Invalid TRANSCRIPT_LOOKBACK: "${process.env.TRANSCRIPT_LOOKBACK}". Must be a number between 1 and 168 (hours).`);
-  }
-  const maxRequests = parseInt(process.env.TRANSCRIPT_MAX_REQUESTS || "15", 10);
-  if (isNaN(maxRequests) || maxRequests < 1 || maxRequests > 100) {
-    throw new Error(`Invalid TRANSCRIPT_MAX_REQUESTS: "${process.env.TRANSCRIPT_MAX_REQUESTS}". Must be a number between 1 and 100.`);
-  }
-  const concurrency = parseInt(process.env.TRANSCRIPT_CONCURRENCY || "10", 10);
-  if (isNaN(concurrency) || concurrency < 1 || concurrency > 50) {
-    throw new Error(`Invalid TRANSCRIPT_CONCURRENCY: "${process.env.TRANSCRIPT_CONCURRENCY}". Must be a number between 1 and 50.`);
-  }
-  if (concurrency > maxRequests) {
-    throw new Error(`TRANSCRIPT_CONCURRENCY (${concurrency}) cannot exceed TRANSCRIPT_MAX_REQUESTS (${maxRequests}).`);
-  }
-  const useAdvisoryLock = process.env.TRANSCRIPT_ADVISORY_LOCK !== "false";
-  return {
-    enabled,
-    cronSchedule,
-    lookbackHours,
-    maxRequests,
-    concurrency,
-    useAdvisoryLock
+async function overwriteTranscript(episodeId, storagePath, initialStatus, currentStatus, wordCount, source, errorDetails) {
+  const updateData = {
+    initial_status: initialStatus,
+    current_status: currentStatus,
+    storage_path: storagePath
   };
-}
-function isValidCronExpression(cronExpression) {
-  const parts = cronExpression.trim().split(/\s+/);
-  if (parts.length !== 5) {
-    return false;
+  if (errorDetails === "") {
+    updateData.error_details = null;
+  } else if (errorDetails) {
+    updateData.error_details = errorDetails;
   }
-  return parts.every((part, index) => {
-    if (part === "*") return true;
-    switch (index) {
-      case 0:
-        return /^(\*|([0-5]?\d)(-[0-5]?\d)?(,[0-5]?\d(-[0-5]?\d)?)*|(\*\/\d+))$/.test(part);
-      case 1:
-        return /^(\*|(1?\d|2[0-3])(-?(1?\d|2[0-3]))?(,(1?\d|2[0-3])(-?(1?\d|2[0-3]))?)*|(\*\/\d+))$/.test(part);
-      case 2:
-        return /^(\*|([1-9]|[12]\d|3[01])(-?([1-9]|[12]\d|3[01]))?(,([1-9]|[12]\d|3[01])(-?([1-9]|[12]\d|3[01]))?)*|(\*\/\d+))$/.test(part);
-      case 3:
-        return /^(\*|([1-9]|1[0-2])(-?([1-9]|1[0-2]))?(,([1-9]|1[0-2])(-?([1-9]|1[0-2]))?)*|(\*\/\d+))$/.test(part);
-      case 4:
-        return /^(\*|[0-7](-?[0-7])?(,[0-7](-?[0-7])?)*|(\*\/\d+))$/.test(part);
-      default:
-        return false;
-    }
-  });
+  if (wordCount !== void 0) {
+    updateData.word_count = wordCount;
+  }
+  if (source !== void 0) {
+    updateData.source = source;
+  }
+  const { data, error } = await getSupabaseClient().from("transcripts").update(updateData).eq("episode_id", episodeId).is("deleted_at", null).select().single();
+  if (error) {
+    throw new Error(`Failed to overwrite transcript: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error(`No transcript found for episode_id: ${episodeId}`);
+  }
+  return data;
 }
 
 // services/TranscriptWorker.ts
@@ -3835,6 +4617,7 @@ var gzipAsync = promisify(gzip);
 var TranscriptWorker = class {
   constructor(config, logger, customSupabaseClient) {
     this.bucketName = "transcripts";
+    this.quotaExhausted = false;
     this.config = config ? { ...getTranscriptWorkerConfig(), ...config } : getTranscriptWorkerConfig();
     this.logger = logger || createLogger();
     this.supabase = customSupabaseClient || getSharedSupabaseClient();
@@ -3875,6 +4658,7 @@ var TranscriptWorker = class {
       totalEpisodes: 0,
       processedEpisodes: 0,
       availableTranscripts: 0,
+      processingCount: 0,
       errorCount: 0,
       totalElapsedMs: 0,
       averageProcessingTimeMs: 0
@@ -4083,9 +4867,15 @@ var TranscriptWorker = class {
       const episodesWithTranscripts = new Set(
         (existingTranscripts || []).map((t) => t.episode_id)
       );
-      const episodesNeedingTranscripts = rawEpisodes.filter(
-        (episode) => !episodesWithTranscripts.has(episode.id)
-      );
+      let episodesNeedingTranscripts = rawEpisodes.filter((episode) => {
+        if (this.config.last10Mode) {
+          return true;
+        }
+        return !episodesWithTranscripts.has(episode.id);
+      });
+      if (this.config.last10Mode) {
+        episodesNeedingTranscripts = episodesNeedingTranscripts.slice(0, 10);
+      }
       console.log("DEBUG: episodesNeedingTranscripts length:", episodesNeedingTranscripts.length);
       const episodesMissingShowInfo = episodesNeedingTranscripts.filter((ep) => !ep.podcast_shows);
       if (episodesMissingShowInfo.length > 0) {
@@ -4184,6 +4974,16 @@ var TranscriptWorker = class {
     });
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
+      if (this.quotaExhausted) {
+        this.logger.warn("system", "Quota exhausted - skipping remaining batches", {
+          metadata: {
+            job_id: jobId,
+            remaining_batches: batches.length - batchIndex,
+            remaining_episodes: batches.slice(batchIndex).reduce((sum, b) => sum + b.length, 0)
+          }
+        });
+        break;
+      }
       this.logger.debug("system", `Processing batch ${batchIndex + 1}/${batches.length}`, {
         metadata: {
           job_id: jobId,
@@ -4200,6 +5000,17 @@ var TranscriptWorker = class {
         const episode = batch[i];
         if (result.status === "fulfilled") {
           results.push(result.value);
+          if (this.quotaExhausted) {
+            this.logger.warn("system", "Quota exhausted during batch - stopping processing", {
+              metadata: {
+                job_id: jobId,
+                current_batch: batchIndex + 1,
+                processed_in_batch: i + 1,
+                total_processed: results.length
+              }
+            });
+            break;
+          }
         } else {
           const errorResult = {
             episodeId: episode.id,
@@ -4216,6 +5027,9 @@ var TranscriptWorker = class {
             }
           });
         }
+      }
+      if (this.quotaExhausted) {
+        break;
       }
       if (batchIndex < batches.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -4277,7 +5091,7 @@ var TranscriptWorker = class {
         }
       });
       try {
-        await this.recordTranscriptInDatabase(episode.id, "", "error", 0);
+        await this.recordTranscriptInDatabase(episode.id, "", "error", 0, void 0, errorMessage);
       } catch (dbError) {
         this.logger.warn("system", "Failed to record error in database", {
           metadata: {
@@ -4318,14 +5132,13 @@ var TranscriptWorker = class {
         await this.recordTranscriptInDatabase(
           episode.id,
           fullStoragePath,
-          "available",
-          // Map 'full' to 'available' for database compatibility
-          transcriptResult.wordCount
+          "full",
+          transcriptResult.wordCount,
+          transcriptResult.source
         );
         return {
           ...baseResult,
-          status: "available",
-          // Use 'available' instead of 'full'
+          status: "full",
           storagePath: fullStoragePath,
           wordCount: transcriptResult.wordCount
         };
@@ -4339,36 +5152,67 @@ var TranscriptWorker = class {
         await this.recordTranscriptInDatabase(
           episode.id,
           partialStoragePath,
-          "available",
-          // Map 'partial' to 'available' for database compatibility  
-          transcriptResult.wordCount
+          "partial",
+          transcriptResult.wordCount,
+          transcriptResult.source
         );
         return {
           ...baseResult,
-          status: "available",
-          // Use 'available' instead of 'partial'
+          status: "partial",
           storagePath: partialStoragePath,
           wordCount: transcriptResult.wordCount
         };
       }
-      case "not_found":
-        await this.recordTranscriptInDatabase(episode.id, "", "error", 0);
+      case "processing": {
+        await this.recordTranscriptInDatabase(
+          episode.id,
+          "",
+          // No storage path for processing transcripts
+          "processing",
+          0,
+          // No word count yet
+          transcriptResult.source
+        );
+        this.logger.info("system", "Transcript marked as processing", {
+          metadata: {
+            job_id: jobId,
+            episode_id: episode.id,
+            source: transcriptResult.source,
+            credits_consumed: transcriptResult.creditsConsumed
+          }
+        });
         return {
           ...baseResult,
-          status: "error",
-          // Map 'not_found' to 'error' for database compatibility
+          status: "processing"
+        };
+      }
+      case "not_found":
+        await this.recordTranscriptInDatabase(episode.id, "", "no_transcript_found", 0, transcriptResult.source);
+        return {
+          ...baseResult,
+          status: "no_transcript_found",
           error: "No transcript found for episode"
         };
       case "no_match":
-        await this.recordTranscriptInDatabase(episode.id, "", "error", 0);
+        await this.recordTranscriptInDatabase(episode.id, "", "no_match", 0, transcriptResult.source);
         return {
           ...baseResult,
-          status: "error",
-          // Map 'no_match' to 'error' for database compatibility
+          status: "no_match",
           error: "Episode not found in transcript database"
         };
       case "error": {
-        await this.recordTranscriptInDatabase(episode.id, "", "error", 0);
+        await this.recordTranscriptInDatabase(episode.id, "", "error", 0, "taddy", transcriptResult.message);
+        if (this.isQuotaExhaustionError(transcriptResult.message)) {
+          this.quotaExhausted = true;
+          this.logger.warn("system", "Taddy API quota exhausted - aborting remaining episodes", {
+            metadata: {
+              job_id: jobId,
+              episode_id: episode.id,
+              error_message: transcriptResult.message,
+              source: transcriptResult.source
+            }
+          });
+        }
         return {
           ...baseResult,
           status: "error",
@@ -4408,7 +5252,7 @@ var TranscriptWorker = class {
       }
     });
     const { error } = await this.supabase.storage.from(this.bucketName).upload(storagePath, compressedContent, {
-      contentType: "application/jsonlines+gzip",
+      contentType: "application/gzip",
       upsert: true
       // Allow overwriting if file exists
     });
@@ -4428,33 +5272,107 @@ var TranscriptWorker = class {
    * Record transcript metadata in the database with idempotent conflict handling
    * @param episodeId Episode ID
    * @param storagePath Storage path (empty for non-stored statuses)
-   * @param status Transcript status
+   * @param initialStatus Initial transcript status
    * @param wordCount Word count (0 for non-text statuses)
+   * @param source Optional source of the transcript ('taddy' or 'podcaster')
+   * @param errorDetails Optional error details
    */
-  async recordTranscriptInDatabase(episodeId, storagePath, status, wordCount) {
+  async recordTranscriptInDatabase(episodeId, storagePath, initialStatus, wordCount, source, errorDetails) {
+    const wordCountParam = wordCount > 0 ? wordCount : void 0;
     try {
-      await insertTranscript(episodeId, storagePath, status);
+      await insertTranscript(
+        episodeId,
+        storagePath,
+        initialStatus,
+        void 0,
+        // currentStatus defaults internally to initial
+        wordCountParam,
+        source,
+        errorDetails
+      );
       this.logger.debug("system", "Transcript recorded in database", {
         metadata: {
           episode_id: episodeId,
-          status,
+          status: initialStatus,
           storage_path: storagePath,
-          word_count: wordCount
+          word_count: wordCount,
+          source
         }
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes("duplicate key") || errorMessage.includes("unique constraint")) {
-        this.logger.debug("system", "Transcript already exists for episode - skipping (idempotent)", {
-          metadata: {
-            episode_id: episodeId,
-            status
+        if (this.config.last10Mode === true) {
+          try {
+            await overwriteTranscript(
+              episodeId,
+              storagePath,
+              initialStatus,
+              initialStatus,
+              // current_status same as initial by definition
+              wordCountParam,
+              source,
+              // Clear error_details when overwriting to a non-error status, otherwise preserve existing errorDetails
+              initialStatus === "error" ? errorDetails : ""
+            );
+            this.logger.debug("system", "Transcript overwritten (last10Mode)", {
+              metadata: {
+                episode_id: episodeId,
+                status: initialStatus,
+                storage_path: storagePath,
+                word_count: wordCountParam,
+                source
+              }
+            });
+          } catch (updateErr) {
+            this.logger.error("system", "Failed to overwrite existing transcript row", {
+              metadata: {
+                episode_id: episodeId,
+                original_error: errorMessage,
+                overwrite_error: updateErr instanceof Error ? updateErr.message : String(updateErr)
+              }
+            });
+            throw updateErr;
           }
-        });
+        } else {
+          this.logger.debug("system", "Transcript already exists for episode - skipping (idempotent)", {
+            metadata: {
+              episode_id: episodeId,
+              status: initialStatus,
+              source
+            }
+          });
+        }
         return;
       }
       throw error;
     }
+  }
+  /**
+   * Check if an error message indicates quota exhaustion
+   *
+   * Unified abstraction: Any upstream response that points to Taddy credit
+   * exhaustion (HTTP 429, explicit `CREDITS_EXCEEDED` code, generic quota or
+   * rate-limit wording) is normalised by this helper so the rest of the worker
+   * can treat them identically.  This lets us maintain a single guard branch
+   * (`if (this.isQuotaExhaustionError(...))`) instead of sprinkling special-case
+   * string checks throughout the codebase.  If Taddy adds new phrases in the
+   * future we can extend the `quotaPatterns` list here without touching other
+   * logic.
+   * @param errorMessage Error message to check
+   * @returns boolean True if quota exhausted
+   */
+  isQuotaExhaustionError(errorMessage) {
+    const quotaPatterns = [
+      "HTTP 429",
+      "credits exceeded",
+      "quota exceeded",
+      "rate limit",
+      "too many requests",
+      "CREDITS_EXCEEDED"
+    ];
+    const lowerMessage = errorMessage.toLowerCase();
+    return quotaPatterns.some((pattern) => lowerMessage.includes(pattern.toLowerCase()));
   }
   /**
    * Aggregate processing results into summary
@@ -4466,12 +5384,19 @@ var TranscriptWorker = class {
     const totalElapsedMs = Date.now() - startTime;
     const processedEpisodes = results.length;
     let availableTranscripts = 0;
+    let processingCount = 0;
     let errorCount = 0;
     for (const result of results) {
       switch (result.status) {
-        case "available":
+        case "full":
+        case "partial":
           availableTranscripts++;
           break;
+        case "processing":
+          processingCount++;
+          break;
+        case "no_transcript_found":
+        case "no_match":
         case "error":
           errorCount++;
           break;
@@ -4486,6 +5411,7 @@ var TranscriptWorker = class {
       // This will be updated by caller
       processedEpisodes,
       availableTranscripts,
+      processingCount,
       errorCount,
       totalElapsedMs,
       averageProcessingTimeMs
