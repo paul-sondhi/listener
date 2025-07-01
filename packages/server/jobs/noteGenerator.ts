@@ -35,7 +35,8 @@ import { TranscriptWithEpisode } from '../lib/db/notesQueries.js';
 import { processEpisodeForNotes, EpisodeProcessingResult, aggregateProcessingResults } from '../lib/utils/episodeProcessor.js';
 
 // Define interfaces for type safety
-interface EpisodeNotesResult {
+// Note: EpisodeNotesResult interface is kept for potential future use
+interface _EpisodeNotesResult {
   episodeId: string;
   transcriptId: string;
   status: 'done' | 'error';
@@ -193,8 +194,9 @@ class EpisodeNotesWorker {
 
 /**
  * CLI entry point with graceful error handling and exit codes
+ * Note: This function is kept for potential future CLI usage
  */
-async function main(): Promise<void> {
+async function _main(): Promise<void> {
   let exitCode = 0;
   
   try {

@@ -32,6 +32,13 @@ process.env.BACKGROUND_JOBS_ENABLED = 'false';
 process.env.TEST_SUPABASE_URL = process.env.TEST_SUPABASE_URL || 'http://localhost:54321';
 process.env.TEST_SUPABASE_ANON_KEY = process.env.TEST_SUPABASE_ANON_KEY || 'test-anon-key';
 
+// Mock API keys for external services
+process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIza-test-key-for-all-tests';
+process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test-openai-key';
+process.env.DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || 'test-deepgram-key';
+process.env.SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || 'test-client-id';
+process.env.SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || 'test-client-secret';
+
 /**
  * Global Mock Setup
  * Set up mocks for external services and dependencies

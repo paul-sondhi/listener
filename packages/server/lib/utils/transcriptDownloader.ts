@@ -69,7 +69,7 @@ export async function downloadAndParseTranscript(
 
     if (downloadError) {
       throw new TranscriptDownloadError(
-        `Failed to download transcript file: ${downloadError.message}`,
+        `download_error: Failed to download transcript file: ${downloadError.message}`,
         storagePath,
         downloadError
       );
@@ -77,7 +77,7 @@ export async function downloadAndParseTranscript(
 
     if (!fileData) {
       throw new TranscriptDownloadError(
-        'Downloaded file data is null or undefined',
+        'download_error: Downloaded file data is null or undefined',
         storagePath
       );
     }
@@ -150,7 +150,7 @@ export async function downloadAndParseTranscript(
     }
     
     throw new TranscriptDownloadError(
-      `Unexpected error downloading transcript: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `download_error: Unexpected error downloading transcript: ${error instanceof Error ? error.message : 'Unknown error'}`,
       storagePath,
       error instanceof Error ? error : undefined
     );

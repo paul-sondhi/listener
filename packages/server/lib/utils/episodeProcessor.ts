@@ -11,7 +11,7 @@ import { NotesWorkerConfig } from '../../config/notesWorkerConfig.js';
 import { TranscriptWithEpisode } from '../db/notesQueries.js';
 import { downloadAndParseTranscript, TranscriptDownloadError } from './transcriptDownloader.js';
 import { generateNotesWithPrompt, NotesGenerationResult } from './notesGenerator.js';
-import { upsertEpisodeNotes, UpsertNotesResult } from '../db/notesDatabase.js';
+import { upsertEpisodeNotes } from '../db/notesDatabase.js';
 
 /**
  * Result of processing a single episode for notes generation

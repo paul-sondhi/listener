@@ -33,6 +33,7 @@ const db: Record<string, any[]> = {
   user_podcast_subscriptions: [],
   podcast_episodes: [],
   transcripts: [],
+  episode_transcript_notes: [],
 
   // Information schema tables for debugging
   'information_schema.tables': [
@@ -40,7 +41,8 @@ const db: Record<string, any[]> = {
     { table_name: 'podcast_shows' },
     { table_name: 'user_podcast_subscriptions' },
     { table_name: 'podcast_episodes' },
-    { table_name: 'transcripts' }
+    { table_name: 'transcripts' },
+    { table_name: 'episode_transcript_notes' }
   ],
   'information_schema.columns': [
     // users table columns
@@ -91,9 +93,40 @@ const db: Record<string, any[]> = {
     { table_name: 'transcripts', column_name: 'word_count', data_type: 'integer', is_nullable: 'YES' },
     { table_name: 'transcripts', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
     { table_name: 'transcripts', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
-    { table_name: 'transcripts', column_name: 'deleted_at', data_type: 'timestamp with time zone', is_nullable: 'YES' }
+    { table_name: 'transcripts', column_name: 'deleted_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    // episode_transcript_notes table columns
+    { table_name: 'episode_transcript_notes', column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
+    { table_name: 'episode_transcript_notes', column_name: 'episode_id', data_type: 'uuid', is_nullable: 'NO' },
+    { table_name: 'episode_transcript_notes', column_name: 'note', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'episode_transcript_notes', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'episode_transcript_notes', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' }
   ]
 };
+
+// Helper to reset the in-memory DB between tests
+export function resetDb() {
+  for (const key of Object.keys(db)) {
+    if (Array.isArray(db[key])) {
+      db[key].length = 0;
+    }
+  }
+  // Re-initialize static tables
+  db.pg_proc.push({
+    proname: 'begin_token_refresh_transaction',
+    proowner: 16384,
+    pronamespace: 2200,
+    procost: 100,
+    prorows: 1000
+  });
+  db['information_schema.tables'].push(
+    { table_name: 'users' },
+    { table_name: 'podcast_shows' },
+    { table_name: 'user_podcast_subscriptions' },
+    { table_name: 'podcast_episodes' },
+    { table_name: 'transcripts' },
+    { table_name: 'episode_transcript_notes' }
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Query Builder Factory
@@ -163,90 +196,124 @@ function buildQuery(table?: string) {
       }
     }
     
-    // eq filters
-    state.whereEq.forEach(([col, val]: [string, any]) => {
-      // Handle joined table filters like 'user_podcast_subscriptions.status'
-      if (col.includes('.')) {
-        const [tableName, _columnName] = col.split('.');
-        if (tableName === 'user_podcast_subscriptions' && state.table === 'podcast_shows') {
-          // Already handled above in the join logic
-          return;
-        }
-      } else {
-        // Handle negated conditions (from .not('col', 'eq', 'value'))
-        if (typeof val === 'string' && val.startsWith('NOT_')) {
-          const actualVal = val.substring(4); // Remove 'NOT_' prefix
-          out = out.filter(r => r[col] !== actualVal);
+    // Apply all filters to the base rows first
+    out = out.filter(r => {
+      // eq filters
+      for (const [col, val] of state.whereEq) {
+        // Handle joined table filters like 'user_podcast_subscriptions.status'
+        if (col.includes('.')) {
+          const [tableName, _columnName] = col.split('.');
+          if (tableName === 'user_podcast_subscriptions' && state.table === 'podcast_shows') {
+            // Already handled above in the join logic
+            continue;
+          }
         } else {
-          out = out.filter(r => r[col] === val);
+          // Handle negated conditions (from .not('col', 'eq', 'value'))
+          if (typeof val === 'string' && val.startsWith('NOT_')) {
+            const actualVal = val.substring(4); // Remove 'NOT_' prefix
+            if (r[col] === actualVal) return false;
+          } else if (val === null) {
+            // .is('col', null) should match both null and undefined
+            if (r[col] !== null && r[col] !== undefined) return false;
+          } else {
+            if (r[col] !== val) return false;
+          }
         }
       }
-    });
-    
-    // in filters
-    state.whereIn.forEach(([col, list]: [string, any[]]) => {
-      out = out.filter(r => list.includes(r[col]));
-    });
-    
-    // not-null filters
-    state.whereNotNull.forEach((col: string) => {
-      out = out.filter(r => r[col] !== null && r[col] !== undefined);
-    });
-    
-    // gte filters (greater than or equal)
-    state.whereGte.forEach(([col, val]: [string, any]) => {
-      out = out.filter(r => {
+      
+      // in filters
+      for (const [col, list] of state.whereIn) {
+        if (!list.includes(r[col])) return false;
+      }
+      
+      // not-null filters
+      for (const col of state.whereNotNull) {
+        if (r[col] === null || r[col] === undefined) return false;
+      }
+      
+      // Handle .gte() filters for timestamps
+      for (const [col, val] of state.whereGte) {
+        if (col === 'created_at' || col === 'updated_at' || col === 'pub_date') {
+          // Handle timestamp comparisons
+          const rowDate = new Date(r[col]);
+          const filterDate = new Date(val);
+          if (rowDate < filterDate) return false;
+        } else {
+          // Handle numeric comparisons
+          if (r[col] < val) return false;
+        }
+      }
+      
+      // lte filters (less than or equal)
+      for (const [col, val] of state.whereLte) {
         if (r[col] && val) {
           // Handle date comparisons
           const rowDate = new Date(r[col]);
           const filterDate = new Date(val);
-          return rowDate >= filterDate;
+          if (rowDate > filterDate) return false;
+        } else {
+          return false;
         }
-        return false;
-      });
+      }
+      
+      return true;
     });
     
-    // lte filters (less than or equal)
-    state.whereLte.forEach(([col, val]: [string, any]) => {
-      out = out.filter(r => {
-        if (r[col] && val) {
-          // Handle date comparisons
-          const rowDate = new Date(r[col]);
-          const filterDate = new Date(val);
-          return rowDate <= filterDate;
-        }
-        return false;
-      });
-    });
+    // Debug: print storage_path values before .not('storage_path', 'eq', '') filter
+    if (state.table === 'transcripts') {
+      const paths = out.map(r => r.storage_path);
+      if (paths.length) process.stdout.write('DEBUG: storage_path values before .not filter: ' + JSON.stringify(paths) + '\n');
+    }
     
-    // Handle complex .not() conditions used by TranscriptWorker
-    state.whereNot.forEach(([col, op, val]: [string, string, any]) => {
+    // Handle complex .not() conditions used by TranscriptWorker (apply after other filters)
+    for (const [col, op, val] of state.whereNot) {
       if (op === 'is' && val === null) {
-        // .not('column', 'is', null) means column must NOT be null
         out = out.filter(r => r[col] !== null && r[col] !== undefined);
       } else if (op === 'eq') {
-        // .not('column', 'eq', value) means column must NOT equal value
-        out = out.filter(r => r[col] !== val);
-      }
-      // Handle nested table filters for joins
-      if (col.includes('.')) {
-        const [tableName, columnName] = col.split('.');
-        if (tableName === 'podcast_shows' && state.table === 'podcast_episodes') {
-          // For episode queries with show filters, we need to check the joined show data
-          out = out.filter(episode => {
-            const shows = episode.podcast_shows || [];
-            if (shows.length === 0) return false; // No show data means it doesn't match
-            const show = shows[0];
-            if (op === 'is' && val === null) {
-              return show[columnName] !== null && show[columnName] !== undefined;
-            } else if (op === 'eq') {
-              return show[columnName] !== val;
-            }
-            return true;
-          });
+        if (val === '') {
+          // Exclude rows where col is empty string, null, or undefined (SQL-like behavior)
+          out = out.filter(r => !(r[col] === '' || r[col] === null || r[col] === undefined));
+        } else {
+          out = out.filter(r => r[col] !== val);
         }
       }
-    });
+    }
+    
+    // Debug: print storage_path values after .not('storage_path', 'eq', '') filter
+    if (state.table === 'transcripts') {
+      const paths = out.map(r => r.storage_path);
+      if (paths.length) process.stdout.write('DEBUG: storage_path values after .not filter: ' + JSON.stringify(paths) + '\n');
+    }
+    
+    // PATCH: .is('col', null) should match both null and undefined (for deleted_at filtering)
+    for (const [col, val] of state.whereEq) {
+      if (val === null) {
+        const before = out.length;
+        out = out.filter(r => r[col] === null || r[col] === undefined);
+        const after = out.length;
+        process.stdout.write(`DEBUG: .is('${col}', null) filter: included ${after} of ${before} rows\n`);
+      }
+    }
+    
+    // --- PATCH: Only after filtering, attach joins for transcripts -> podcast_episodes!inner -> podcast_shows!inner ---
+    if (
+      state.table === 'transcripts' &&
+      state.selectColumns &&
+      typeof state.selectColumns === 'string' &&
+      state.selectColumns.includes('podcast_episodes!inner')
+    ) {
+      out = out.map(transcript => {
+        // Find matching episode by episode_id
+        const matchingEpisode = db['podcast_episodes']?.find(e => e.id === transcript.episode_id);
+        if (!matchingEpisode) return transcript; // No join if not found
+        // Find matching show by show_id
+        const matchingShow = db['podcast_shows']?.find(s => s.id === matchingEpisode.show_id);
+        // Attach show to episode
+        const episodeWithShow = matchingShow ? { ...matchingEpisode, podcast_shows: [matchingShow] } : matchingEpisode;
+        // Attach episode to transcript
+        return { ...transcript, podcast_episodes: [episodeWithShow] };
+      });
+    }
     
     return out;
   };
@@ -263,9 +330,13 @@ function buildQuery(table?: string) {
     return qb;
   });
 
-  qb.upsert = vi.fn((payload: any[], _options?: any) => {
+  qb.upsert = vi.fn((payload: any | any[], _options?: any) => {
     if (!db[state.table!]) db[state.table!] = [];
-    payload.forEach(row => {
+    
+    // Normalize payload to array (handle both single object and array)
+    const normalizedPayload = Array.isArray(payload) ? payload : [payload];
+    
+    normalizedPayload.forEach(row => {
       let idx = -1;
       
       // Handle different table types with their unique constraints
@@ -299,12 +370,15 @@ function buildQuery(table?: string) {
         db[state.table!].push(newRow);
       }
     });
-    state.pendingUpsert = payload;
+    state.pendingUpsert = normalizedPayload;
     return qb;
   });
 
   qb.update = vi.fn((fields: Record<string, any>) => {
     state.pendingUpdate = fields;
+    if ('deleted_at' in fields) {
+      process.stdout.write('DEBUG: update sets deleted_at: ' + JSON.stringify(fields.deleted_at) + '\n');
+    }
     return qb;
   });
 
@@ -374,6 +448,16 @@ function buildQuery(table?: string) {
   });
 
   qb.single = vi.fn(async () => {
+    // If this is immediately after an insert, return the last inserted row
+    if (state.pendingInsert && db[state.table!].length > 0) {
+      const lastInserted = db[state.table!][db[state.table!].length - 1];
+      state.pendingInsert = undefined; // Clear after use
+      return {
+        data: lastInserted,
+        error: null,
+        status: 201
+      };
+    }
     const rows = applyFilters(db[state.table!] ?? []);
     return {
       data: rows[0] ?? null,

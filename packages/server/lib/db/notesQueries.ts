@@ -37,19 +37,22 @@ export interface TranscriptWithEpisode {
  * @param supabase - Supabase client instance
  * @param lookbackHours - Hours to look back for new transcripts (ignored in L10 mode)
  * @param last10Mode - If true, return last 10 transcripts; if false, use normal lookback logic
+ * @param nowOverride - Optional timestamp for testability
  * @returns Array of transcripts with episode and show information
  */
 export async function queryTranscriptsNeedingNotes(
   supabase: SupabaseClient<Database>,
   lookbackHours: number,
-  last10Mode: boolean
+  last10Mode: boolean,
+  nowOverride?: number // Optional for testability
 ): Promise<TranscriptWithEpisode[]> {
-  const startTime = Date.now();
+  const now = nowOverride ?? Date.now();
+  const startTime = now;
   
   console.log('DEBUG: Starting transcript notes query', {
     lookbackHours,
     last10Mode,
-    lookbackDate: last10Mode ? 'N/A' : new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString()
+    lookbackDate: last10Mode ? 'N/A' : new Date(now - lookbackHours * 60 * 60 * 1000).toISOString()
   });
 
   try {
@@ -81,7 +84,7 @@ export async function queryTranscriptsNeedingNotes(
 
     // Apply time-based filter only in normal mode
     if (!last10Mode) {
-      const cutoffTime = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
+      const cutoffTime = new Date(now - lookbackHours * 60 * 60 * 1000).toISOString();
       baseQuery = baseQuery.gte('created_at', cutoffTime);
     }
 
