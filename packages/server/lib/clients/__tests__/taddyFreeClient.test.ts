@@ -83,7 +83,7 @@ describe('TaddyFreeClient', () => {
     it('should return full transcript when complete transcript is found', async () => {
       // Arrange
       const mockPodcast = {
-        podcastGuid: 'podcast-guid-456',
+        uuid: 'podcast-guid-456',
         name: 'Test Podcast',
       };
       
@@ -119,15 +119,15 @@ describe('TaddyFreeClient', () => {
       });
       
       expect(mockSdk.getPodcastEpisode).toHaveBeenCalledWith({
-        podcastGuid: 'podcast-guid-456',
-        episodeGuid: testEpisodeGuid,
+        guid: testEpisodeGuid,
+        seriesUuidForLookup: 'podcast-guid-456',
       });
     });
 
     it('should return partial transcript when isPartial is true', async () => {
       // Arrange
       const mockPodcast = {
-        podcastGuid: 'podcast-guid-456',
+        uuid: 'podcast-guid-456',
         name: 'Test Podcast',
       };
       
@@ -163,7 +163,7 @@ describe('TaddyFreeClient', () => {
     it('should return not_found when episode exists but has no transcripts', async () => {
       // Arrange
       const mockPodcast = {
-        podcastGuid: 'podcast-guid-456',
+        uuid: 'podcast-guid-456',
         name: 'Test Podcast',
       };
       
@@ -209,7 +209,7 @@ describe('TaddyFreeClient', () => {
     it('should return no_match when episode is not found', async () => {
       // Arrange
       const mockPodcast = {
-        podcastGuid: 'podcast-guid-456',
+        uuid: 'podcast-guid-456',
         name: 'Test Podcast',
       };
 
@@ -243,7 +243,7 @@ describe('TaddyFreeClient', () => {
     it('should estimate word count when not provided by API', async () => {
       // Arrange
       const mockPodcast = {
-        podcastGuid: 'podcast-guid-456',
+        uuid: 'podcast-guid-456',
         name: 'Test Podcast',
       };
       
@@ -278,7 +278,7 @@ describe('TaddyFreeClient', () => {
     it('should select the best transcript when multiple are available', async () => {
       // Arrange
       const mockPodcast = {
-        podcastGuid: 'podcast-guid-456',
+        uuid: 'podcast-guid-456',
         name: 'Test Podcast',
       };
       
@@ -323,7 +323,7 @@ describe('TaddyFreeClient', () => {
     it('should use retry logic for API calls', async () => {
       // Arrange
       const mockPodcast = {
-        podcastGuid: 'podcast-guid-456',
+        uuid: 'podcast-guid-456',
         name: 'Test Podcast',
       };
 
@@ -376,7 +376,7 @@ describe('TaddyFreeClient', () => {
     it('should handle empty transcript text', async () => {
       // Arrange
       const mockPodcast = {
-        podcastGuid: 'podcast-guid-456',
+        uuid: 'podcast-guid-456',
         name: 'Test Podcast',
       };
       
@@ -411,7 +411,7 @@ describe('TaddyFreeClient', () => {
     it('should handle whitespace-only transcript text', async () => {
       // Arrange
       const mockPodcast = {
-        podcastGuid: 'podcast-guid-456',
+        uuid: 'podcast-guid-456',
         name: 'Test Podcast',
       };
       
