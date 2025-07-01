@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import cors, { CorsOptions } from 'cors';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import dotenv from 'dotenv';
+import './lib/debugFilter.js';
 
 // Get __dirname equivalent in ES modules
 const __filename: string = fileURLToPath(import.meta.url);

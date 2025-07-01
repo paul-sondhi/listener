@@ -35,6 +35,7 @@ import { TranscriptWithEpisode } from '../lib/db/notesQueries.js';
 import { processEpisodeForNotes, EpisodeProcessingResult, aggregateProcessingResults } from '../lib/utils/episodeProcessor.js';
 import { getNotesWorkerConfig, validateDependencies } from '../config/notesWorkerConfig.js';
 import { getSharedSupabaseClient } from '../lib/db/sharedSupabaseClient.js';
+import '../lib/debugFilter.js';
 
 // Define interfaces for type safety
 // Note: EpisodeNotesResult interface is kept for potential future use
@@ -298,14 +299,18 @@ function setupUnhandledExceptionHandlers(): void {
   });
 }
 
-// Only run main if this file is executed directly (not imported)
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Stand-alone CLI entry
+// To avoid accidental execution when this file is bundled into other entry points,
+// we require an explicit env flag (NOTES_WORKER_CLI=true) **and** the usual ES-module guard.
+if (process.env.NOTES_WORKER_CLI === 'true' && import.meta.url === `file://${process.argv[1]}`) {
   const w = new EpisodeNotesWorker();
   setupSignalHandlers(w);
   setupUnhandledExceptionHandlers();
   // Run main via the worker instance for access to partialResults
-  w.run().then(() => process.exit(0)).catch((error) => {
-    console.error('Unhandled error in main:', error);
-    process.exit(3);
-  });
+  w.run()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error('Unhandled error in main:', error);
+      process.exit(3);
+    });
 } 
