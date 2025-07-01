@@ -717,6 +717,93 @@ Allowed status values (superset of provider states):
 
 In **re-check mode** (`TRANSCRIPT_WORKER_L10D=true`) the worker *overwrites* both `initial_status` and `current_status` for the last 10 episodes per show, ensuring stale or erroneous states are refreshed.
 
+#### 7. Configure Episode-Notes Worker Background Job
+
+The episode-notes worker runs nightly to generate structured episode notes from transcripts using Gemini 1.5 Flash. This job processes transcripts created in the last 24 hours and generates notes that will be used for newsletter generation.
+
+```bash
+# Enable/disable the episode-notes worker (default: enabled)
+NOTES_WORKER_ENABLED=true
+
+# Configure lookback window (default: 24 hours)
+NOTES_LOOKBACK_HOURS=24
+
+# Configure Gemini API concurrency (default: 30 simultaneous calls)
+NOTES_MAX_CONCURRENCY=30
+
+# Configure prompt template file (default: prompts/episode-notes.md)
+NOTES_PROMPT_PATH=prompts/episode-notes.md
+
+# Testing mode: process last 10 transcripts regardless of existing notes
+NOTES_WORKER_L10=false
+```
+
+**Job Configuration Examples:**
+```bash
+# Standard production configuration (default)
+NOTES_LOOKBACK_HOURS=24
+NOTES_MAX_CONCURRENCY=30
+NOTES_WORKER_L10=false
+
+# Conservative configuration (slower, lower API usage)
+NOTES_LOOKBACK_HOURS=24
+NOTES_MAX_CONCURRENCY=10
+NOTES_WORKER_L10=false
+
+# Testing configuration (overwrites last 10 notes)
+NOTES_LOOKBACK_HOURS=24
+NOTES_MAX_CONCURRENCY=5
+NOTES_WORKER_L10=true
+
+# Disable the job entirely
+NOTES_WORKER_ENABLED=false
+```
+
+**Manual Job Execution:**
+```bash
+# Trigger episode-notes worker manually (for testing or backfills)
+cd packages/server
+npx tsx jobs/noteGenerator.ts
+
+# Run in testing mode (last 10 transcripts)
+NOTES_WORKER_L10=true npx tsx jobs/noteGenerator.ts
+```
+
+**Prompt Customization:**
+The episode notes generation uses a customizable prompt template:
+
+```bash
+# Default location
+prompts/episode-notes.md
+
+# Custom location
+NOTES_PROMPT_PATH=custom-prompts/my-episode-notes.md
+```
+
+To customize the generated notes:
+1. Edit `prompts/episode-notes.md` (or your custom prompt file)
+2. Modify the instructions, format, or focus areas
+3. Test with `NOTES_WORKER_L10=true` to regenerate notes for recent episodes
+4. Deploy the updated prompt file
+
+**API Usage & Costs:**
+- Uses Google Gemini 1.5 Flash API for note generation
+- Default configuration: max 30 concurrent API calls
+- Processes only transcripts without existing notes (idempotent)
+- Stores generated notes in `episode_transcript_notes` table
+- Each transcript generates one set of notes (approximately 200-400 words)
+
+**Monitoring:**
+- Job execution logs include note generation counts and timing
+- Check application logs for `EPISODE_NOTES_WORKER` entries
+- Failed note generation attempts are logged with error details
+- Notes are stored with `status='done'` or `status='error'`
+
+**Dependencies:**
+- Requires Gemini API key (`GEMINI_API_KEY`)
+- Depends on transcript worker output (transcripts must exist first)
+- Uses Supabase Storage to download transcript files
+
 ## Post-Deployment Cleanup
 
 After successful deployment, the backfill script should be disabled to prevent accidental re-runs:
