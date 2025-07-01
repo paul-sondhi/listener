@@ -12,8 +12,6 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Local Supabase already ships the auth schema, users table, and helper functions; stubs removed to avoid 42501 permission errors.
 
--- Local Supabase already ships the auth schema, users table, and helper functions; stubs removed to avoid 42501 permission errors.
-
 -- 2️⃣  Ensure `auth` schema and minimal tables exist in plain-Postgres (CI/prod).
 --     Silently skip creation when we lack privileges (local Supabase).
 
@@ -29,7 +27,7 @@ BEGIN
         SELECT 1
         FROM pg_class c
         JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = ''auth'' AND c.relname = ''users''
+        WHERE n.nspname = 'auth' AND c.relname = 'users'
   ) THEN
     EXECUTE 'CREATE TABLE auth.users (id uuid PRIMARY KEY)';
   END IF;
@@ -39,7 +37,7 @@ BEGIN
         SELECT 1
         FROM pg_class c
         JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = ''auth'' AND c.relname = ''identities''
+        WHERE n.nspname = 'auth' AND c.relname = 'identities'
   ) THEN
     EXECUTE ''CREATE TABLE auth.identities (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
