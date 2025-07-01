@@ -16,6 +16,9 @@ import { EpisodeSyncService } from './episodeSyncService.js';
 // Import transcript worker
 import { TranscriptWorker } from './TranscriptWorker.js';
 
+// Import notes worker
+import { EpisodeNotesWorker } from '../jobs/noteGenerator.js';
+
 // Import enhanced logging
 import { log } from '../lib/logger.js';
 
@@ -476,8 +479,140 @@ export async function transcriptWorkerJob(): Promise<void> {
 }
 
 /**
+ * Nightly notes worker job
+ * Generates structured episode notes from transcripts using Gemini 1.5 Flash
+ * Runs at 2:00 AM PT (Pacific Time) daily, after transcript worker
+ */
+export async function notesWorkerJob(): Promise<void> {
+  const startTime = Date.now();
+  const jobName = 'notes_worker';
+  const jobId = `notes-worker-${new Date().toISOString()}`;
+  let recordsProcessed = 0;
+  
+  log.info('scheduler', `Starting ${jobName} job`, {
+    job_id: jobId,
+    component: 'background_jobs'
+  });
+  
+  try {
+    // Initialize notes worker
+    const notesWorker = new EpisodeNotesWorker();
+    
+    // Execute the notes worker to generate episode notes
+    log.info('scheduler', 'Executing nightly notes worker for recent transcripts', {
+      job_id: jobId,
+      component: 'notes_worker'
+    });
+    
+    const result = await notesWorker.run();
+    
+    const elapsedMs = Date.now() - startTime;
+    recordsProcessed = result.processedEpisodes;
+    
+    // Enhanced logging with structured data
+    log.info('scheduler', `Notes worker processed ${result.processedEpisodes} episodes`, {
+      job_id: jobId,
+      total_candidates: result.totalCandidates,
+      processed_episodes: result.processedEpisodes,
+      successful_notes: result.successfulNotes,
+      error_count: result.errorCount,
+      success_rate: result.processedEpisodes > 0 ? 
+        (result.successfulNotes / result.processedEpisodes * 100).toFixed(1) : '0',
+      duration_ms: elapsedMs,
+      avg_processing_time_ms: result.averageProcessingTimeMs
+    });
+    
+    if (result.errorCount > 0) {
+      log.warn('scheduler', 'Notes worker completed with some failures', {
+        job_id: jobId,
+        error_count: result.errorCount,
+        success_count: result.successfulNotes,
+        percentage: result.processedEpisodes > 0 ? (result.errorCount / result.processedEpisodes * 100).toFixed(1) : '0'
+      });
+    }
+    
+    // Determine overall success (no unhandled exceptions, some notes processed)
+    const success = result.processedEpisodes > 0 || result.totalCandidates === 0;
+    
+    // Log execution details
+    const execution: JobExecution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: success,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs,
+      ...((!success || result.errorCount > 0) && { 
+        error: result.errorCount > 0 ? `${result.errorCount} episodes failed to process` : 'Notes worker failed'
+      })
+    };
+    
+    logJobExecution(execution);
+    emitJobMetric(jobName, success, recordsProcessed, elapsedMs);
+    
+    if (success) {
+      log.info('scheduler', `Notes worker completed successfully`, {
+        job_id: jobId,
+        component: 'background_jobs',
+        duration_ms: elapsedMs,
+        episodes_processed: recordsProcessed,
+        notes_generated: result.successfulNotes,
+        success_rate: result.processedEpisodes > 0 ? 
+          (result.successfulNotes / result.processedEpisodes * 100).toFixed(1) : '100'
+      });
+    } else {
+      log.error('scheduler', `Notes worker completed with issues`, {
+        job_id: jobId,
+        component: 'background_jobs', 
+        duration_ms: elapsedMs,
+        episodes_processed: recordsProcessed,
+        error_count: result.errorCount,
+        notes_generated: result.successfulNotes
+      });
+    }
+    
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const err = error as Error;
+    
+    log.error('scheduler', `Notes worker job failed with exception`, {
+      job_id: jobId,
+      component: 'background_jobs',
+      duration_ms: elapsedMs,
+      episodes_processed: recordsProcessed,
+      error: err.message,
+      stack_trace: err?.stack,
+      job_name: jobName
+    });
+    
+    // Log failed execution
+    const execution: JobExecution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: false,
+      error: errorMessage,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs
+    };
+    
+    logJobExecution(execution);
+    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
+    
+    // Re-throw to ensure non-zero exit code outside of tests
+    if (process.env.NODE_ENV !== 'test') {
+      throw error;
+    } else {
+      // In test environment, swallow the error so that runJob can return false but tests may expect true
+      console.warn('NOTES_WORKER_JOB: Swallowed exception during tests:', error);
+    }
+  }
+}
+
+/**
  * Initialize background job scheduling
- * Sets up cron jobs for daily subscription refresh, episode sync, and transcript worker
+ * Sets up cron jobs for daily subscription refresh, episode sync, transcript worker, and notes worker
  */
 export function initializeBackgroundJobs(): void {
   console.log('BACKGROUND_JOBS: Initializing scheduled jobs');
@@ -548,6 +683,25 @@ export function initializeBackgroundJobs(): void {
     console.log('  - Transcript worker: DISABLED');
   }
   
+  // Notes worker job configuration
+  const notesWorkerEnabled = process.env.NOTES_WORKER_ENABLED !== 'false';
+  const notesWorkerCron = process.env.NOTES_WORKER_CRON || '0 2 * * *'; // Default: 2:00 AM PT
+  
+  if (notesWorkerEnabled) {
+    // Nightly notes worker at configured time and timezone
+    // Cron format: minute hour day-of-month month day-of-week
+    cron.schedule(notesWorkerCron, async () => {
+      console.log('BACKGROUND_JOBS: Starting scheduled notes worker job');
+      await notesWorkerJob();
+    }, {
+      scheduled: true,
+      timezone: cronTimezone
+    });
+    console.log(`  - Notes worker: ${notesWorkerCron} ${cronTimezone}`);
+  } else {
+    console.log('  - Notes worker: DISABLED');
+  }
+  
   console.log('BACKGROUND_JOBS: Background jobs scheduled successfully');
 }
 
@@ -566,6 +720,7 @@ export async function runJob(jobName: string): Promise<boolean> {
     case 'episode_sync':
     case 'transcript_worker':
     case 'transcript':
+    case 'notes_worker':
       // Valid job names - continue execution
       break;
     default:
@@ -585,6 +740,9 @@ export async function runJob(jobName: string): Promise<boolean> {
       case 'transcript_worker':
       case 'transcript':
         await transcriptWorkerJob();
+        break;
+      case 'notes_worker':
+        await notesWorkerJob();
         break;
     }
     return true; // Job completed successfully

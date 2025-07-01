@@ -59,7 +59,7 @@ interface NotesWorkerSummary {
  * Main Episode Notes Worker class
  * Orchestrates the process of generating episode notes from transcripts
  */
-class EpisodeNotesWorker {
+export class EpisodeNotesWorker {
   private logger: Logger;
   private startTime: number;
 

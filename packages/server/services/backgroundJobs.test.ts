@@ -937,7 +937,7 @@ describe('initializeBackgroundJobs', () => {
     );
 
     // Assert: Verify total number of scheduled jobs (daily refresh, episode sync, transcript worker) - 3 jobs
-    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
+    expect(mockCronSchedule).toHaveBeenCalledTimes(4);
 
     // Assert: Verify success logging
     expect(console.log).toHaveBeenCalledWith(
@@ -1030,8 +1030,8 @@ describe('initializeBackgroundJobs', () => {
       expect.any(Object)
     );
 
-    // Assert: Verify total number of scheduled jobs (episode sync, transcript worker) when daily refresh is disabled - 2 jobs
-    expect(mockCronSchedule).toHaveBeenCalledTimes(2);
+    // Assert: Verify total number of scheduled jobs (episode sync, transcript worker, notes worker) when daily refresh is disabled - 3 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
   });
 
   /**
@@ -1116,8 +1116,8 @@ describe('initializeBackgroundJobs', () => {
       expect.any(Object)
     );
 
-    // Assert: Verify total number of scheduled jobs (daily refresh, transcript worker) when episode sync is disabled - 2 jobs
-    expect(mockCronSchedule).toHaveBeenCalledTimes(2);
+    // Assert: Verify total number of scheduled jobs (daily refresh, transcript worker, notes worker) when episode sync is disabled - 3 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
   });
 
   /**
@@ -1155,8 +1155,8 @@ describe('initializeBackgroundJobs', () => {
       expect.any(Object)
     );
 
-    // Assert: Verify total number of scheduled jobs (daily refresh, episode sync) when transcript worker is disabled - 2 jobs
-    expect(mockCronSchedule).toHaveBeenCalledTimes(2);
+    // Assert: Verify total number of scheduled jobs (daily refresh, episode sync, notes worker) when transcript worker is disabled - 3 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
 
     // Assert: Verify transcript worker disabled logging
     expect(console.log).toHaveBeenCalledWith(
