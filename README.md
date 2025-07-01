@@ -63,6 +63,7 @@ A podcast transcription service that integrates with Spotify.
    SPOTIFY_CLIENT_ID=your_client_id
    SPOTIFY_CLIENT_SECRET=your_client_secret
    TADDY_API_KEY=your_taddy_api_key
+   GEMINI_API_KEY=your_gemini_api_key      # For episode notes generation
    
    # Security
    JWT_SECRET=your_jwt_secret
@@ -341,6 +342,35 @@ const transcript = await transcriptService.getTranscript('episode-uuid');
 
 // Get transcript by episode object (with show info)
 const transcript = await transcriptService.getTranscript(episodeWithShow);
+```
+
+### Gemini Client Utility
+
+The Gemini client provides a simple interface for generating episode notes from transcripts using Google's Gemini 1.5 Flash model.
+
+**Location**: `packages/server/lib/llm/gemini.ts`
+
+**Usage**:
+```typescript
+import { generateEpisodeNotes } from '../lib/llm/gemini.js';
+
+// Generate episode notes from a transcript
+try {
+  const result = await generateEpisodeNotes(transcriptText);
+  console.log('Generated notes:', result.notes);
+  console.log('Model used:', result.model);
+} catch (error) {
+  if (error instanceof GeminiAPIError) {
+    console.error('Gemini API error:', error.message);
+    console.error('Status code:', error.statusCode);
+    console.error('Response body:', error.responseBody);
+  }
+}
+```
+
+**Environment Requirements**:
+- `GEMINI_API_KEY` - Required API key from Google AI Studio
+- `GEMINI_MODEL_NAME` - Optional model override (defaults to `models/gemini-1.5-flash-latest`)
 ```
 
 **Features**:
