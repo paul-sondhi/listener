@@ -29,6 +29,10 @@
  */
 
 import { createLogger, Logger } from '../lib/logger.js';
+import { prepareTranscriptsForNotes, validateL10Mode, logL10ModeSummary } from '../lib/utils/notesWorkflow.js';
+import { ConcurrencyPool } from '../lib/utils/concurrencyController.js';
+import { TranscriptWithEpisode } from '../lib/db/notesQueries.js';
+import { processEpisodeForNotes, EpisodeProcessingResult, aggregateProcessingResults } from '../lib/utils/episodeProcessor.js';
 
 // Define interfaces for type safety
 interface EpisodeNotesResult {
@@ -58,6 +62,9 @@ class EpisodeNotesWorker {
   private logger: Logger;
   private startTime: number;
 
+  // Store partial results for graceful shutdown
+  private partialResults: EpisodeProcessingResult[] = [];
+
   constructor() {
     this.logger = createLogger();
     this.startTime = Date.now();
@@ -68,47 +75,109 @@ class EpisodeNotesWorker {
    * @returns Promise<NotesWorkerSummary> Summary of processing results
    */
   async run(): Promise<NotesWorkerSummary> {
-    const jobId = `notes-worker-${Date.now()}`;
-    
+    const jobId = `notes-${Date.now()}`;
+
+    // 1. Load configuration
+    const config = getNotesWorkerConfig();
+    validateDependencies(config);
+
     this.logger.info('system', 'Episode Notes Worker starting', {
       metadata: {
         job_id: jobId,
-        worker_type: 'episode_notes',
-        start_time: new Date().toISOString()
+        lookback_hours: config.lookbackHours,
+        max_concurrency: config.maxConcurrency,
+        last10_mode: config.last10Mode,
+        prompt_template_length: config.promptTemplate.length
       }
     });
 
+    const startTime = Date.now();
+    const supabase = getSharedSupabaseClient();
+
     try {
-      // TODO: Implement main worker logic
-      // 1. Load configuration and validate environment
-      // 2. Query for candidate transcripts
-      // 3. Process transcripts with concurrency control
-      // 4. Generate summary and return results
-      
-      // Placeholder implementation
+      // 2. Prepare transcripts (handles L10 mode clearing)
+      const prepResult = await prepareTranscriptsForNotes(supabase, config);
+
+      if (config.last10Mode) {
+        const validation = validateL10Mode(prepResult.candidates, config);
+        logL10ModeSummary(prepResult, validation);
+      }
+
+      if (prepResult.candidates.length === 0) {
+        this.logger.warn('system', 'No transcripts found for notes generation; exiting');
+        return {
+          totalCandidates: 0,
+          processedEpisodes: 0,
+          successfulNotes: 0,
+          errorCount: 0,
+          totalElapsedMs: Date.now() - startTime,
+          averageProcessingTimeMs: 0
+        };
+      }
+
+      // 3. Process episodes with concurrency pool
+      const pool = new ConcurrencyPool<TranscriptWithEpisode, EpisodeProcessingResult>(config.maxConcurrency);
+
+      const processResults = await pool.process(
+        prepResult.candidates,
+        async (candidate) => {
+          const result = await processEpisodeForNotes(supabase, candidate, config);
+          this.partialResults.push(result); // Keep for graceful shutdown
+          return result;
+        },
+        (progress) => {
+          // Emit progress logs every 10% or every 30s
+          this.logger.info('system', 'Notes worker progress', {
+            metadata: {
+              job_id: jobId,
+              progress: `${progress.completed}/${progress.total}`,
+              percentage: progress.percentage.toFixed(1),
+              active: progress.active,
+              elapsed_ms: progress.elapsedMs,
+              est_remaining_ms: progress.estimatedRemainingMs
+            }
+          });
+        }
+      );
+
+      const { results } = processResults;
+
+      // Ensure we capture all results for final summary
+      this.partialResults = results.filter(r => r !== null) as EpisodeProcessingResult[];
+
+      // 4. Aggregate results
+      const summaryStats = aggregateProcessingResults(results as EpisodeProcessingResult[]);
+
+      const totalElapsedMs = Date.now() - startTime;
+
       const summary: NotesWorkerSummary = {
-        totalCandidates: 0,
-        processedEpisodes: 0,
-        successfulNotes: 0,
-        errorCount: 0,
-        totalElapsedMs: Date.now() - this.startTime,
-        averageProcessingTimeMs: 0
+        totalCandidates: prepResult.candidates.length,
+        processedEpisodes: summaryStats.totalEpisodes,
+        successfulNotes: summaryStats.successfulNotes,
+        errorCount: summaryStats.errorCount,
+        totalElapsedMs,
+        averageProcessingTimeMs: summaryStats.averageProcessingTimeMs
       };
 
-      this.logger.info('system', 'Episode Notes Worker completed successfully', {
+      // 5. Final summary log
+      this.logger.info('system', 'Episode Notes Worker completed', {
         metadata: {
           job_id: jobId,
-          ...summary
+          ...summary,
+          success_rate: summaryStats.successRate.toFixed(1),
+          avg_timing_ms: summaryStats.averageTiming,
+          error_breakdown: summaryStats.errorBreakdown,
+          word_count_stats: summaryStats.wordCountStats
         }
       });
 
       return summary;
 
     } catch (error) {
-      const elapsedMs = Date.now() - this.startTime;
+      const elapsedMs = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      this.logger.error('system', 'Episode Notes Worker failed with unhandled exception', {
+
+      this.logger.error('system', 'Episode Notes Worker failed', {
         metadata: {
           job_id: jobId,
           error: errorMessage,
@@ -117,7 +186,6 @@ class EpisodeNotesWorker {
         }
       });
 
-      // Re-throw to ensure proper exit code
       throw error;
     }
   }
@@ -177,24 +245,62 @@ async function main(): Promise<void> {
 /**
  * Signal handlers for graceful shutdown
  */
-function setupSignalHandlers(): void {
-  const handleSignal = (signal: string) => {
-    console.log(`Received ${signal}, shutting down gracefully...`);
-    // TODO: Implement graceful shutdown logic
-    // - Cancel in-flight Gemini requests
-    // - Write final summary
-    // - Close database connections
-    process.exit(0);
+function setupSignalHandlers(worker: EpisodeNotesWorker): void {
+  const gracefulShutdown = (signal: string) => {
+    if ((worker as any)._shuttingDown) return; // Prevent double handling
+    (worker as any)._shuttingDown = true;
+
+    console.warn(`Received ${signal}. Flushing in-flight operations and writing summary…`);
+
+    try {
+      const results = worker.partialResults;
+      const summary = aggregateProcessingResults(results);
+
+      worker.logger.warn('system', 'Episode Notes Worker interrupted', {
+        metadata: {
+          signal,
+          processed_episodes: summary.totalEpisodes,
+          successful: summary.successfulNotes,
+          errors: summary.errorCount,
+          success_rate: summary.successRate.toFixed(1)
+        }
+      });
+    } catch (err) {
+      console.error('Failed to write interrupt summary:', err);
+    } finally {
+      setTimeout(() => process.exit(0), 200);
+    }
   };
 
-  process.on('SIGINT', () => handleSignal('SIGINT'));
-  process.on('SIGTERM', () => handleSignal('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+}
+
+/**
+ * Catch unhandled promise rejections & uncaught exceptions
+ * Ensures the process exits with a non-zero code so Render/cron detects failure
+ */
+function setupUnhandledExceptionHandlers(): void {
+  process.on('unhandledRejection', (reason) => {
+    console.error('UNHANDLED REJECTION:', reason);
+    // Flush logs then exit with non-zero code
+    setTimeout(() => process.exit(3), 100);
+  });
+
+  process.on('uncaughtException', (err) => {
+    console.error('UNCAUGHT EXCEPTION:', err);
+    // Flush logs then exit with non-zero code
+    setTimeout(() => process.exit(3), 100);
+  });
 }
 
 // Only run main if this file is executed directly (not imported)
 if (import.meta.url === `file://${process.argv[1]}`) {
-  setupSignalHandlers();
-  main().catch((error) => {
+  const w = new EpisodeNotesWorker();
+  setupSignalHandlers(w);
+  setupUnhandledExceptionHandlers();
+  // Run main via the worker instance for access to partialResults
+  w.run().then(() => process.exit(0)).catch((error) => {
     console.error('Unhandled error in main:', error);
     process.exit(3);
   });

@@ -103,9 +103,13 @@ export async function upsertEpisodeNotes(
       upsertData.model = params.model || 'gemini-1.5-flash';
       upsertData.error_message = null; // Clear any previous error
     } else {
+      // Prepare trimmed & classified error message
+      const rawError = params.errorMessage || 'Unknown error';
+      const errorType = classifyError(rawError);
+      const trimmed = rawError.length > 250 ? rawError.substring(0, 247) + '...' : rawError;
       upsertData.notes = null; // Clear notes on error
       upsertData.model = null; // Clear model on error
-      upsertData.error_message = params.errorMessage;
+      upsertData.error_message = `${errorType}: ${trimmed}`;
     }
 
     // Add optional token counts if provided
@@ -324,4 +328,16 @@ export async function getEpisodeNotes(
     
     return null;
   }
+}
+
+/**
+ * Classify error messages into high-level categories
+ */
+function classifyError(errorMessage: string): string {
+  const msg = errorMessage.toLowerCase();
+  if (msg.includes('404') || msg.includes('not found')) return 'download_error';
+  if (msg.includes('gunzip') || msg.includes('parse') || msg.includes('jsonl')) return 'transcript_parse_error';
+  if (msg.includes('gemini') || msg.includes('api')) return 'generation_error';
+  if (msg.includes('database') || msg.includes('upsert')) return 'database_error';
+  return 'unknown_error';
 } 
