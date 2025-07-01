@@ -111,6 +111,15 @@ export class GeminiAPIError extends Error {
 // ===================================================================
 
 /**
+ * Debug logging helper - only logs when DEBUG_API=true
+ */
+function debugLog(message: string, data?: any): void {
+  if (process.env.DEBUG_API === 'true') {
+    console.log(`[Gemini] ${message}`, data || '');
+  }
+}
+
+/**
  * Generate episode notes from a podcast transcript using Gemini 1.5 Flash
  * 
  * @param transcript - The full episode transcript text
@@ -136,8 +145,119 @@ export async function generateEpisodeNotes(
   transcript: string,
   promptOverrides?: Partial<PromptOverrides>
 ): Promise<EpisodeNotesResult> {
-  // TODO: Implementation will be added in subsequent sub-tasks
-  // This scaffold provides the complete type structure and error handling
+  // Validate inputs
+  if (!transcript || typeof transcript !== 'string') {
+    throw new Error('transcript must be a non-empty string');
+  }
+
+  const model = getModelName();
+  const apiKey = process.env.GEMINI_API_KEY!; // Already validated at module load
+  const overrides = promptOverrides || {};
   
-  throw new Error('generateEpisodeNotes: Implementation pending');
+  // Build the default prompt for episode notes generation
+  const defaultPrompt = `Please analyze the following podcast transcript and extract key topics, themes, and insights. Focus on:
+
+1. **Main Topics Discussed**: What are the primary subjects covered?
+2. **Key Insights & Takeaways**: What are the most valuable learnings?
+3. **Notable Quotes or Moments**: Any particularly memorable or impactful statements?
+4. **Emerging Themes**: What patterns or recurring ideas appear throughout?
+
+Format your response as clear, well-organized bullet points grouped by category. Be concise but comprehensive.
+
+Transcript:
+${transcript}`;
+
+  const prompt = overrides.systemPrompt || defaultPrompt;
+  
+  // Construct API endpoint URL
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  
+  // Build request payload according to Gemini API format
+  const requestBody = {
+    contents: [
+      {
+        parts: [
+          {
+            text: prompt
+          }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature: overrides.temperature || 0.3,
+      maxOutputTokens: overrides.maxTokens || 2048,
+      topP: 0.8,
+      topK: 40
+    }
+  };
+
+  try {
+    debugLog('Making request to Gemini API', { endpoint, model });
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    const responseData = await response.json() as any;
+    
+    if (!response.ok) {
+      debugLog('Gemini API error response', { 
+        status: response.status, 
+        data: responseData 
+      });
+      
+      throw new GeminiAPIError(
+        `Gemini API request failed: ${responseData.error?.message || 'Unknown error'}`,
+        response.status,
+        JSON.stringify(responseData)
+      );
+    }
+
+    // Extract the generated text from the response
+    const candidates = responseData.candidates;
+    if (!candidates || candidates.length === 0) {
+      throw new GeminiAPIError(
+        'No candidates returned from Gemini API',
+        200,
+        JSON.stringify(responseData)
+      );
+    }
+
+    const content = candidates[0]?.content?.parts?.[0]?.text;
+    if (!content) {
+      throw new GeminiAPIError(
+        'No text content found in Gemini API response',
+        200,
+        JSON.stringify(responseData)
+      );
+    }
+
+    debugLog('Successfully generated episode notes', { 
+      model, 
+      notesLength: content.length 
+    });
+
+    return {
+      notes: content.trim(),
+      model
+    };
+
+  } catch (error) {
+    if (error instanceof GeminiAPIError) {
+      throw error; // Re-throw our custom errors
+    }
+    
+    // Handle network errors, JSON parsing errors, etc.
+    debugLog('Unexpected error in generateEpisodeNotes', { error });
+    throw new GeminiAPIError(
+      `Unexpected error calling Gemini API: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      0,
+      JSON.stringify({ originalError: error })
+    );
+  }
 } 
