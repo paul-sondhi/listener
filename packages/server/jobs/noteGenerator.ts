@@ -33,6 +33,8 @@ import { prepareTranscriptsForNotes, validateL10Mode, logL10ModeSummary } from '
 import { ConcurrencyPool } from '../lib/utils/concurrencyController.js';
 import { TranscriptWithEpisode } from '../lib/db/notesQueries.js';
 import { processEpisodeForNotes, EpisodeProcessingResult, aggregateProcessingResults } from '../lib/utils/episodeProcessor.js';
+import { getNotesWorkerConfig, validateDependencies } from '../config/notesWorkerConfig.js';
+import { getSharedSupabaseClient } from '../lib/db/sharedSupabaseClient.js';
 
 // Define interfaces for type safety
 // Note: EpisodeNotesResult interface is kept for potential future use
