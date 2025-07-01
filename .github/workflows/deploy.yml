@@ -110,6 +110,12 @@ jobs:
           cd packages/server
           npm run test lib/__tests__/migrations/podcast_migration.test.ts
 
+      - name: Run Notes Worker Integration Tests
+        run: |
+          echo "🧪 Running notes worker integration tests..."
+          cd packages/server
+          npm run test lib/__tests__/notesWorker.integration.test.ts
+
       - name: Run Routes Smoke Tests
         run: |
           echo "🧪 Running routes smoke tests..."
