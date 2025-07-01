@@ -15,19 +15,19 @@
  * as they require actual database enforcement.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, _vi } from 'vitest';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { 
   insertEpisodeTranscriptNote,
   updateEpisodeTranscriptNote,
   getByEpisodeId,
-  getById,
+  _getById,
   softDelete,
   getAllEpisodeTranscriptNotes,
   CreateEpisodeTranscriptNoteParams,
   UpdateEpisodeTranscriptNoteParams
 } from '../db/episode-transcript-notes.js';
-import { EpisodeTranscriptNote } from '@listener/shared';
+import { _EpisodeTranscriptNote } from '@listener/shared';
 
 // Set up test environment variables
 process.env.SUPABASE_URL = process.env.TEST_SUPABASE_URL || 'http://localhost:54321';
@@ -341,7 +341,7 @@ describe('Episode Transcript Notes Database Helpers', () => {
 
     it('should fail when episode_id does not exist', async () => {
       const fakeEpisodeId = '00000000-0000-0000-0000-000000000000';
-      const fakeTranscriptId = '11111111-1111-1111-1111-111111111111';
+      const _fakeTranscriptId = '11111111-1111-1111-1111-111111111111';
 
       // Test the business logic: verify episode doesn't exist before creating note
       const episodeExists = await supabase
@@ -652,7 +652,7 @@ describe('Episode Transcript Notes Database Helpers', () => {
 
       // Attempt to insert second note for same episode (should fail in real DB)
       // In mock environment, we test the business logic expectation
-      const secondParams = EpisodeTranscriptNotesTestDataFactory.generateCreateParams(episode.id, transcript.id, {
+      const _secondParams = EpisodeTranscriptNotesTestDataFactory.generateCreateParams(episode.id, transcript.id, {
         notes: 'Second note for same episode'
       });
 
