@@ -420,6 +420,61 @@ try {
 
 **Testing**: Comprehensive unit tests with 7 test cases covering happy path and edge cases.
 
+### Newsletter Editions Helper
+
+The `newsletter-editions` helper provides a type-safe, commented API for reading and writing newsletter edition rows in the `newsletter_editions` table. It encapsulates all DB access and validation logic for this feature.
+
+**Location**: `packages/server/lib/db/newsletter-editions.ts`
+
+**Shared Type**: `NewsletterEdition` (import from `@listener/shared`)
+
+**Usage Example:**
+```typescript
+import {
+  insertNewsletterEdition,
+  upsertNewsletterEdition,
+  updateNewsletterEditionStatus,
+  getByUserAndDate,
+  softDelete,
+  CreateNewsletterEditionParams,
+  NewsletterEdition // type
+} from '@listener/shared';
+
+// Insert a new edition
+const edition = await insertNewsletterEdition({
+  user_id: 'user-uuid',
+  edition_date: '2025-07-04',
+  status: 'generated',
+  content: '<p>Newsletter HTML</p>',
+  model: 'gemini-1.5-flash'
+});
+
+// Upsert (insert or update on conflict)
+const upserted = await upsertNewsletterEdition({ ... });
+
+// Update status
+await updateNewsletterEditionStatus(edition.id, 'error', 'LLM failed');
+
+// Fetch by user/date
+const row = await getByUserAndDate('user-uuid', '2025-07-04');
+
+// Soft delete
+await softDelete(edition.id);
+```
+
+**Type Export:**
+```typescript
+// Import the shared type for type-safety
+import type { NewsletterEdition } from '@listener/shared';
+```
+
+**Migration Note:**
+- After running a migration that changes the `newsletter_editions` table, always regenerate types:
+  ```bash
+  supabase gen types typescript --local > packages/shared/src/types/database.ts
+  ```
+- The shared type is always exported from `packages/shared/src/types/index.ts` for easy import.
+
 ## Token Storage
 
 The application securely stores Spotify authentication tokens using encrypted column storage:
