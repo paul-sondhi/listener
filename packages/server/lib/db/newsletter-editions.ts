@@ -28,6 +28,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getSharedSupabaseClient } from './sharedSupabaseClient';
 import type { NewsletterEdition } from '@listener/shared';
+import { randomUUID } from 'crypto';
 
 // Lazy initialization of Supabase client for database operations
 let supabase: SupabaseClient | null = null;
@@ -103,7 +104,9 @@ export async function insertNewsletterEdition(
     user_email: user.email,
     content: params.content ?? null,
     model: params.model ?? null,
-    error_message: params.error_message ?? null
+    error_message: params.error_message ?? null,
+    deleted_at: null,
+    id: randomUUID()
   };
 
   // Insert the row
@@ -168,7 +171,8 @@ export async function upsertNewsletterEdition(
     content: params.content ?? null,
     model: params.model ?? null,
     error_message: params.error_message ?? null,
-    deleted_at: null // Always clear deleted_at on upsert
+    deleted_at: null,
+    id: randomUUID()
   };
 
   // Perform upsert: ON CONFLICT (user_id, edition_date) DO UPDATE SET ...
