@@ -2,7 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database, SpotifyShow, SpotifyUserShows } from '@listener/shared';
 import { getValidTokens } from './tokenService.js';
 import { createSubscriptionRefreshLogger, log } from '../lib/logger.js';
-import { getTitleSlug, getFeedUrl } from '../lib/utils.js';
+import { getTitleSlug, getFeedUrl, getTitleSlugAndOriginalTitle } from '../lib/utils.js';
 
 // Initialize Supabase Admin client lazily with proper typing
 let supabaseAdmin: SupabaseClient<Database> | null = null;
@@ -336,9 +336,9 @@ async function updateSubscriptionStatus(
             let showTitle: string = `Show ${showId}`; // Default placeholder title
             
             try {
-                // Get the show title slug from Spotify
-                const titleSlug = await getTitleSlug(spotifyUrl);
-                showTitle = titleSlug; // Use the actual show title
+                // Get the original show title and a slug for RSS lookup
+                const { slug: titleSlug, title: fetchedTitle } = await getTitleSlugAndOriginalTitle(spotifyUrl);
+                showTitle = fetchedTitle; // Preserve original title casing
                 
                 // Try to find the RSS feed URL using the title slug
                 const fetchedRssUrl = await getFeedUrl(titleSlug);

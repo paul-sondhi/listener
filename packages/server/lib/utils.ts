@@ -131,6 +131,46 @@ async function getTitleSlug(spotifyUrl: string): Promise<string> {
 }
 
 /**
+ * Fetch the original show title from Spotify and return it along with a slugified version
+ * @param {string} spotifyUrl - The Spotify show URL
+ * @returns {Promise<{ slug: string; title: string }>} Object containing slug and original title
+ * @throws {Error} If the URL is invalid or the show cannot be fetched
+ */
+async function getTitleSlugAndOriginalTitle(spotifyUrl: string): Promise<{ slug: string; title: string }> {
+    const cleanUrl: string = spotifyUrl.split('?')[0]!;
+    const { pathname } = new URL(cleanUrl);
+    const [, type, id] = pathname.split('/');
+
+    if (type !== 'show') {
+      throw new Error('getTitleSlugAndOriginalTitle: URL is not a Spotify show link');
+    }
+
+    const token: string = await getSpotifyAccessToken();
+    const apiRes: globalThis.Response = await fetch(`https://api.spotify.com/v1/shows/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!apiRes.ok) {
+      throw new Error('Failed to fetch show from Spotify API');
+    }
+
+    const showData: SpotifyShow = await apiRes.json() as SpotifyShow;
+    const { name } = showData;
+
+    if (!name) {
+      throw new Error('No show name returned from Spotify API');
+    }
+
+    const slug: string = name
+      .toLowerCase()
+      .replace(/\|.*$/, '')
+      .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '')
+      .trim();
+
+    return { slug, title: name };
+}
+
+/**
  * Get the RSS feed URL for a podcast by searching PodcastIndex and iTunes
  * @param {string} slug - The podcast slug/title to search for
  * @returns {Promise<string | null>} The RSS feed URL or null if not found
@@ -229,4 +269,11 @@ function verifyTaddyApiKey(): boolean {
     return true;
 }
 
-export { getAuthHeaders, getTitleSlug, getFeedUrl, jaccardSimilarity, verifyTaddyApiKey }; 
+export {
+  getAuthHeaders,
+  getTitleSlug,
+  getTitleSlugAndOriginalTitle,
+  getFeedUrl,
+  jaccardSimilarity,
+  verifyTaddyApiKey
+};
