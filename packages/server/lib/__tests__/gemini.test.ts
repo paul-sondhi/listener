@@ -397,7 +397,7 @@ describe('generateNewsletterEdition', () => {
     })
     // Spy on sanitizeNewsletterContent to ensure it's called
     const sanitizeSpy = vi.spyOn(promptBuilder, 'sanitizeNewsletterContent')
-    sanitizeSpy.mockImplementation((html) => sanitizedHtml)
+    sanitizeSpy.mockImplementation((_html) => sanitizedHtml)
 
     const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
     expect(result.success).toBe(true)
@@ -448,14 +448,14 @@ describe('generateNewsletterEdition', () => {
   })
 
   it('returns error if input is invalid (bad email)', async () => {
-    // @ts-expect-error
+    // @ts-expect-error - Testing invalid email parameter
     const result = await generateNewsletterEdition(mockNotes, '', editionDate)
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/userEmail/)
   })
 
   it('returns error if input is invalid (bad date)', async () => {
-    // @ts-expect-error
+    // @ts-expect-error - Testing invalid date parameter
     const result = await generateNewsletterEdition(mockNotes, userEmail, 'bad-date')
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/editionDate/)

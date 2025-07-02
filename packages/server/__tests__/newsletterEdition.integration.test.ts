@@ -24,7 +24,7 @@ const cannedNewsletterHtml = `
 
 // Set up mock before all tests
 beforeEach(() => {
-  vi.spyOn(geminiModule, 'generateNewsletterEdition').mockImplementation(async (episodeNotes, userEmail, editionDate) => {
+  vi.spyOn(geminiModule, 'generateNewsletterEdition').mockImplementation(async (episodeNotes, _userEmail, _editionDate) => {
     // Handle empty episode notes case
     if (!episodeNotes || episodeNotes.length === 0) {
       return {

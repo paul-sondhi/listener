@@ -44,7 +44,7 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-const sanitizeHtml = require('sanitize-html');
+import sanitizeHtml from 'sanitize-html';
 
 /**
  * Parameters for building a newsletter edition prompt
@@ -163,40 +163,6 @@ export async function buildNewsletterEditionPrompt(
   episodeNotes: string[],
   userEmail: string,
   editionDate: string
-): Promise<NewsletterPromptResult>;
-
-/**
- * Build a newsletter edition prompt from episode notes (params signature)
- * 
- * This function loads the newsletter prompt template and combines it with
- * episode notes to create a formatted prompt for newsletter generation.
- * Provides additional options like custom template paths.
- * 
- * @param params - Complete parameters object for building the newsletter prompt
- * @returns Promise<NewsletterPromptResult> - Prompt building result with success/error state
- * 
- * @example
- * ```typescript
- * try {
- *   const result = await buildNewsletterEditionPrompt({
- *     episodeNotes: ['Episode note 1...', 'Episode note 2...'],
- *     userEmail: 'user@example.com',
- *     editionDate: '2025-01-27',
- *     promptTemplatePath: 'custom/newsletter-template.md'
- *   });
- *   
- *   if (result.success) {
- *     console.log('Generated prompt:', result.prompt);
- *   } else {
- *     console.error('Failed to build prompt:', result.error);
- *   }
- * } catch (error) {
- *   console.error('Unexpected error:', error.message);
- * }
- * ```
- */
-export async function buildNewsletterEditionPrompt(
-  params: BuildNewsletterPromptParams
 ): Promise<NewsletterPromptResult>;
 
 /**

@@ -79,6 +79,7 @@ export default [
       // Disable JS rules that conflict with TS rules
       'no-unused-vars': 'off',
       'no-undef': 'off', // TypeScript handles this better
+      'no-redeclare': 'off', // Disable base rule to allow TypeScript overloads
       
       // TypeScript specific rules
       '@typescript-eslint/no-unused-vars': ['error', { 
@@ -86,6 +87,7 @@ export default [
         varsIgnorePattern: '^_',
         caughtErrorsIgnorePattern: '^_'
       }],
+      '@typescript-eslint/no-redeclare': 'error', // Use TS-aware redeclare rule
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',

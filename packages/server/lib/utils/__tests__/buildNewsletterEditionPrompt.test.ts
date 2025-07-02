@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach as _beforeEach, afterEach, vi as _vi } from 'vitest';
 import { 
   buildNewsletterEditionPrompt, 
   validateEpisodeNotesForNewsletter, 
@@ -24,7 +24,7 @@ function writeCustomTemplate(content: string) {
   writeFileSync(customTemplatePath, content, 'utf-8');
 }
 function removeCustomTemplate() {
-  try { unlinkSync(customTemplatePath); } catch {}
+  try { unlinkSync(customTemplatePath); } catch { /* File may not exist, ignore error */ }
 }
 
 // --- Tests ---
@@ -42,9 +42,9 @@ describe('buildNewsletterEditionPrompt', () => {
   });
 
   it('throws on missing userEmail or editionDate (simple signature)', async () => {
-    // @ts-expect-error
+    // @ts-expect-error - Testing missing userEmail
     await expect(buildNewsletterEditionPrompt(mockNotes, undefined, editionDate)).rejects.toThrow();
-    // @ts-expect-error
+    // @ts-expect-error - Testing missing editionDate
     await expect(buildNewsletterEditionPrompt(mockNotes, userEmail, undefined)).rejects.toThrow();
   });
 
