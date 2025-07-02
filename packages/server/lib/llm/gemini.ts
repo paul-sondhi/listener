@@ -480,7 +480,15 @@ export async function generateNewsletterEdition(
         statusCode: error.statusCode,
         elapsedMs 
       });
-      throw error; // Re-throw our custom errors
+      // Return error result instead of throwing
+      return {
+        htmlContent: '',
+        sanitizedContent: '',
+        model: getModelName(),
+        episodeCount: 0,
+        success: false,
+        error: error.message
+      };
     }
 
     // Handle validation errors, network errors, JSON parsing errors, etc.

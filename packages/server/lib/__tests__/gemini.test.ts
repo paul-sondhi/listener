@@ -3,8 +3,10 @@
  * Tests Gemini 1.5 Flash client utility for episode notes generation
  */
 
-import { vi, describe, test, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, test, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { MockInstance } from 'vitest'
+import { generateNewsletterEdition } from '../llm/gemini'
+import * as promptBuilder from '../utils/buildNewsletterEditionPrompt'
 
 // Type definitions for test utilities
 interface MockGeminiResponse {
@@ -358,5 +360,118 @@ describe('Gemini Client Utility', () => {
       expect(requestBody.generationConfig.temperature).toBe(0.3)
       expect(requestBody.generationConfig.maxOutputTokens).toBe(2048)
     })
+  })
+})
+
+const mockNotes = [
+  'Episode 1: Discussed AI trends, key takeaways on LLMs, and notable quotes from Sam Altman.',
+  'Episode 2: Deep dive into podcast analytics, audience growth, and monetization strategies.',
+  'Episode 3: Interview with Jane Doe about podcast storytelling and creative workflows.'
+]
+const userEmail = 'testuser@example.com'
+const editionDate = '2025-01-27'
+
+const mockHtml = '<h1>Newsletter</h1><p>Welcome!</p>'
+const sanitizedHtml = '<h1>Newsletter</h1><p>Welcome!</p>'
+
+// --- Mock fetch globally ---
+let originalFetch: any
+beforeEach(() => {
+  originalFetch = global.fetch
+})
+afterEach(() => {
+  global.fetch = originalFetch
+  vi.restoreAllMocks()
+})
+
+describe('generateNewsletterEdition', () => {
+  it('returns sanitized newsletter HTML on success', async () => {
+    // Mock Gemini API response
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [
+          { content: { parts: [{ text: mockHtml }] } }
+        ]
+      })
+    })
+    // Spy on sanitizeNewsletterContent to ensure it's called
+    const sanitizeSpy = vi.spyOn(promptBuilder, 'sanitizeNewsletterContent')
+    sanitizeSpy.mockImplementation((html) => sanitizedHtml)
+
+    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
+    expect(result.success).toBe(true)
+    expect(result.htmlContent).toBe(mockHtml)
+    expect(result.sanitizedContent).toBe(sanitizedHtml)
+    expect(result.episodeCount).toBe(3)
+    expect(result.model).toBeDefined()
+    expect(sanitizeSpy).toHaveBeenCalledWith(mockHtml)
+  })
+
+  it('returns error if Gemini API returns error', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { message: 'Bad request' } })
+    })
+    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/Gemini API request failed/)
+    expect(result.htmlContent).toBe('')
+    expect(result.sanitizedContent).toBe('')
+  })
+
+  it('returns error if Gemini API returns no candidates', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [] })
+    })
+    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/No candidates returned/)
+  })
+
+  it('returns error if Gemini API returns no text', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{}] } }] })
+    })
+    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/No HTML content found/)
+  })
+
+  it('returns error if input is invalid (empty notes)', async () => {
+    const result = await generateNewsletterEdition([], userEmail, editionDate)
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/empty/)
+  })
+
+  it('returns error if input is invalid (bad email)', async () => {
+    // @ts-expect-error
+    const result = await generateNewsletterEdition(mockNotes, '', editionDate)
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/userEmail/)
+  })
+
+  it('returns error if input is invalid (bad date)', async () => {
+    // @ts-expect-error
+    const result = await generateNewsletterEdition(mockNotes, userEmail, 'bad-date')
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/editionDate/)
+  })
+
+  it('returns error if prompt builder returns error', async () => {
+    // Spy on prompt builder to force an error
+    vi.spyOn(promptBuilder, 'buildNewsletterEditionPrompt').mockResolvedValue({
+      prompt: '',
+      template: '',
+      episodeCount: 0,
+      success: false,
+      error: 'Prompt builder failed!'
+    })
+    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/Prompt builder failed/)
   })
 }) 

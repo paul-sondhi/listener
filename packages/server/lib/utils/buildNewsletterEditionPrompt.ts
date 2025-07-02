@@ -44,7 +44,7 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import * as sanitizeHtml from 'sanitize-html';
+const sanitizeHtml = require('sanitize-html');
 
 /**
  * Parameters for building a newsletter edition prompt
