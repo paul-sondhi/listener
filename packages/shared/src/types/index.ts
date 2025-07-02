@@ -105,4 +105,7 @@ export {
   isJSONValue,
   safeJSONParse,
   safeJSONStringify
-} from './utilities.js'; 
+} from './utilities.js';
+
+// Newsletter Editions type (generated from Supabase)
+export type NewsletterEdition = import('./database').Database['public']['Tables']['newsletter_editions']['Row']; 
