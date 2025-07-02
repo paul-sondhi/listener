@@ -208,7 +208,39 @@ supabase db push
 
 # Reset database with fresh migrations
 supabase db reset
+
+# Regenerate TypeScript types after migrations
+supabase gen types typescript --local > packages/shared/src/types/database.ts
 ```
+
+#### Newsletter Editions Migration
+
+The `newsletter_editions` table stores generated newsletter content for users. Each user can have one edition per date.
+
+**Migration File**: `20250702190939_create_newsletter_editions.sql`
+
+**Key Features**:
+- Unique constraint on `(user_id, edition_date)` to prevent duplicates
+- Soft delete support with `deleted_at` column
+- Status tracking (`generated`, `error`, `no_notes_found`)
+- Automatic timestamp updates with triggers
+
+**Local Development**:
+```bash
+# Apply the migration locally
+supabase db push
+
+# Verify the table was created
+psql postgresql://postgres:postgres@localhost:54322/postgres -c "\d newsletter_editions"
+
+# Run integration tests
+npm run test:all -- packages/server/lib/db/__tests__/newsletterEditions.migration.test.ts
+```
+
+**Production Deployment**:
+- The migration will be automatically applied by the CI/CD pipeline
+- No manual intervention required
+- Types will be regenerated automatically
 
 ### Taddy Business Tier Migration
 
