@@ -2,12 +2,18 @@
  * Gemini 1.5 Flash Client Utility
  * 
  * Provides a simple interface for generating episode notes from podcast transcripts
- * using Google's Gemini 1.5 Flash model via the AI Studio REST API.
+ * and newsletter editions from episode notes using Google's Gemini 1.5 Flash model
+ * via the AI Studio REST API.
  * 
  * @module gemini
  * @author Listener Team
  * @since 2025-01-27
  */
+
+import { 
+  buildNewsletterEditionPrompt, 
+  sanitizeNewsletterContent
+} from '../utils/buildNewsletterEditionPrompt';
 
 // ===================================================================
 // ENVIRONMENT VALIDATION
@@ -61,6 +67,24 @@ export interface EpisodeNotesResult {
   notes: string;
   /** The Gemini model used for generation */
   model: string;
+}
+
+/**
+ * Result returned by generateNewsletterEdition function
+ */
+export interface NewsletterEditionResult {
+  /** The generated newsletter HTML content */
+  htmlContent: string;
+  /** The sanitized HTML content safe for email use */
+  sanitizedContent: string;
+  /** The Gemini model used for generation */
+  model: string;
+  /** Number of episode notes processed */
+  episodeCount: number;
+  /** Whether the generation was successful */
+  success: boolean;
+  /** Error message if generation failed */
+  error?: string;
 }
 
 /**
@@ -262,5 +286,217 @@ ${transcript}`;
       0,
       JSON.stringify({ originalError: error })
     );
+  }
+}
+
+/**
+ * Generate newsletter edition from episode notes using Gemini 1.5 Flash
+ * 
+ * This function takes episode notes and generates a complete newsletter edition
+ * using the newsletter prompt template. It handles prompt building, API calls,
+ * and content sanitization for safe email use.
+ * 
+ * @param episodeNotes - Array of episode notes text from episode_transcript_notes table
+ * @param userEmail - User email for personalization
+ * @param editionDate - Edition date in YYYY-MM-DD format
+ * @param promptOverrides - Optional prompt customizations and generation settings
+ * @returns Promise resolving to generated newsletter content and metadata
+ * @throws {GeminiAPIError} On API failures with status code and response details
+ * @throws {Error} On validation errors, network errors, or invalid responses
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   const result = await generateNewsletterEdition(
+ *     episodeNotes,
+ *     'user@example.com',
+ *     '2025-01-27'
+ *   );
+ *   
+ *   if (result.success) {
+ *     console.log('Newsletter HTML:', result.htmlContent);
+ *     console.log('Sanitized content:', result.sanitizedContent);
+ *     console.log('Episode count:', result.episodeCount);
+ *   } else {
+ *     console.error('Generation failed:', result.error);
+ *   }
+ * } catch (error) {
+ *   if (error instanceof GeminiAPIError) {
+ *     console.error('API Error:', error.message, error.statusCode);
+ *   }
+ * }
+ * ```
+ */
+export async function generateNewsletterEdition(
+  episodeNotes: string[],
+  userEmail: string,
+  editionDate: string,
+  promptOverrides?: Partial<PromptOverrides>
+): Promise<NewsletterEditionResult> {
+  const startTime = Date.now();
+  
+  debugLog('Starting newsletter edition generation', {
+    episodeCount: episodeNotes.length,
+    userEmail: userEmail ? '***' + userEmail.slice(-4) : 'undefined',
+    editionDate
+  });
+
+  try {
+    // Validate inputs
+    if (!episodeNotes || !Array.isArray(episodeNotes)) {
+      throw new Error('episodeNotes must be a non-empty array');
+    }
+
+    if (episodeNotes.length === 0) {
+      throw new Error('episodeNotes array cannot be empty - at least one episode note is required');
+    }
+
+    if (!userEmail || typeof userEmail !== 'string' || userEmail.trim() === '') {
+      throw new Error('userEmail must be a non-empty string');
+    }
+
+    if (!editionDate || typeof editionDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(editionDate)) {
+      throw new Error('editionDate must be a valid YYYY-MM-DD string');
+    }
+
+    // Build the newsletter prompt using the prompt builder
+    const promptResult = await buildNewsletterEditionPrompt({
+      episodeNotes,
+      userEmail,
+      editionDate
+    });
+
+    if (!promptResult.success) {
+      throw new Error(`Failed to build newsletter prompt: ${promptResult.error}`);
+    }
+
+    debugLog('Built newsletter prompt', {
+      promptLength: promptResult.prompt.length,
+      episodeCount: promptResult.episodeCount
+    });
+
+    // Get model and API configuration
+    const model = getModelName();
+    const apiKey = process.env.GEMINI_API_KEY!; // Already validated at module load
+    const overrides = promptOverrides || {};
+
+    // Construct API endpoint URL
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+    // Build request payload with newsletter-specific settings
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: promptResult.prompt
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: overrides.temperature || 0.4, // Slightly higher for creative newsletter content
+        maxOutputTokens: overrides.maxTokens || 4096, // Higher token limit for newsletter content
+        topP: 0.9,
+        topK: 40
+      }
+    };
+
+    debugLog('Making newsletter request to Gemini API', { 
+      endpoint, 
+      model,
+      temperature: requestBody.generationConfig.temperature,
+      maxTokens: requestBody.generationConfig.maxOutputTokens
+    });
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    const responseData = await response.json() as any;
+
+    if (!response.ok) {
+      debugLog('Gemini API error response for newsletter', { 
+        status: response.status, 
+        data: responseData 
+      });
+      
+      throw new GeminiAPIError(
+        `Gemini API request failed for newsletter generation: ${responseData.error?.message || 'Unknown error'}`,
+        response.status,
+        JSON.stringify(responseData)
+      );
+    }
+
+    // Extract the generated HTML content from the response
+    const candidates = responseData.candidates;
+    if (!candidates || candidates.length === 0) {
+      throw new GeminiAPIError(
+        'No candidates returned from Gemini API for newsletter generation',
+        200,
+        JSON.stringify(responseData)
+      );
+    }
+
+    const htmlContent = candidates[0]?.content?.parts?.[0]?.text;
+    if (!htmlContent) {
+      throw new GeminiAPIError(
+        'No HTML content found in Gemini API response for newsletter generation',
+        200,
+        JSON.stringify(responseData)
+      );
+    }
+
+    // Sanitize the HTML content for safe email use
+    const sanitizedContent = sanitizeNewsletterContent(htmlContent);
+
+    debugLog('Successfully generated newsletter edition', { 
+      model, 
+      htmlContentLength: htmlContent.length,
+      sanitizedContentLength: sanitizedContent.length,
+      episodeCount: promptResult.episodeCount,
+      elapsedMs: Date.now() - startTime
+    });
+
+    return {
+      htmlContent: htmlContent.trim(),
+      sanitizedContent: sanitizedContent.trim(),
+      model,
+      episodeCount: promptResult.episodeCount,
+      success: true
+    };
+
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    
+    if (error instanceof GeminiAPIError) {
+      debugLog('Gemini API error in newsletter generation', { 
+        error: error.message, 
+        statusCode: error.statusCode,
+        elapsedMs 
+      });
+      throw error; // Re-throw our custom errors
+    }
+
+    // Handle validation errors, network errors, JSON parsing errors, etc.
+    debugLog('Unexpected error in generateNewsletterEdition', { 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      elapsedMs 
+    });
+
+    // Return error result instead of throwing for better error handling
+    return {
+      htmlContent: '',
+      sanitizedContent: '',
+      model: getModelName(),
+      episodeCount: 0,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred during newsletter generation'
+    };
   }
 } 
