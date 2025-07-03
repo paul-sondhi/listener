@@ -30,7 +30,8 @@ const mockLogger = {
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
-  debug: vi.fn()
+      debug: vi.fn(),
+    log: vi.fn()
 } as unknown as Logger;
 
 // Mock Supabase client with storage
@@ -337,30 +338,21 @@ describe('TranscriptWorker', () => {
 
       // Mock transcript service to return processing status
       const mockTranscriptServiceInstance = {
-        getTranscript: vi.fn().mockImplementation((episode) => {
-          console.log('getTranscript called with episode:', {
-            id: episode.id,
-            show: episode.show,
-            hasShow: !!episode.show,
-            showRssUrl: episode.show?.rss_url
-          });
+        getTranscript: vi.fn().mockImplementation((_episode) => {
           const result = {
             kind: 'processing',
             source: 'taddy',
             creditsConsumed: 1
           };
-          console.log('getTranscript returning:', result);
           return Promise.resolve(result);
         })
       };
       mockTranscriptService.mockImplementation(() => {
-        console.log('TranscriptService constructor called');
         return mockTranscriptServiceInstance;
       });
 
-      // Add debug logging to the insertTranscript mock
+      // Mock insertTranscript
       mockTranscriptDb.insertTranscript = vi.fn().mockImplementation((episodeId, storagePath, status, source) => {
-        console.log('insertTranscript called with:', { episodeId, storagePath, status, source });
         const result = {
           id: 'mock-transcript-id',
           episode_id: episodeId,
@@ -372,7 +364,6 @@ describe('TranscriptWorker', () => {
           updated_at: new Date().toISOString(),
           deleted_at: null
         };
-        console.log('insertTranscript returning:', result);
         return Promise.resolve(result);
       });
 

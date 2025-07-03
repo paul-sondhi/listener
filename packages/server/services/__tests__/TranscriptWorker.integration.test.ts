@@ -35,7 +35,8 @@ const mockLogger = {
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
-  debug: vi.fn()
+      debug: vi.fn(),
+    log: vi.fn()
 } as unknown as Logger;
 
 // Integration test configuration
@@ -549,7 +550,7 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
     
     // Note: We can't verify actual file existence in the test environment
     // as the storage APIs are not available, but the paths should be valid
-    console.log(`Storage paths generated: ${fullTranscript!.storage_path}, ${partialTranscript!.storage_path}`);
+          // Storage paths generated for testing
   });
 
   it('should not reprocess episodes that already have transcripts', async () => {
@@ -576,13 +577,13 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
       throw new Error(`DEBUG: Expected 4 episodes, got ${episodes?.length || 0}. Episode IDs: ${JSON.stringify(seededEpisodeIds)}`);
     }
 
-    console.log(`DEBUG: Found ${episodes.length} episodes for transcript creation`);
+          // Found episodes for transcript creation
 
     // Use the insertTranscript helper function to create transcripts
     // This will handle all the database constraints and logic properly
     try {
-      console.log(`DEBUG: Inserting transcript for episode 1: ${seededEpisodeIds[0]}`);
-      const transcript1 = await insertTranscript(
+      // Inserting transcript for episode 1
+      const _transcript1 = await insertTranscript(
         seededEpisodeIds[0], 
         `test-transcript-worker-show-1/${seededEpisodeIds[0]}.jsonl.gz`,
         'full',
@@ -590,10 +591,10 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
         25,
         'taddy'
       );
-      console.log(`DEBUG: Successfully inserted transcript 1:`, transcript1.id);
+              // Successfully inserted transcript 1
 
-      console.log(`DEBUG: Inserting transcript for episode 2: ${seededEpisodeIds[1]}`);
-      const transcript2 = await insertTranscript(
+              // Inserting transcript for episode 2
+      const _transcript2 = await insertTranscript(
         seededEpisodeIds[1], 
         `test-transcript-worker-show-1/${seededEpisodeIds[1]}.jsonl.gz`,
         'partial',
@@ -601,10 +602,10 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
         12,
         'taddy'
       );
-      console.log(`DEBUG: Successfully inserted transcript 2:`, transcript2.id);
+              // Successfully inserted transcript 2
 
-      console.log(`DEBUG: Inserting transcript for episode 3: ${seededEpisodeIds[2]}`);
-      const transcript3 = await insertTranscript(
+      // Inserting transcript for episode 3
+      const _transcript3 = await insertTranscript(
         seededEpisodeIds[2], 
         '',
         'processing',
@@ -612,10 +613,10 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
         undefined,
         'taddy'
       );
-      console.log(`DEBUG: Successfully inserted transcript 3:`, transcript3.id);
+      // Successfully inserted transcript 3
 
-      console.log(`DEBUG: Inserting transcript for episode 4: ${seededEpisodeIds[3]}`);
-      const transcript4 = await insertTranscript(
+      // Inserting transcript for episode 4
+      const _transcript4 = await insertTranscript(
         seededEpisodeIds[3], 
         '',
         'error',
@@ -624,7 +625,7 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
         'taddy',
         'taddyTranscribeStatus=FAILED'
       );
-      console.log(`DEBUG: Successfully inserted transcript 4:`, transcript4.id);
+      // Successfully inserted transcript 4
 
       // Ensure deleted_at is null for all transcripts (test environment issue)
       await supabase
@@ -632,7 +633,7 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
         .update({ deleted_at: null })
         .in('episode_id', seededEpisodeIds);
 
-      console.log(`DEBUG: All transcripts created and deleted_at set to null`);
+      // All transcripts created and deleted_at set to null
     } catch (insertError) {
       console.error(`DEBUG: Error during transcript insertion:`, insertError);
       throw new Error(`DEBUG: Failed to insert transcripts using helper: ${insertError instanceof Error ? insertError.message : insertError}`);
@@ -648,13 +649,13 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
       throw new Error(`DEBUG: Error verifying transcripts: ${JSON.stringify(verifyError)}`);
     }
 
-    console.log(`DEBUG: Query for transcripts returned ${verifyTranscripts?.length || 0} results`);
+    // Query for transcripts returned results
     
     if (!verifyTranscripts || verifyTranscripts.length !== 4) {
       throw new Error(`DEBUG: Expected 4 transcripts, got ${verifyTranscripts?.length || 0}: ${JSON.stringify(verifyTranscripts)}`);
     }
 
-    console.log(`DEBUG: Verified transcripts:`, JSON.stringify(verifyTranscripts, null, 2));
+    // Verified transcripts
 
     // Setup a simple mock that should never be called
     const mockInstance = {
@@ -669,7 +670,7 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
     // Run the worker - should find 0 episodes since all have transcripts
     const result = await worker.run();
     
-    console.log(`DEBUG: Worker result:`, JSON.stringify(result, null, 2));
+    // Worker result
     
     // Verify the mock was never called
     expect(mockInstance.getTranscript).not.toHaveBeenCalled();
@@ -755,7 +756,7 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
       throw new Error(`DEBUG: Failed to create recent episode: ${JSON.stringify(episodeError)}`);
     }
 
-    console.log(`DEBUG: Created recent episode ${recentEpisodeId} at ${recentEpisode.pub_date}`);
+    // Created recent episode
 
     // Setup mock for this test
     const mockInstance = {
@@ -777,7 +778,7 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
     // Run the worker - should find the recent episode
     const result = await shortLookbackWorker.run();
     
-    console.log(`DEBUG: Lookback worker result:`, JSON.stringify(result, null, 2));
+    // Lookback worker result
     
     // Clean up the recent episode
     await supabase

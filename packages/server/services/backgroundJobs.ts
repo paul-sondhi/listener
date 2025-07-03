@@ -348,7 +348,7 @@ export async function transcriptWorkerJob(): Promise<void> {
   const jobId = `transcript-worker-${new Date().toISOString()}`;
   let recordsProcessed = 0;
   
-  console.log('DEBUG: Starting transcriptWorkerJob');
+      // Starting transcriptWorkerJob
   log.info('scheduler', `Starting ${jobName} job`, {
     job_id: jobId,
     component: 'background_jobs'
@@ -356,13 +356,13 @@ export async function transcriptWorkerJob(): Promise<void> {
   
   try {
     // Initialize transcript worker with default configuration
-    console.log('DEBUG: About to create TranscriptWorker instance');
+    // About to create TranscriptWorker instance
     const transcriptWorker = new TranscriptWorker(
       undefined,
       undefined,
       getSharedSupabaseClient()
     );
-    console.log('DEBUG: TranscriptWorker instance created successfully');
+    // TranscriptWorker instance created successfully
     
     // Execute the transcript worker to fetch and store transcripts
     log.info('scheduler', 'Executing nightly transcript worker for recent episodes', {
@@ -370,9 +370,9 @@ export async function transcriptWorkerJob(): Promise<void> {
       component: 'transcript_worker'
     });
     
-    console.log('DEBUG: About to call transcriptWorker.run()');
+    // About to call transcriptWorker.run()
     const result = await transcriptWorker.run();
-    console.log('DEBUG: transcriptWorker.run() completed with result:', result);
+    // transcriptWorker.run() completed
     
     const elapsedMs = Date.now() - startTime;
     recordsProcessed = result.processedEpisodes;

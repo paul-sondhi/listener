@@ -73,7 +73,12 @@ export default defineConfig({
     
     // Reporter configuration
     reporters: [
-      'basic', // Less verbose console reporter (instead of 'default')
+      [
+        'default',
+        {
+          summary: false
+        }
+      ],
       // Only generate JSON and HTML reports in CI or when explicitly requested
       ...(process.env.CI ? ['json', 'html'] : [])
     ],

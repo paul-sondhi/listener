@@ -312,8 +312,7 @@ export class TranscriptWorker {
 
     const startTime = Date.now();
     
-    console.log('DEBUG: Starting episode query with lookback hours:', this.config.lookbackHours);
-    console.log('DEBUG: Lookback date:', new Date(Date.now() - this.config.lookbackHours * 60 * 60 * 1000).toISOString());
+    // Starting episode query with lookback hours
     
     this.logger.debug('system', 'Querying episodes needing transcripts', {
       metadata: { 
@@ -358,10 +357,7 @@ export class TranscriptWorker {
       const queryError = initialError;
       let rawEpisodes = initialData || [];
 
-      console.log('DEBUG: Query completed - error:', !!queryError, 'data length:', rawEpisodes.length);
-      if (rawEpisodes.length > 0) {
-        console.log('DEBUG: First episode data:', JSON.stringify(rawEpisodes[0], null, 2));
-      }
+          // Query completed
       
       this.logger.info('system', 'Supabase query completed', {
         metadata: { 
@@ -447,8 +443,7 @@ export class TranscriptWorker {
         episodesNeedingTranscripts = episodesNeedingTranscripts.slice(0, 10);
       }
 
-      // DEBUG: log how many episodes are deemed needing transcripts
-      console.log('DEBUG: episodesNeedingTranscripts length:', episodesNeedingTranscripts.length);
+          // Log how many episodes are deemed needing transcripts
 
       // Ensure each episode has its show info (rss_url & title). If not present (fallback query), fetch.
       const episodesMissingShowInfo = episodesNeedingTranscripts.filter(ep => !ep.podcast_shows);

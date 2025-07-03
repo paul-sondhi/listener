@@ -72,9 +72,13 @@ interface LoggerConfig {
 
 /**
  * Default logger configuration with environment-aware settings
+ *
+ * In test mode (NODE_ENV === 'test'), default to 'warn' to suppress debug/info logs unless LOG_LEVEL is explicitly set.
  */
 const DEFAULT_LOGGER_CONFIG: LoggerConfig = {
-    minLevel: (process.env.LOG_LEVEL as LogLevel) || (process.env.NODE_ENV === 'development' ? 'debug' : 'info'),
+    minLevel: (process.env.LOG_LEVEL as LogLevel)
+        // If LOG_LEVEL is not set, use 'warn' in test mode, otherwise 'debug' in dev, 'info' in prod
+        || (process.env.NODE_ENV === 'test' ? 'warn' : (process.env.NODE_ENV === 'development' ? 'debug' : 'info')),
     enableConsoleLogging: true,
     enableStructuredLogging: process.env.NODE_ENV !== 'development', // JSON logs in production
     enableTimestamps: true,

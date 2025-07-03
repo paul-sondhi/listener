@@ -173,25 +173,20 @@ describe('AppPage Component', () => {
   const setupDownloadMocking = () => {
     // Re-setup DOM mocks for download functionality
     URL.createObjectURL = vi.fn(() => {
-      console.log('URL.createObjectURL called')
       return 'blob:http://localhost/mock-url'
     })
-    URL.revokeObjectURL = vi.fn(() => {
-      console.log('URL.revokeObjectURL called')
-    })
+    URL.revokeObjectURL = vi.fn()
     
-    // Mock document.createElement for anchor elements with debugging
+    // Mock document.createElement for anchor elements
     document.createElement = vi.fn((tag: string) => {
-      console.log('document.createElement called with tag:', tag)
       if (tag.toLowerCase() === 'a') {
         const mockAnchor: MockAnchorElement = {
           href: '',
           download: '',
-          click: vi.fn(() => console.log('Mock anchor click called')),
-          remove: vi.fn(() => console.log('Mock anchor remove called')),
+          click: vi.fn(),
+          remove: vi.fn(),
           // Add more HTMLAnchorElement properties that might be needed
           setAttribute: vi.fn((name: string, value: string) => {
-            console.log(`Mock anchor setAttribute: ${name} = ${value}`)
             if (name === 'href') mockAnchor.href = value
             if (name === 'download') mockAnchor.download = value
           }),
@@ -1005,7 +1000,11 @@ describe('AppPage Component', () => {
 
       // Mock clearReauthFlag to fail
       const clearReauthFlagError = new Error('Database connection failed')
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const clearReauthFlagMock = vi.fn().mockRejectedValue(clearReauthFlagError)
+      
+      // Import and mock the logger to track warn calls
+      const { logger } = await import('../../lib/logger')
+      const loggerWarnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
 
       const mockAuthContext = {
         user: testUser,
@@ -1015,7 +1014,7 @@ describe('AppPage Component', () => {
         signIn: vi.fn(),
         signOut: vi.fn(),
         checkReauthStatus: vi.fn(),
-        clearReauthFlag: vi.fn().mockRejectedValue(clearReauthFlagError),
+        clearReauthFlag: clearReauthFlagMock,
       }
 
       mockUseAuth.mockReturnValue(mockAuthContext)
@@ -1027,6 +1026,11 @@ describe('AppPage Component', () => {
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledTimes(2)
       }, { timeout: 5000 })
+
+      // Wait for clearReauthFlag to be called
+      await waitFor(() => {
+        expect(clearReauthFlagMock).toHaveBeenCalled()
+      }, { timeout: 3000 })
 
       // Assert - Focus on the core functionality: sync continues despite clearReauthFlag failure
       // Should continue to show sync even after clearReauthFlag fails
@@ -1042,14 +1046,14 @@ describe('AppPage Component', () => {
 
       // Should log warning about clearReauthFlag failure
       await waitFor(() => {
-        expect(consoleWarnSpy).toHaveBeenCalledWith('Failed to clear reauth flag:', clearReauthFlagError)
+        expect(loggerWarnSpy).toHaveBeenCalledWith('Failed to clear reauth flag:', clearReauthFlagError)
       }, { timeout: 3000 })
 
       // Test passes if we reach here - clearReauthFlag failure didn't stop the flow
 
       // Cleanup
       global.fetch = originalFetch
-      consoleWarnSpy.mockRestore()
+      loggerWarnSpy.mockRestore()
     })
 
     it('should prevent multiple simultaneous sync attempts', async () => {

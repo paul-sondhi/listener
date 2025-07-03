@@ -15,6 +15,9 @@
 import { vi, afterEach, beforeAll, afterAll, beforeEach, expect } from 'vitest';
 import { config } from 'dotenv';
 
+// Import debug filter to suppress DEBUG console.log statements during tests
+import '../lib/debugFilter';
+
 // Load test environment variables
 config({ path: '.env.test' });
 
@@ -24,6 +27,10 @@ config({ path: '.env.test' });
  */
 process.env.NODE_ENV = 'test';
 process.env.LOG_LEVEL = 'error'; // Suppress logs during testing
+
+// Suppress Node.js deprecation warnings during tests
+process.env.NODE_NO_WARNINGS = '1';
+process.env.NODE_OPTIONS = '--no-deprecation';
 process.env.SPOTIFY_API_ENABLED = 'false';
 process.env.DAILY_REFRESH_ENABLED = 'false';
 process.env.BACKGROUND_JOBS_ENABLED = 'false';
@@ -45,14 +52,17 @@ process.env.SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || 'test-c
  */
 
 // Mock console methods to reduce noise during testing
-global.console = {
-  ...console,
-  log: vi.fn(),
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn()
-};
+// Only suppress console output in test environment, not in debug mode
+if (process.env.NODE_ENV === 'test' && !process.env.VITEST_DEBUG) {
+  global.console = {
+    ...console,
+    log: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  };
+}
 
 // Mock global fetch for API calls
 global.fetch = vi.fn();

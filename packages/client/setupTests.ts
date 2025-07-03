@@ -85,55 +85,68 @@ vi.mock('import.meta', () => ({
   },
 }))
 
-// Mock the logger to use plain console methods without formatting for tests
+// Mock the logger to use no-op functions to reduce test noise
 vi.mock('./src/lib/logger', () => ({
   logger: {
-    debug: (...args: unknown[]) => console.log(...args),
-    info: (...args: unknown[]) => console.log(...args),
-    warn: (...args: unknown[]) => console.warn(...args),
-    error: (...args: unknown[]) => console.error(...args),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
   createLogger: () => ({
-    debug: (...args: unknown[]) => console.log(...args),
-    info: (...args: unknown[]) => console.log(...args),
-    warn: (...args: unknown[]) => console.warn(...args),
-    error: (...args: unknown[]) => console.error(...args),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   }),
 }))
 
-// Console warning/error filtering for cleaner test output
-const originalError = console.error
-const originalWarn = console.warn
+// Console suppression for cleaner test output
+const originalConsole = { ...console }
 
 beforeAll(() => {
-  console.error = (...args: any[]) => {
-    // Filter out React warning messages that are noise in tests
-    if (
-      typeof args[0] === 'string' &&
-      (args[0].includes('Warning: ReactDOM.render is deprecated') ||
-       args[0].includes('Warning: React.createFactory is deprecated') ||
-       args[0].includes('Warning: componentWillReceiveProps has been renamed'))
-    ) {
-      return
+  // Suppress all console output during tests unless debugging
+  if (process.env.NODE_ENV === 'test' && !process.env.VITEST_DEBUG) {
+    console.log = vi.fn()
+    console.debug = vi.fn()
+    console.info = vi.fn()
+    console.warn = vi.fn()
+    console.error = vi.fn()
+  } else {
+    // Only filter specific warnings when not in debug mode
+    console.error = (...args: any[]) => {
+      // Filter out React warning messages that are noise in tests
+      if (
+        typeof args[0] === 'string' &&
+        (args[0].includes('Warning: ReactDOM.render is deprecated') ||
+         args[0].includes('Warning: React.createFactory is deprecated') ||
+         args[0].includes('Warning: componentWillReceiveProps has been renamed'))
+      ) {
+        return
+      }
+      originalConsole.error.call(console, ...args)
     }
-    originalError.call(console, ...args)
-  }
 
-  console.warn = (...args: any[]) => {
-    // Filter out warning messages that are noise in tests
-    if (
-      typeof args[0] === 'string' &&
-      args[0].includes('React Router Future Flag Warning')
-    ) {
-      return
+    console.warn = (...args: any[]) => {
+      // Filter out warning messages that are noise in tests
+      if (
+        typeof args[0] === 'string' &&
+        args[0].includes('React Router Future Flag Warning')
+      ) {
+        return
+      }
+      originalConsole.warn.call(console, ...args)
     }
-    originalWarn.call(console, ...args)
   }
 })
 
 afterAll(() => {
-  console.error = originalError
-  console.warn = originalWarn
+  // Restore original console methods
+  console.log = originalConsole.log
+  console.debug = originalConsole.debug
+  console.info = originalConsole.info
+  console.warn = originalConsole.warn
+  console.error = originalConsole.error
 })
 
 // Global test cleanup
