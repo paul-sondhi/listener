@@ -469,4 +469,179 @@ Separating `initial_status` and `current_status` enables:
 2. **Accurate re-check logic** – can overwrite both fields in controlled scenarios
 3. **Better error handling** – store provider error payload without polluting status enum
 
---- 
+---
+
+# Newsletter Edition Episodes Join Table (July 2025)
+
+## Overview
+This migration adds a join table to track which episodes were included in each newsletter edition, enabling traceability from newsletter editions back to their source episodes. This is essential for analytics, debugging, and understanding newsletter content generation.
+
+## What Changed
+
+### New Database Table
+- **Table**: `newsletter_edition_episodes`
+- **Purpose**: Many-to-many relationship between newsletter editions and episodes
+- **Key Features**: Cascade deletes, unique constraints, efficient indexing
+
+### Database Schema
+```sql
+CREATE TABLE newsletter_edition_episodes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  newsletter_edition_id uuid NOT NULL REFERENCES newsletter_editions(id) ON DELETE CASCADE,
+  episode_id uuid NOT NULL REFERENCES episode_transcript_notes(episode_id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(newsletter_edition_id, episode_id)
+);
+
+-- Indexes for efficient lookups
+CREATE INDEX idx_newsletter_edition_episodes_newsletter_id ON newsletter_edition_episodes(newsletter_edition_id);
+CREATE INDEX idx_newsletter_edition_episodes_episode_id ON newsletter_edition_episodes(episode_id);
+```
+
+### Application Features
+- **New Helper Module**: `newsletter-edition-episodes.ts` with full CRUD operations
+- **Enhanced Newsletter Helpers**: Atomic operations for creating newsletters with episode links
+- **Type Safety**: Auto-generated TypeScript types and custom interfaces
+- **Comprehensive Testing**: 25/25 unit tests passing, full integration coverage
+
+## Migration Steps
+
+### Step 1: Apply Database Migration
+```bash
+# Apply the newsletter edition episodes migration
+supabase db push --linked
+
+# This applies: 20250703094053_create_newsletter_edition_episodes.sql
+```
+
+### Step 2: Regenerate TypeScript Types
+```bash
+# Generate updated types including the new table
+supabase gen types typescript --local > packages/shared/src/types/database.ts
+```
+
+### Step 3: Deploy Application Code
+The following components must be deployed together:
+
+1. **Database Helpers** – `newsletter-edition-episodes.ts` with CRUD operations
+2. **Enhanced Newsletter Helpers** – Updated `newsletter-editions.ts` with episode tracking
+3. **Type Exports** – Updated `packages/shared/src/types/index.ts` with new types
+4. **Tests** – All unit and integration tests updated and passing
+
+### Step 4: Verify Deployment
+```bash
+# Run all tests to ensure no regressions
+npm run test:all
+
+# Verify the new table exists and has correct structure
+psql postgresql://postgres:postgres@localhost:54322/postgres -c "\d newsletter_edition_episodes"
+
+# Test the new functionality manually
+cd packages/server
+npx tsx -e "
+import { insertNewsletterEditionWithEpisodes } from './lib/db/newsletter-editions.js';
+// Test the new atomic operation
+"
+```
+
+## Key Features
+
+### Traceability
+- Track which episodes were used in each newsletter edition
+- Query newsletter editions by included episodes
+- Analyze episode usage patterns across newsletters
+
+### Data Integrity
+- **Cascade Deletes**: When a newsletter edition or episode transcript note is deleted, links are automatically removed
+- **Unique Constraints**: Prevents linking the same episode to the same newsletter multiple times
+- **Foreign Key Validation**: Ensures all linked records exist before creating relationships
+
+### Performance
+- **Efficient Indexes**: Fast lookups on both foreign keys
+- **Optimized Queries**: Two-step fetch pattern for reliable join results
+- **Atomic Operations**: Newsletter creation with episode linking in single transaction
+
+## Usage Examples
+
+### Creating Newsletter with Episode Links
+```typescript
+import { insertNewsletterEditionWithEpisodes } from '../lib/db/newsletter-editions.js';
+
+const result = await insertNewsletterEditionWithEpisodes({
+  user_id: 'user-uuid',
+  edition_date: '2025-01-27',
+  status: 'generated',
+  content: '<p>Newsletter content</p>',
+  model: 'gemini-pro',
+  episode_ids: ['episode-1', 'episode-2', 'episode-3']
+});
+
+console.log(`Created newsletter with ${result.episode_count} episodes`);
+```
+
+### Querying Episode Links
+```typescript
+import { getEpisodesByNewsletterId, getNewslettersByEpisodeId } from '../lib/db/newsletter-edition-episodes.js';
+
+// Get all episodes in a newsletter
+const episodes = await getEpisodesByNewsletterId('newsletter-uuid');
+
+// Get all newsletters containing an episode
+const newsletters = await getNewslettersByEpisodeId('episode-uuid');
+```
+
+## Rollback Plan
+
+The migration is **reversible** with data preservation:
+
+```sql
+-- Step 1: Backup existing data (if needed)
+CREATE TABLE newsletter_edition_episodes_backup AS 
+SELECT * FROM newsletter_edition_episodes;
+
+-- Step 2: Drop the table
+DROP TABLE newsletter_edition_episodes;
+
+-- Step 3: Remove indexes
+DROP INDEX IF EXISTS idx_newsletter_edition_episodes_newsletter_id;
+DROP INDEX IF EXISTS idx_newsletter_edition_episodes_episode_id;
+```
+
+**Note**: Rolling back will lose all episode tracking data. Consider backing up the table before rollback if the data is valuable.
+
+## Testing
+
+### Unit Tests
+```bash
+# Run newsletter edition episodes tests
+npm test packages/server/lib/db/__tests__/newsletter-edition-episodes.test.ts
+
+# Run enhanced newsletter editions tests
+npm test packages/server/lib/db/__tests__/newsletter-editions.test.ts
+```
+
+### Integration Tests
+```bash
+# Run integration tests
+npm run test:integration
+```
+
+## Migration Rationale
+
+### Why Add Episode Tracking?
+
+1. **Analytics**: Understand which episodes are most valuable for newsletter generation
+2. **Debugging**: Trace newsletter content back to source episodes
+3. **Quality Assurance**: Verify that newsletters include the expected episodes
+4. **User Experience**: Enable features like "episode source" links in newsletters
+
+### Implementation Benefits
+
+- **Atomic Operations**: Newsletter creation and episode linking happen together
+- **Type Safety**: Full TypeScript support with auto-generated types
+- **Performance**: Efficient queries with proper indexing
+- **Maintainability**: Clean separation of concerns with dedicated helper modules
+
+---
+
+**Migration completed successfully?** 🎉 You should now have full traceability between newsletter editions and their source episodes! 

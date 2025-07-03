@@ -475,6 +475,98 @@ import type { NewsletterEdition } from '@listener/shared';
   ```
 - The shared type is always exported from `packages/shared/src/types/index.ts` for easy import.
 
+### Newsletter Edition Episodes Helper
+
+The `newsletter-edition-episodes` helper provides a type-safe, commented API for managing the join table that tracks which episodes were included in each newsletter edition. This enables traceability from newsletter editions back to their source episodes.
+
+**Location**: `packages/server/lib/db/newsletter-edition-episodes.ts`
+
+**Shared Type**: `NewsletterEditionEpisode` (import from `@listener/shared`)
+
+**Table Schema**:
+```sql
+CREATE TABLE newsletter_edition_episodes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  newsletter_edition_id uuid NOT NULL REFERENCES newsletter_editions(id) ON DELETE CASCADE,
+  episode_id uuid NOT NULL REFERENCES episode_transcript_notes(episode_id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(newsletter_edition_id, episode_id)
+);
+```
+
+**Key Features**:
+- **Traceability**: Track which episodes were used in each newsletter edition
+- **Cascade Deletes**: When a newsletter edition or episode transcript note is deleted, links are automatically removed
+- **Duplicate Prevention**: Unique constraint prevents linking the same episode to the same newsletter multiple times
+- **Efficient Queries**: Indexes on both foreign keys for fast lookups
+
+**Usage Example:**
+```typescript
+import {
+  insertNewsletterEditionEpisode,
+  insertNewsletterEditionEpisodes,
+  getEpisodesByNewsletterId,
+  getNewslettersByEpisodeId,
+  deleteNewsletterEditionEpisodes,
+  isEpisodeLinkedToNewsletter,
+  getEpisodeCountByNewsletterId,
+  CreateNewsletterEditionEpisodeParams,
+  CreateNewsletterEditionEpisodesParams
+} from '../lib/db/newsletter-edition-episodes.js';
+
+// Link a single episode to a newsletter edition
+const link = await insertNewsletterEditionEpisode({
+  newsletter_edition_id: 'edition-uuid',
+  episode_id: 'episode-uuid'
+});
+
+// Link multiple episodes to a newsletter edition
+const links = await insertNewsletterEditionEpisodes({
+  newsletter_edition_id: 'edition-uuid',
+  episode_ids: ['episode-1', 'episode-2', 'episode-3']
+});
+
+// Get all episodes included in a newsletter edition
+const episodes = await getEpisodesByNewsletterId('edition-uuid');
+
+// Get all newsletter editions that included a specific episode
+const editions = await getNewslettersByEpisodeId('episode-uuid');
+
+// Check if an episode is linked to a newsletter
+const isLinked = await isEpisodeLinkedToNewsletter('edition-uuid', 'episode-uuid');
+
+// Get episode count for a newsletter edition
+const count = await getEpisodeCountByNewsletterId('edition-uuid');
+
+// Remove all episode links for a newsletter edition
+const deletedCount = await deleteNewsletterEditionEpisodes('edition-uuid');
+```
+
+**Integration with Newsletter Editions**:
+```typescript
+import { insertNewsletterEditionWithEpisodes } from '../lib/db/newsletter-editions.js';
+
+// Create newsletter edition and link episodes atomically
+const result = await insertNewsletterEditionWithEpisodes({
+  user_id: 'user-uuid',
+  edition_date: '2025-01-27',
+  status: 'generated',
+  content: '<p>Newsletter content</p>',
+  model: 'gemini-pro',
+  episode_ids: ['episode-1', 'episode-2'] // Automatically creates links
+});
+
+console.log(`Created newsletter with ${result.episode_count} episodes`);
+```
+
+**Type Export:**
+```typescript
+// Import the shared type for type-safety
+import type { NewsletterEditionEpisode } from '@listener/shared';
+```
+
+**Migration File**: `20250703094053_create_newsletter_edition_episodes.sql`
+
 ## Token Storage
 
 The application securely stores Spotify authentication tokens using encrypted column storage:

@@ -108,4 +108,7 @@ export {
 } from './utilities.js';
 
 // Newsletter Editions type (generated from Supabase)
-export type NewsletterEdition = import('./database').Database['public']['Tables']['newsletter_editions']['Row']; 
+export type NewsletterEdition = import('./database').Database['public']['Tables']['newsletter_editions']['Row'];
+
+// Newsletter Edition Episodes type (generated from Supabase)
+export type NewsletterEditionEpisode = import('./database').Database['public']['Tables']['newsletter_edition_episodes']['Row']; 
