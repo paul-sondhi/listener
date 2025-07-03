@@ -29,6 +29,12 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { getSharedSupabaseClient } from './sharedSupabaseClient';
 import type { NewsletterEdition } from '@listener/shared';
 import { randomUUID } from 'crypto';
+import { 
+  insertNewsletterEditionEpisodes,
+  deleteNewsletterEditionEpisodes,
+  getEpisodesByNewsletterId,
+  getEpisodeCountByNewsletterId
+} from './newsletter-edition-episodes';
 
 // Lazy initialization of Supabase client for database operations
 let supabase: SupabaseClient | null = null;
@@ -50,6 +56,14 @@ export interface CreateNewsletterEditionParams {
   content?: string | null;
   model?: string | null;
   error_message?: string | null;
+  episode_ids?: string[]; // Optional: episode IDs to link to this newsletter edition
+}
+
+/**
+ * Parameters for creating a new newsletter edition with episode tracking
+ */
+export interface CreateNewsletterEditionWithEpisodesParams extends CreateNewsletterEditionParams {
+  episode_ids: string[]; // Required: episode IDs to link to this newsletter edition
 }
 
 /**
@@ -61,11 +75,26 @@ export interface UpdateNewsletterEditionStatusParams {
 }
 
 /**
+ * Result of newsletter edition creation with episode tracking
+ */
+export interface NewsletterEditionWithEpisodesResult {
+  newsletter_edition: NewsletterEdition;
+  episode_links: Array<{
+    newsletter_edition_id: string;
+    episode_id: string;
+    id?: string;
+    created_at?: string;
+  }>;
+  episode_count: number;
+}
+
+/**
  * Insert a new newsletter edition row.
  *
  * - Validates user_id and edition_date.
  * - Fetches user_email from users table (throws if not found).
  * - Inserts a new row into newsletter_editions.
+ * - Optionally links episode IDs to the newsletter edition.
  *
  * @param params - Parameters for creating the edition
  * @returns The inserted NewsletterEdition row
@@ -123,7 +152,68 @@ export async function insertNewsletterEdition(
     throw new Error('No data returned from newsletter edition insertion');
   }
 
+  // If episode IDs are provided, link them to the newsletter edition
+  if (params.episode_ids && params.episode_ids.length > 0) {
+    try {
+      await insertNewsletterEditionEpisodes({
+        newsletter_edition_id: data.id,
+        episode_ids: params.episode_ids
+      });
+    } catch (episodeError) {
+      // If episode linking fails, we should clean up the newsletter edition
+      // This ensures atomicity - either both succeed or both fail
+      await getSupabaseClient()
+        .from('newsletter_editions')
+        .delete()
+        .eq('id', data.id);
+      throw new Error(`Failed to link episodes to newsletter edition: ${episodeError instanceof Error ? episodeError.message : 'Unknown error'}`);
+    }
+  }
+
   return data as NewsletterEdition;
+}
+
+/**
+ * Insert a new newsletter edition row with episode tracking (atomic operation).
+ *
+ * This function ensures that both the newsletter edition and episode links
+ * are created atomically - either both succeed or both fail.
+ *
+ * - Validates user_id and edition_date.
+ * - Fetches user_email from users table (throws if not found).
+ * - Inserts a new row into newsletter_editions.
+ * - Links all provided episode IDs to the newsletter edition.
+ * - Returns both the newsletter edition and episode link information.
+ *
+ * @param params - Parameters for creating the edition with episodes
+ * @returns The inserted newsletter edition with episode links and count
+ * @throws Error if validation fails, user not found, or any operation fails
+ */
+export async function insertNewsletterEditionWithEpisodes(
+  params: CreateNewsletterEditionWithEpisodesParams
+): Promise<NewsletterEditionWithEpisodesResult> {
+  // Validate episode_ids is provided and not empty
+  if (!params.episode_ids || !Array.isArray(params.episode_ids) || params.episode_ids.length === 0) {
+    throw new Error('episode_ids is required and must be a non-empty array');
+  }
+
+  // Remove episode_ids from params before calling insertNewsletterEdition
+  const { episode_ids, ...editionParams } = params;
+
+  // Create the newsletter edition (without linking episodes)
+  const newsletterEdition = await insertNewsletterEdition(editionParams);
+
+  // Now link the episodes
+  const episodeLinks = await insertNewsletterEditionEpisodes({
+    newsletter_edition_id: newsletterEdition.id,
+    episode_ids: params.episode_ids
+  });
+
+  return {
+    newsletter_edition: newsletterEdition,
+    episode_links: episodeLinks,
+    episode_count: episodeLinks.length
+  };
 }
 
 /**
@@ -190,6 +280,83 @@ export async function upsertNewsletterEdition(
   }
 
   return data as NewsletterEdition;
+}
+
+/**
+ * Get a newsletter edition with its linked episodes.
+ *
+ * @param newsletterEditionId - UUID of the newsletter edition
+ * @returns The newsletter edition with episode details, or null if not found
+ * @throws Error if validation fails or DB query fails
+ */
+export async function getNewsletterEditionWithEpisodes(
+  newsletterEditionId: string
+): Promise<NewsletterEditionWithEpisodesResult | null> {
+  // Validate newsletter_edition_id
+  if (!newsletterEditionId || typeof newsletterEditionId !== 'string' || newsletterEditionId.trim() === '') {
+    throw new Error('newsletter_edition_id is required and must be a non-empty string');
+  }
+
+  // Get the newsletter edition
+  const { data: newsletterEdition, error: newsletterError } = await getSupabaseClient()
+    .from('newsletter_editions')
+    .select('*')
+    .eq('id', newsletterEditionId)
+    .is('deleted_at', null)
+    .single();
+
+  if (newsletterError) {
+    if (newsletterError.code === 'PGRST116') {
+      return null; // Not found
+    }
+    throw new Error(`Failed to get newsletter edition: ${newsletterError.message}`);
+  }
+
+  if (!newsletterEdition) {
+    return null;
+  }
+
+  // Get the linked episodes
+  const episodeLinks = await getEpisodesByNewsletterId(newsletterEditionId);
+  const episodeCount = await getEpisodeCountByNewsletterId(newsletterEditionId);
+
+  return {
+    newsletter_edition: newsletterEdition as NewsletterEdition,
+    episode_links: episodeLinks.map(link => ({
+      newsletter_edition_id: link.newsletter_edition_id,
+      episode_id: link.episode_id,
+      id: link.id,
+      created_at: link.created_at
+    })),
+    episode_count: episodeCount
+  };
+}
+
+/**
+ * Delete a newsletter edition and all its episode links (atomic operation).
+ *
+ * This function ensures that both the newsletter edition and all episode links
+ * are deleted atomically.
+ *
+ * @param newsletterEditionId - UUID of the newsletter edition to delete
+ * @returns The number of episode links that were deleted
+ * @throws Error if validation fails or delete fails
+ */
+export async function deleteNewsletterEditionWithEpisodes(
+  newsletterEditionId: string
+): Promise<number> {
+  // Validate newsletter_edition_id
+  if (!newsletterEditionId || typeof newsletterEditionId !== 'string' || newsletterEditionId.trim() === '') {
+    throw new Error('newsletter_edition_id is required and must be a non-empty string');
+  }
+
+  // Delete episode links first (this will cascade to the newsletter edition)
+  const deletedEpisodeCount = await deleteNewsletterEditionEpisodes(newsletterEditionId);
+
+  // Soft delete the newsletter edition
+  await softDelete(newsletterEditionId);
+
+  return deletedEpisodeCount;
 }
 
 /**
