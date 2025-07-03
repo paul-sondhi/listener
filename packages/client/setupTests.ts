@@ -107,13 +107,19 @@ const originalConsole = { ...console }
 beforeAll(() => {
   // Suppress all console output during tests unless debugging
   if (process.env.NODE_ENV === 'test' && !process.env.VITEST_DEBUG) {
+    // eslint-disable-next-line no-console
     console.log = vi.fn()
+    // eslint-disable-next-line no-console
     console.debug = vi.fn()
+    // eslint-disable-next-line no-console
     console.info = vi.fn()
+    // eslint-disable-next-line no-console
     console.warn = vi.fn()
+    // eslint-disable-next-line no-console
     console.error = vi.fn()
   } else {
     // Only filter specific warnings when not in debug mode
+    // eslint-disable-next-line no-console, @typescript-eslint/no-explicit-any
     console.error = (...args: any[]) => {
       // Filter out React warning messages that are noise in tests
       if (
@@ -127,6 +133,7 @@ beforeAll(() => {
       originalConsole.error.call(console, ...args)
     }
 
+    // eslint-disable-next-line no-console
     console.warn = (...args: any[]) => {
       // Filter out warning messages that are noise in tests
       if (
@@ -142,10 +149,15 @@ beforeAll(() => {
 
 afterAll(() => {
   // Restore original console methods
+  // eslint-disable-next-line no-console
   console.log = originalConsole.log
+  // eslint-disable-next-line no-console
   console.debug = originalConsole.debug
+  // eslint-disable-next-line no-console
   console.info = originalConsole.info
+  // eslint-disable-next-line no-console
   console.warn = originalConsole.warn
+  // eslint-disable-next-line no-console
   console.error = originalConsole.error
 })
 

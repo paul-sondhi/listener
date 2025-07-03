@@ -258,14 +258,18 @@ const AppPage = (): React.JSX.Element => {
    */
   const handleLogout = async (): Promise<void> => {
     try {
+      // eslint-disable-next-line no-console
       console.log('LOGOUT: handleLogout called');
       await signOut()
+      // eslint-disable-next-line no-console
       console.log('LOGOUT: signOut completed successfully');
       // Reset sync status on logout
       hasSynced.current = false
+      // eslint-disable-next-line no-console
       console.log('LOGOUT: hasSynced reset to false');
     } catch (error: unknown) {
       const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
+      // eslint-disable-next-line no-console
       console.error('LOGOUT: signOut failed:', errorMessage);
       logger.error('Error during logout:', errorMessage)
     }

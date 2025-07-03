@@ -59,6 +59,7 @@ export class SupabaseMonitor {
    */
   private async testOperation(
     operationName: string, 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     operation: () => Promise<any>
   ): Promise<ConnectionTestResult> {
     const startTime = Date.now();
@@ -128,6 +129,7 @@ export class SupabaseMonitor {
    * Test specifically if signOut would hang (diagnostic only - doesn't actually sign out)
    */
   async diagnoseSignOutIssue(): Promise<{ likelyToHang: boolean; reason: string }> {
+    // eslint-disable-next-line no-console
     console.log('🔍 SUPABASE_MONITOR: Testing if signOut would likely hang...');
     
     const healthCheck = await this.performHealthCheck();
@@ -155,6 +157,7 @@ export class SupabaseMonitor {
       reason = `Auth operations consistently slow (${avgAuthTime.toFixed(0)}ms), moderate hang risk`;
     }
     
+    // eslint-disable-next-line no-console
     console.log('🔍 SUPABASE_MONITOR: Diagnosis:', { likelyToHang, reason });
     
     return { likelyToHang, reason };

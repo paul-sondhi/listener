@@ -67,6 +67,7 @@ class ClientLogger {
    */
   debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog('debug')) {
+      // eslint-disable-next-line no-console
       console.debug(this.formatMessage('debug', message), ...args);
     }
   }
@@ -76,6 +77,7 @@ class ClientLogger {
    */
   info(message: string, ...args: unknown[]): void {
     if (this.shouldLog('info')) {
+      // eslint-disable-next-line no-console
       console.info(this.formatMessage('info', message), ...args);
     }
   }
@@ -85,6 +87,7 @@ class ClientLogger {
    */
   warn(message: string, ...args: unknown[]): void {
     if (this.shouldLog('warn')) {
+      // eslint-disable-next-line no-console
       console.warn(this.formatMessage('warn', message), ...args);
     }
   }
@@ -94,6 +97,7 @@ class ClientLogger {
    */
   error(message: string, ...args: unknown[]): void {
     if (this.shouldLog('error')) {
+      // eslint-disable-next-line no-console
       console.error(this.formatMessage('error', message), ...args);
     }
   }

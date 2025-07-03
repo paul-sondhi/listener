@@ -26,6 +26,7 @@ export const ProtectedRoute = memo(({ children }: ProtectedRouteProps): React.JS
       prevState.current.loading !== currentState.loading ||
       prevState.current.userEmail !== currentState.userEmail
     ) {
+      // eslint-disable-next-line no-console
       console.log('PROTECTED_ROUTE:', currentState);
       prevState.current = currentState
     }

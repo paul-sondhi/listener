@@ -198,7 +198,7 @@ export async function insertNewsletterEditionWithEpisodes(
   }
 
   // Remove episode_ids from params before calling insertNewsletterEdition
-  const { episode_ids, ...editionParams } = params;
+  const { episode_ids: _episode_ids, ...editionParams } = params;
 
   // Create the newsletter edition (without linking episodes)
   const newsletterEdition = await insertNewsletterEdition(editionParams);

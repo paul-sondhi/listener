@@ -45,10 +45,12 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     // Prevent multiple simultaneous reauth checks using ref
     if (reauthCheckInProgress.current) {
       logger.debug('Reauth check already in progress, skipping...')
+      // eslint-disable-next-line no-console
       console.log('REAUTH_CHECK: Already in progress, skipping');
       return
     }
 
+    // eslint-disable-next-line no-console
     console.log('REAUTH_CHECK: Starting reauth status check');
     reauthCheckInProgress.current = true
     setCheckingReauth(true)
@@ -57,6 +59,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       
       if (sessionError || !session?.user) {
         logger.error('Error getting session:', sessionError)
+        // eslint-disable-next-line no-console
         console.log('REAUTH_CHECK: No session or error, setting reauth to false');
         setRequiresReauth(false)
         return
@@ -71,20 +74,24 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       
       if (userError) {
         logger.error('Error checking reauth status:', userError)
+        // eslint-disable-next-line no-console
         console.log('REAUTH_CHECK: Database error, setting reauth to false');
         setRequiresReauth(false)
         return
       }
       
+      // eslint-disable-next-line no-console
       console.log('REAUTH_CHECK: Database result:', userData?.spotify_reauth_required);
       setRequiresReauth(userData?.spotify_reauth_required === true)
     } catch (error) {
       logger.error('Error checking reauth status:', error)
+      // eslint-disable-next-line no-console
       console.log('REAUTH_CHECK: Exception, setting reauth to false');
       setRequiresReauth(false)
     } finally {
       reauthCheckInProgress.current = false
       setCheckingReauth(false)
+      // eslint-disable-next-line no-console
       console.log('REAUTH_CHECK: Completed');
     }
   }, []) // Remove checkingReauth dependency to prevent useEffect loop
@@ -124,11 +131,13 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     
     // Skip if we've already checked for this user
     if (lastCheckedUserId.current === user.id) {
+      // eslint-disable-next-line no-console
       console.log('DEFERRED_REAUTH: Already checked for this user, skipping');
       setNeedsReauthCheck(false);
       return;
     }
     
+    // eslint-disable-next-line no-console
     console.log('DEFERRED_REAUTH: Processing deferred reauth check');
     
     const runDeferredReauthCheck = async () => {
@@ -171,6 +180,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     // CRITICAL FIX: Remove all Supabase calls from this callback to prevent deadlock
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session: Session | null) => {
+        // eslint-disable-next-line no-console
         console.log('AUTH_STATE_CHANGE:', { event, userEmail: session?.user?.email || null });
         logger.debug('Auth state changed:', event, session?.user?.email)
         setUser(session?.user ?? null)
@@ -179,12 +189,14 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         // FIXED: Only trigger reauth check for actual sign-in events, not INITIAL_SESSION
         // This prevents duplicate reauth checks when the session is restored
         if (session?.user && event === 'SIGNED_IN') {
+          // eslint-disable-next-line no-console
           console.log('AUTH_STATE_CHANGE: User signed in, scheduling reauth status check');
           setNeedsReauthCheck(true);
         }
         
         // FIXED: Only clear local state, no Supabase calls in the callback
         if (event === 'SIGNED_OUT') {
+          // eslint-disable-next-line no-console
           console.log('AUTH_STATE_CHANGE: User signed out, clearing reauth flag locally');
           setRequiresReauth(false);
           // Note: Any additional cleanup (like clearing DB flags) should be handled
@@ -207,15 +219,18 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     checkingReauth,
     signIn: (credentials: SignInWithOAuthCredentials) => supabase.auth.signInWithOAuth(credentials),
     signOut: async () => {
+      // eslint-disable-next-line no-console
       console.log('AUTH_CONTEXT: signOut called');
       const startTime = Date.now();
       
       try {
         // With the deadlock fix in place, getSession() should now work reliably
+        // eslint-disable-next-line no-console
         console.log('AUTH_CONTEXT: Calling supabase.auth.signOut()...');
         const { error } = await supabase.auth.signOut();
         
         if (error) {
+          // eslint-disable-next-line no-console
           console.error('AUTH_CONTEXT: SignOut error:', error);
           logger.error('SignOut failed:', error);
           return { error };
@@ -229,12 +244,14 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         lastCheckedUserId.current = null;
         
         const duration = Date.now() - startTime;
+        // eslint-disable-next-line no-console
         console.log(`AUTH_CONTEXT: SignOut completed successfully in ${duration}ms`);
         logger.info('SignOut successful', { duration });
         
         return { error: null };
         
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('AUTH_CONTEXT: SignOut exception:', error);
         logger.error('SignOut exception:', error);
         

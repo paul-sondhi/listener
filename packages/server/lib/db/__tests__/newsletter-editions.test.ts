@@ -24,7 +24,7 @@ async function createTestUser(userId: string, email: string) {
 }
 
 // Helper function to create test newsletter edition
-async function createTestNewsletterEdition(id: string, userId: string, editionDate: string) {
+async function _createTestNewsletterEdition(id: string, userId: string, editionDate: string) {
   const { error } = await supabase
     .from('newsletter_editions')
     .insert({
@@ -91,7 +91,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import {
   insertNewsletterEdition,
   upsertNewsletterEdition,
-  updateNewsletterEditionStatus,
+  _updateNewsletterEditionStatus,
   getByUserAndDate,
   softDelete,
   insertNewsletterEditionWithEpisodes,
