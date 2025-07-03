@@ -24,13 +24,14 @@ export default function ReauthPrompt(): React.JSX.Element | null {
       
       // Read the base URL from Vite env (override in Vercel, fallback locally)
       const BASE_URL: string = import.meta.env.VITE_BASE_URL || 'http://localhost:5173'
-      const REDIRECT_URI: string = `${BASE_URL}/app`
+      const _REDIRECT_URI: string = `${BASE_URL}/app`
 
       const { error } = await signIn({
         provider: 'spotify',
         options: {
           scopes: 'user-read-email user-library-read',
-          redirectTo: REDIRECT_URI,
+          // Do NOT set redirectTo here; let Supabase use its default callback URL
+          // This ensures the OAuth flow works reliably and matches the Spotify app config
           queryParams: {
             show_dialog: 'true' // Force the consent screen
           }

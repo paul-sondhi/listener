@@ -16,7 +16,7 @@ export default function Login(): React.JSX.Element {
   // Read the base URL from Vite env (override in Vercel, fallback locally)
   // For local development, use the frontend URL (port 5173), not backend (port 3000)
   const BASE_URL: string = import.meta.env.VITE_BASE_URL || 'http://localhost:5173'
-  const REDIRECT_URI: string = `${BASE_URL}/app`
+  const _REDIRECT_URI: string = `${BASE_URL}/app`
 
   // Redirect to app if user is already logged in
   useEffect(() => {
