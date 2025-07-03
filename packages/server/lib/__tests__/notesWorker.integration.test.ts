@@ -62,8 +62,6 @@ describe('Notes Worker Integration', () => {
   let testShowId: string;
   
   beforeEach(async () => {
-    process.stdout.write('DEBUG: beforeEach cleanup starting\n');
-    
     // Reset the in-memory Supabase mock DB before every test to prevent data leakage between tests
     resetDb();
     
@@ -73,8 +71,6 @@ describe('Notes Worker Integration', () => {
     testEpisodeId = `test-episode-${timestamp}-${random}`;
     testTranscriptId = `test-transcript-${timestamp}-${random}`;
     testShowId = `test-show-${timestamp}-${random}`;
-    
-    process.stdout.write(`DEBUG: Generated test IDs: episode=${testEpisodeId}, transcript=${testTranscriptId}, show=${testShowId}\n`);
     
     // Clean up any existing test data
     await supabase
@@ -96,11 +92,9 @@ describe('Notes Worker Integration', () => {
       .from('podcast_shows')
       .delete()
       .eq('id', testShowId);
-    process.stdout.write('DEBUG: beforeEach cleanup completed\n');
   });
 
   afterEach(async () => {
-    process.stdout.write('DEBUG: afterEach cleanup starting\n');
     // Clean up test data
     await supabase
       .from('episode_transcript_notes')
@@ -121,18 +115,13 @@ describe('Notes Worker Integration', () => {
       .from('podcast_shows')
       .delete()
       .eq('id', testShowId);
-    process.stdout.write('DEBUG: afterEach cleanup completed\n');
   });
 
   describe('Complete Workflow', () => {
     it('should process a transcript and generate notes successfully', async () => {
-      process.stdout.write('DEBUG: Starting first test\n');
-      
       // 1. Setup test data
       const now = Date.now();
       const episodeDate = new Date(now - 2 * 60 * 60 * 1000); // 2 hours ago
-      
-      process.stdout.write('DEBUG: About to insert show\n');
       
       // Insert test show
       const { error: showError } = await supabase
@@ -146,7 +135,6 @@ describe('Notes Worker Integration', () => {
           updated_at: new Date(now).toISOString()
         });
       
-      process.stdout.write('DEBUG: Show insert result: ' + JSON.stringify({ showError }) + '\n');
       expect(showError).toBeNull();
       
       // Insert test episode
@@ -164,11 +152,10 @@ describe('Notes Worker Integration', () => {
           updated_at: new Date(now).toISOString()
         });
       
-      process.stdout.write('DEBUG: Episode insert result: ' + JSON.stringify({ episodeError }) + '\n');
       expect(episodeError).toBeNull();
       
       // Insert test transcript with explicit id
-      const { error: transcriptError } = await supabase
+      const { error: _transcriptError } = await supabase
         .from('transcripts')
         .insert({
           id: testTranscriptId,
@@ -179,24 +166,19 @@ describe('Notes Worker Integration', () => {
           storage_path: 'test-transcript.jsonl.gz',
           source: 'taddy'
         });
-      process.stdout.write('DEBUG: Transcript insert result: ' + JSON.stringify({ transcriptError }) + '\n');
 
       // Log all transcripts
-      const { data: allTranscripts } = await supabase.from('transcripts').select('*');
-      process.stdout.write('DEBUG: All transcripts: ' + JSON.stringify(allTranscripts) + '\n');
+      const { data: _allTranscripts } = await supabase.from('transcripts').select('*');
       // Log all episodes
-      const { data: allEpisodes } = await supabase.from('podcast_episodes').select('*');
-      process.stdout.write('DEBUG: All episodes: ' + JSON.stringify(allEpisodes) + '\n');
+      const { data: _allEpisodes } = await supabase.from('podcast_episodes').select('*');
       // Log all shows
-      const { data: allShows } = await supabase.from('podcast_shows').select('*');
-      process.stdout.write('DEBUG: All shows: ' + JSON.stringify(allShows) + '\n');
+      const { data: _allShows } = await supabase.from('podcast_shows').select('*');
 
       // Query for transcript directly (avoiding join for now)
       const { data: transcripts, error: queryError } = await supabase
         .from('transcripts')
         .select('*')
         .eq('episode_id', testEpisodeId);
-      process.stdout.write('DEBUG: Direct transcript query result: ' + JSON.stringify({ queryError, count: transcripts?.length, transcripts }) + '\n');
       expect(queryError).toBeNull();
       expect(transcripts).toBeDefined();
       expect(transcripts!.length).toBe(1);
@@ -211,7 +193,6 @@ describe('Notes Worker Integration', () => {
         await downloadAndParseTranscript(supabase, transcript.storage_path);
         expect.fail('Should have thrown an error for missing file');
       } catch (error) {
-        process.stdout.write('DEBUG: Download error (expected): ' + JSON.stringify({ error: error instanceof Error ? error.message : error }) + '\n');
         expect(error).toBeDefined();
         expect((error as Error).message).toMatch(/not a function|404|No such file/i);
       }
@@ -222,7 +203,6 @@ describe('Notes Worker Integration', () => {
         'This is a mock transcript for testing. It contains sample content that should be processed into episode notes.',
         config
       );
-      process.stdout.write('DEBUG: Notes generation result: ' + JSON.stringify({ success: notesResult.success, notesLength: notesResult.notes?.length, model: notesResult.model }) + '\n');
       expect(notesResult.success).toBe(true);
       expect(notesResult.notes).toBeDefined();
       expect(notesResult.notes!.length).toBeGreaterThan(0);
@@ -243,13 +223,11 @@ describe('Notes Worker Integration', () => {
         .upsert([upsertData], { onConflict: 'episode_id', ignoreDuplicates: false })
         .select('id')
         .single();
-      process.stdout.write('DEBUG: Direct upsert result: ' + JSON.stringify({ data: upsertResult, error: upsertError }) + '\n');
       expect(upsertError).toBeNull();
       expect(upsertResult).toBeDefined();
-    }, 30000); // 30 second timeout for integration test
+    }, 30000);
 
     it('should handle missing transcript storage file gracefully', async () => {
-      process.stdout.write('DEBUG: Starting missing storage file test\n');
       
       // 1. Setup test data with non-existent storage path
       const now = Date.now();
@@ -267,7 +245,6 @@ describe('Notes Worker Integration', () => {
           updated_at: new Date(now).toISOString()
         });
       
-      process.stdout.write('DEBUG: Show insert result: ' + JSON.stringify({ showError }) + '\n');
       expect(showError).toBeNull();
       
       // Insert test episode
@@ -285,11 +262,10 @@ describe('Notes Worker Integration', () => {
           updated_at: new Date(now).toISOString()
         });
       
-      process.stdout.write('DEBUG: Episode insert result: ' + JSON.stringify({ episodeError }) + '\n');
       expect(episodeError).toBeNull();
       
       // Insert test transcript with non-existent storage path
-      const transcriptResult = await insertTranscript(
+      const _transcriptResult = await insertTranscript(
         testEpisodeId,
         'non-existent-file.jsonl.gz',
         'full',
@@ -298,25 +274,18 @@ describe('Notes Worker Integration', () => {
         'taddy'
       );
       
-      process.stdout.write('DEBUG: Transcript insert result: ' + JSON.stringify({ transcriptResult }) + '\n');
       
       // Verify data was inserted
-      const { data: allShows, error: showsError } = await supabase.from('podcast_shows').select('*');
-      process.stdout.write('DEBUG: All shows after insert: ' + JSON.stringify({ count: allShows?.length, error: showsError }) + '\n');
+      const { data: _allShows, error: _showsError } = await supabase.from('podcast_shows').select('*');
       
-      const { data: allEpisodes, error: episodesError } = await supabase.from('podcast_episodes').select('*');
-      process.stdout.write('DEBUG: All episodes after insert: ' + JSON.stringify({ count: allEpisodes?.length, error: episodesError }) + '\n');
+      const { data: _allEpisodes, error: _episodesError } = await supabase.from('podcast_episodes').select('*');
       
-      const { data: allTranscripts, error: transcriptsError } = await supabase.from('transcripts').select('*');
-      process.stdout.write('DEBUG: All transcripts after insert: ' + JSON.stringify({ count: allTranscripts?.length, error: transcriptsError }) + '\n');
+      const { data: _allTranscripts, error: _transcriptsError } = await supabase.from('transcripts').select('*');
       
       // 2. Query for transcripts needing notes
       const transcripts = await queryTranscriptsNeedingNotes(supabase, 24, false, now);
       // Debug: print all transcripts before the query
-      const { data: debugAllTranscripts } = await supabase.from('transcripts').select('*');
-      process.stdout.write('DEBUG: All transcripts before query: ' + JSON.stringify(debugAllTranscripts) + '\n');
-      process.stdout.write('DEBUG: Query params: lookbackHours=24, last10Mode=false\n');
-      process.stdout.write('DEBUG: Query result: ' + JSON.stringify({ transcriptCount: transcripts.length, transcripts: transcripts.map(t => ({ id: t.id, episode_id: t.episode_id, storage_path: t.storage_path })) }) + '\n');
+      const { data: _debugAllTranscripts } = await supabase.from('transcripts').select('*');
       expect(transcripts).toHaveLength(1);
       
       // 3. Attempt to download transcript (should fail)
@@ -336,7 +305,6 @@ describe('Notes Worker Integration', () => {
         errorMessage: 'Failed to download transcript: 404 Not Found'
       });
       
-      process.stdout.write('DEBUG: saveResult in missing transcript storage file test: ' + JSON.stringify(saveResult) + '\n');
       expect(saveResult.success).toBe(true);
       
       // 5. Verify error was saved correctly
@@ -356,7 +324,6 @@ describe('Notes Worker Integration', () => {
     });
 
     it('should handle missing storage file in complete workflow', async () => {
-      process.stdout.write('DEBUG: Starting missing storage file workflow test\n');
       
       // Generate unique IDs for this test run
       const now = Date.now();
@@ -376,7 +343,6 @@ describe('Notes Worker Integration', () => {
           updated_at: nowDate.toISOString()
         });
       
-      process.stdout.write('DEBUG: Show insert result: ' + JSON.stringify({ showError }) + '\n');
       expect(showError).toBeNull();
       
       // Insert test episodes and transcripts
@@ -397,7 +363,6 @@ describe('Notes Worker Integration', () => {
             updated_at: episodeDate.toISOString()
           });
         
-        process.stdout.write(`DEBUG: Episode Missing ${i + 1} insert result: ` + JSON.stringify({ episodeError }) + '\n');
         expect(episodeError).toBeNull();
         
         // Use different storage paths: one missing, one empty, one valid-looking
@@ -407,7 +372,7 @@ describe('Notes Worker Integration', () => {
           'valid-looking-file.jsonl.gz'
         ];
         
-        const transcriptResult = await insertTranscript(
+        const _transcriptResult = await insertTranscript(
           episodeIds[i],
           storagePaths[i],
           'full',
@@ -426,26 +391,19 @@ describe('Notes Worker Integration', () => {
           })
           .eq('episode_id', episodeIds[i]);
         
-        process.stdout.write(`DEBUG: Transcript Missing ${i + 1} insert result: ` + JSON.stringify({ transcriptResult, storagePath: storagePaths[i] }) + '\n');
       }
       
       // Verify all data was inserted
-      const { data: allShows, error: showsError } = await supabase.from('podcast_shows').select('*');
-      process.stdout.write('DEBUG: All shows after insert: ' + JSON.stringify({ count: allShows?.length, error: showsError }) + '\n');
+      const { data: _allShows, error: _showsError } = await supabase.from('podcast_shows').select('*');
       
-      const { data: allEpisodes, error: episodesError } = await supabase.from('podcast_episodes').select('*');
-      process.stdout.write('DEBUG: All episodes after insert: ' + JSON.stringify({ count: allEpisodes?.length, error: episodesError }) + '\n');
+      const { data: _allEpisodes, error: _episodesError } = await supabase.from('podcast_episodes').select('*');
       
-      const { data: allTranscripts, error: transcriptsError } = await supabase.from('transcripts').select('*');
-      process.stdout.write('DEBUG: All transcripts after insert: ' + JSON.stringify({ count: allTranscripts?.length, error: transcriptsError }) + '\n');
+      const { data: _allTranscripts, error: _transcriptsError } = await supabase.from('transcripts').select('*');
       
       // 2. Query for transcripts needing notes
       const transcripts = await queryTranscriptsNeedingNotes(supabase, 24, false, now);
       // Debug: print all transcripts before the query
-      const { data: debugAllTranscripts } = await supabase.from('transcripts').select('*');
-      process.stdout.write('DEBUG: All transcripts before query: ' + JSON.stringify(debugAllTranscripts) + '\n');
-      process.stdout.write('DEBUG: Query params: lookbackHours=24, last10Mode=false\n');
-      process.stdout.write('DEBUG: Query result: ' + JSON.stringify({ transcriptCount: transcripts.length, transcripts: transcripts.map(t => ({ id: t.id, episode_id: t.episode_id, storage_path: t.storage_path })) }) + '\n');
+      const { data: _debugAllTranscripts } = await supabase.from('transcripts').select('*');
       expect(transcripts).toHaveLength(2); // Should exclude empty storage path
       
       // 3. Process each transcript and verify error handling
@@ -465,7 +423,6 @@ describe('Notes Worker Integration', () => {
             errorMessage: `Failed to download transcript: ${error instanceof Error ? error.message : 'Unknown error'}`
           });
           
-          process.stdout.write('DEBUG: saveResult in missing storage file workflow test: ' + JSON.stringify(saveResult) + '\n');
           expect(saveResult.success).toBe(true);
           
           // 5. Verify error was saved correctly
@@ -502,7 +459,6 @@ describe('Notes Worker Integration', () => {
     }, 30000);
 
     it('should handle L10 mode correctly', async () => {
-      process.stdout.write('DEBUG: Starting L10 mode test\n');
       
       // Generate unique IDs for this test run
       const now = Date.now();
@@ -522,7 +478,6 @@ describe('Notes Worker Integration', () => {
           updated_at: nowDate.toISOString()
         });
       
-      process.stdout.write('DEBUG: Show insert result: ' + JSON.stringify({ showError }) + '\n');
       expect(showError).toBeNull();
       
       // Insert multiple test episodes
@@ -543,10 +498,9 @@ describe('Notes Worker Integration', () => {
             updated_at: episodeDate.toISOString()
           });
         
-        process.stdout.write(`DEBUG: Episode ${i + 1} insert result: ` + JSON.stringify({ episodeError }) + '\n');
         expect(episodeError).toBeNull();
         
-        const transcriptResult = await insertTranscript(
+        const _transcriptResult = await insertTranscript(
           episodeIds[i],
           `test-transcript-${i + 1}.jsonl.gz`,
           'full',
@@ -565,26 +519,19 @@ describe('Notes Worker Integration', () => {
           })
           .eq('episode_id', episodeIds[i]);
         
-        process.stdout.write(`DEBUG: Transcript ${i + 1} insert result: ` + JSON.stringify({ transcriptResult }) + '\n');
       }
       
       // Verify all data was inserted
-      const { data: allShows, error: showsError } = await supabase.from('podcast_shows').select('*');
-      process.stdout.write('DEBUG: All shows after insert: ' + JSON.stringify({ count: allShows?.length, error: showsError }) + '\n');
+      const { data: _allShows, error: _showsError } = await supabase.from('podcast_shows').select('*');
       
-      const { data: allEpisodes, error: episodesError } = await supabase.from('podcast_episodes').select('*');
-      process.stdout.write('DEBUG: All episodes after insert: ' + JSON.stringify({ count: allEpisodes?.length, error: episodesError }) + '\n');
+      const { data: _allEpisodes, error: _episodesError } = await supabase.from('podcast_episodes').select('*');
       
-      const { data: allTranscripts, error: transcriptsError } = await supabase.from('transcripts').select('*');
-      process.stdout.write('DEBUG: All transcripts after insert: ' + JSON.stringify({ count: allTranscripts?.length, error: transcriptsError }) + '\n');
+      const { data: _allTranscripts, error: _transcriptsError } = await supabase.from('transcripts').select('*');
       
       // 2. Query for transcripts in L10 mode
       const transcriptsL10 = await queryTranscriptsNeedingNotes(supabase, 24, true, now);
       // Debug: print all transcripts before the query
-      const { data: debugAllTranscripts } = await supabase.from('transcripts').select('*');
-      process.stdout.write('DEBUG: All transcripts before query: ' + JSON.stringify(debugAllTranscripts) + '\n');
-      process.stdout.write('DEBUG: Query params: lookbackHours=24, last10Mode=true\n');
-      process.stdout.write('DEBUG: Query result: ' + JSON.stringify({ transcriptCount: transcriptsL10.length, transcripts: transcriptsL10.map(t => ({ id: t.id, episode_id: t.episode_id, storage_path: t.storage_path })) }) + '\n');
+      const { data: _debugAllTranscripts } = await supabase.from('transcripts').select('*');
       expect(transcriptsL10).toHaveLength(5); // Should get all 5 transcripts
       
       // 3. Verify transcripts are ordered by created_at (newest first)
@@ -602,7 +549,6 @@ describe('Notes Worker Integration', () => {
     });
 
     it('should overwrite existing notes in L10 mode', async () => {
-      process.stdout.write('DEBUG: Starting L10 overwrite test\n');
       
       // Generate unique IDs for this test run
       const now = Date.now();
@@ -622,7 +568,6 @@ describe('Notes Worker Integration', () => {
           updated_at: nowDate.toISOString()
         });
       
-      process.stdout.write('DEBUG: Show insert result: ' + JSON.stringify({ showError }) + '\n');
       expect(showError).toBeNull();
       
       // Insert test episodes and transcripts
@@ -643,10 +588,9 @@ describe('Notes Worker Integration', () => {
             updated_at: episodeDate.toISOString()
           });
         
-        process.stdout.write(`DEBUG: Episode L10 ${i + 1} insert result: ` + JSON.stringify({ episodeError }) + '\n');
         expect(episodeError).toBeNull();
         
-        const transcriptResult = await insertTranscript(
+        const _transcriptResult = await insertTranscript(
           episodeIds[i],
           `test-transcript-l10-${i + 1}.jsonl.gz`,
           'full',
@@ -665,7 +609,6 @@ describe('Notes Worker Integration', () => {
           })
           .eq('episode_id', episodeIds[i]);
         
-        process.stdout.write(`DEBUG: Transcript L10 ${i + 1} insert result: ` + JSON.stringify({ transcriptResult }) + '\n');
       }
       
       // 2. Create existing notes for some episodes (to test overwrite)
@@ -745,10 +688,7 @@ describe('Notes Worker Integration', () => {
       // 8. Verify that L10 mode includes all transcripts regardless of existing notes
       const transcriptsL10 = await queryTranscriptsNeedingNotes(supabase, 24, true, now);
       // Debug: print all transcripts before the query
-      const { data: debugAllTranscripts } = await supabase.from('transcripts').select('*');
-      process.stdout.write('DEBUG: All transcripts before query: ' + JSON.stringify(debugAllTranscripts) + '\n');
-      process.stdout.write('DEBUG: Query params: lookbackHours=24, last10Mode=true\n');
-      process.stdout.write('DEBUG: Query result: ' + JSON.stringify({ transcriptCount: transcriptsL10.length, transcripts: transcriptsL10.map(t => ({ id: t.id, episode_id: t.episode_id, storage_path: t.storage_path })) }) + '\n');
+      const { data: _debugAllTranscripts } = await supabase.from('transcripts').select('*');
       expect(transcriptsL10).toHaveLength(3); // Should get all 3 transcripts
       
       // 9. Verify transcripts are ordered by created_at (newest first)
@@ -825,7 +765,6 @@ describe('Notes Worker Integration', () => {
         errorMessage: notesResult.error!
       });
       
-      process.stdout.write('DEBUG: saveResult in Gemini API error test: ' + JSON.stringify(saveResult) + '\n');
       expect(saveResult.success).toBe(true);
       
       // 4. Verify error was saved correctly

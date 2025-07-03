@@ -347,8 +347,7 @@ describe('End-to-End Episode Sync Integration', () => {
     expect(verifyShowsError).toBeNull();
     expect(verifyShows).toHaveLength(2);
     
-    // Debug: Log the created shows
-    console.log('Created shows:', verifyShows);
+    // Debug: Log the created shows (removed for cleaner test output)
 
     const { data: verifySubscriptions, error: verifySubsError } = await supabase
       .from('user_podcast_subscriptions')
@@ -358,8 +357,7 @@ describe('End-to-End Episode Sync Integration', () => {
     expect(verifySubsError).toBeNull();
     expect(verifySubscriptions).toHaveLength(3);
     
-    // Debug: Log the created subscriptions
-    console.log('Created subscriptions:', verifySubscriptions);
+    // Debug: Log the created subscriptions (removed for cleaner test output)
     
     // Debug: Check what shows the service would find
     const { data: activeShows, error: _activeShowsError } = await supabase

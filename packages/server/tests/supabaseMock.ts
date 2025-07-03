@@ -260,10 +260,7 @@ function buildQuery(table?: string) {
     });
     
     // Debug: print storage_path values before .not('storage_path', 'eq', '') filter
-    if (state.table === 'transcripts') {
-      const paths = out.map(r => r.storage_path);
-      if (paths.length) process.stdout.write('DEBUG: storage_path values before .not filter: ' + JSON.stringify(paths) + '\n');
-    }
+    // Removed for cleaner test output
     
     // Handle complex .not() conditions used by TranscriptWorker (apply after other filters)
     for (const [col, op, val] of state.whereNot) {
@@ -280,18 +277,12 @@ function buildQuery(table?: string) {
     }
     
     // Debug: print storage_path values after .not('storage_path', 'eq', '') filter
-    if (state.table === 'transcripts') {
-      const paths = out.map(r => r.storage_path);
-      if (paths.length) process.stdout.write('DEBUG: storage_path values after .not filter: ' + JSON.stringify(paths) + '\n');
-    }
+    // Removed for cleaner test output
     
     // PATCH: .is('col', null) should match both null and undefined (for deleted_at filtering)
     for (const [col, val] of state.whereEq) {
       if (val === null) {
-        const before = out.length;
         out = out.filter(r => r[col] === null || r[col] === undefined);
-        const after = out.length;
-        process.stdout.write(`DEBUG: .is('${col}', null) filter: included ${after} of ${before} rows\n`);
       }
     }
     
@@ -376,9 +367,6 @@ function buildQuery(table?: string) {
 
   qb.update = vi.fn((fields: Record<string, any>) => {
     state.pendingUpdate = fields;
-    if ('deleted_at' in fields) {
-      process.stdout.write('DEBUG: update sets deleted_at: ' + JSON.stringify(fields.deleted_at) + '\n');
-    }
     return qb;
   });
 

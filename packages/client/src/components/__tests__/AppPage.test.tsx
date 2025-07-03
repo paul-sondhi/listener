@@ -1086,10 +1086,7 @@ describe('AppPage Component', () => {
       })
 
       // Mock fetch with delay to simulate slow response
-      let callCount = 0
       const mockFetch = vi.fn().mockImplementation(() => {
-        callCount++
-        console.log(`MockFetch called ${callCount} times`)
         return new Promise(resolve => setTimeout(() => resolve({
           ok: true,
           json: () => Promise.resolve({ success: true })
