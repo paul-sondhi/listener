@@ -94,6 +94,42 @@ export type Database = {
           },
         ]
       }
+      newsletter_edition_episodes: {
+        Row: {
+          created_at: string
+          episode_id: string
+          id: string
+          newsletter_edition_id: string
+        }
+        Insert: {
+          created_at?: string
+          episode_id: string
+          id?: string
+          newsletter_edition_id: string
+        }
+        Update: {
+          created_at?: string
+          episode_id?: string
+          id?: string
+          newsletter_edition_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_edition_episodes_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episode_transcript_notes"
+            referencedColumns: ["episode_id"]
+          },
+          {
+            foreignKeyName: "newsletter_edition_episodes_newsletter_edition_id_fkey"
+            columns: ["newsletter_edition_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_editions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       newsletter_editions: {
         Row: {
           content: string | null
