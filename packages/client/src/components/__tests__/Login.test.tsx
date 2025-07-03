@@ -103,7 +103,6 @@ describe('Login Component', () => {
       provider: 'spotify',
       options: {
         scopes: 'user-read-email user-library-read',
-        redirectTo: expect.stringContaining('/app'), 
         queryParams: {
           show_dialog: 'true'
         }

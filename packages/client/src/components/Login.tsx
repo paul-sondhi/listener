@@ -37,7 +37,8 @@ export default function Login(): React.JSX.Element {
         provider: 'spotify',
         options: {
           scopes: 'user-read-email user-library-read',
-          redirectTo: REDIRECT_URI,
+          // Do NOT set redirectTo here; let Supabase use its default callback URL
+          // This ensures the OAuth flow works reliably and matches the Spotify app config
           queryParams: {
             show_dialog: 'true' // Force the consent screen
           }

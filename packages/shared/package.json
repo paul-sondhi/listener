@@ -29,9 +29,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
+    "jsdom": "^26.1.0",
     "typescript": "^5.0.0",
-    "vitest": "^1.0.0",
-    "jsdom": "^26.1.0"
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.7"
@@ -40,4 +40,4 @@
     "dist",
     "src"
   ]
-} 
+}
