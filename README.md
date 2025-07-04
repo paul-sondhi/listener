@@ -983,7 +983,89 @@ To customize the generated notes:
 - Depends on transcript worker output (transcripts must exist first)
 - Uses Supabase Storage to download transcript files
 
-#### 8. Cron Setup & Troubleshooting
+#### 8. Configure Newsletter Edition Worker Background Job
+
+The newsletter edition worker runs nightly to generate personalized newsletter editions from episode notes using Gemini 1.5 Flash. This job processes episode notes created in the last 24 hours and generates user-specific newsletters that synthesize multiple episodes into cohesive content.
+
+```bash
+# Enable/disable the newsletter edition worker (default: enabled)
+EDITION_WORKER_ENABLED=true
+
+# Configure lookback window (default: 24 hours)
+EDITION_LOOKBACK_HOURS=24
+
+# Configure prompt template file (default: prompts/newsletter-edition.md)
+EDITION_PROMPT_PATH=prompts/newsletter-edition.md
+
+# Testing mode: overwrite the last 10 newsletter editions regardless of user
+EDITION_WORKER_L10=false
+```
+
+**Job Configuration Examples:**
+```bash
+# Standard production configuration (default)
+EDITION_LOOKBACK_HOURS=24
+EDITION_WORKER_L10=false
+
+# Conservative configuration (smaller lookback window)
+EDITION_LOOKBACK_HOURS=12
+EDITION_WORKER_L10=false
+
+# Testing configuration (overwrites last 10 editions)
+EDITION_LOOKBACK_HOURS=24
+EDITION_WORKER_L10=true
+
+# Disable the job entirely
+EDITION_WORKER_ENABLED=false
+```
+
+**Manual Job Execution:**
+```bash
+# Trigger newsletter edition worker manually (for testing or backfills)
+cd packages/server
+npx tsx jobs/editionGenerator.ts
+
+# Run in testing mode (last 10 editions)
+EDITION_WORKER_L10=true npx tsx jobs/editionGenerator.ts
+```
+
+**Prompt Customization:**
+The newsletter generation uses a customizable prompt template:
+
+```bash
+# Default location
+prompts/newsletter-edition.md
+
+# Custom location
+EDITION_PROMPT_PATH=custom-prompts/my-newsletter-edition.md
+```
+
+To customize the generated newsletters:
+1. Edit `prompts/newsletter-edition.md` (or your custom prompt file)
+2. Modify the instructions, format, or focus areas
+3. Test with `EDITION_WORKER_L10=true` to regenerate newsletters for recent editions
+4. Deploy the updated prompt file
+
+**API Usage & Costs:**
+- Uses Google Gemini 1.5 Flash API for newsletter generation
+- Processes only users with active subscriptions and new episode notes
+- Stores generated newsletters in `newsletter_editions` table
+- Each user generates one newsletter edition per day (approximately 800-1200 words)
+- Tracks which episodes were used in `newsletter_edition_episodes` join table
+
+**Monitoring:**
+- Job execution logs include newsletter generation counts and timing
+- Check application logs for `NEWSLETTER_EDITION_WORKER` entries
+- Failed newsletter generation attempts are logged with error details
+- Newsletters are stored with `status='done'`, `status='error'`, or `status='no_content_found'`
+
+**Dependencies:**
+- Requires Gemini API key (`GEMINI_API_KEY`)
+- Depends on episode notes worker output (notes must exist first)
+- Requires user podcast subscriptions to determine content scope
+- Uses `sanitize-html` for content sanitization before storage
+
+#### 9. Cron Setup & Troubleshooting
 
 The application uses internal cron jobs managed by the `node-cron` library within the main server process. All background jobs are configured via environment variables and run automatically in production.
 
@@ -1000,6 +1082,9 @@ TRANSCRIPT_WORKER_CRON=0 1 * * *
 
 # Notes worker (1 hour after transcript worker)
 NOTES_WORKER_CRON=0 2 * * *
+
+# Newsletter edition worker (1 hour after notes worker)
+EDITION_WORKER_CRON=0 3 * * *
 ```
 
 **Production Deployment (Render):**
@@ -1009,26 +1094,31 @@ NOTES_WORKER_CRON=0 2 * * *
    # In Render dashboard → Environment → Environment Variables
    
    # Enable all background jobs
-   DAILY_SUBSCRIPTION_REFRESH_ENABLED=true
-   EPISODE_SYNC_ENABLED=true
-   TRANSCRIPT_WORKER_ENABLED=true
-   NOTES_WORKER_ENABLED=true
-   
-   # Configure job schedules (Pacific Time)
-   DAILY_SUBSCRIPTION_REFRESH_CRON=0 0 * * *
-   EPISODE_SYNC_CRON=0 1 * * *
-   TRANSCRIPT_WORKER_CRON=0 1 * * *
-   NOTES_WORKER_CRON=0 2 * * *
-   
-   # Job-specific configuration
-   TRANSCRIPT_TIER=business
-   TRANSCRIPT_LOOKBACK=24
-   TRANSCRIPT_MAX_REQUESTS=15
-   TRANSCRIPT_CONCURRENCY=10
-   
-   NOTES_LOOKBACK_HOURS=24
-   NOTES_MAX_CONCURRENCY=30
-   NOTES_PROMPT_PATH=prompts/episode-notes.md
+DAILY_SUBSCRIPTION_REFRESH_ENABLED=true
+EPISODE_SYNC_ENABLED=true
+TRANSCRIPT_WORKER_ENABLED=true
+NOTES_WORKER_ENABLED=true
+EDITION_WORKER_ENABLED=true
+
+# Configure job schedules (Pacific Time)
+DAILY_SUBSCRIPTION_REFRESH_CRON=0 0 * * *
+EPISODE_SYNC_CRON=0 1 * * *
+TRANSCRIPT_WORKER_CRON=0 1 * * *
+NOTES_WORKER_CRON=0 2 * * *
+EDITION_WORKER_CRON=0 3 * * *
+
+# Job-specific configuration
+TRANSCRIPT_TIER=business
+TRANSCRIPT_LOOKBACK=24
+TRANSCRIPT_MAX_REQUESTS=15
+TRANSCRIPT_CONCURRENCY=10
+
+NOTES_LOOKBACK_HOURS=24
+NOTES_MAX_CONCURRENCY=30
+NOTES_PROMPT_PATH=prompts/episode-notes.md
+
+EDITION_LOOKBACK_HOURS=24
+EDITION_PROMPT_PATH=prompts/newsletter-edition.md
    ```
 
 2. **Timezone Configuration:**
@@ -1041,14 +1131,15 @@ NOTES_WORKER_CRON=0 2 * * *
 3. **Manual Job Execution (Production):**
    ```bash
    # Via Render shell or SSH access
-   cd packages/server
-   npx tsx -e "
-   import { runJob } from './services/backgroundJobs.js';
-   await runJob('daily_subscription_refresh');
-   await runJob('episode_sync');
-   await runJob('transcript_worker');
-   await runJob('notes_worker');
-   "
+cd packages/server
+npx tsx -e "
+import { runJob } from './services/backgroundJobs.js';
+await runJob('daily_subscription_refresh');
+await runJob('episode_sync');
+await runJob('transcript_worker');
+await runJob('notes_worker');
+await runJob('edition_worker');
+"
    ```
 
 **Troubleshooting Common Issues:**
@@ -1056,16 +1147,18 @@ NOTES_WORKER_CRON=0 2 * * *
 1. **Jobs Not Running:**
    ```bash
    # Check if jobs are enabled
-   echo $DAILY_SUBSCRIPTION_REFRESH_ENABLED
-   echo $EPISODE_SYNC_ENABLED
-   echo $TRANSCRIPT_WORKER_ENABLED
-   echo $NOTES_WORKER_ENABLED
-   
-   # Check cron schedules
-   echo $DAILY_SUBSCRIPTION_REFRESH_CRON
-   echo $EPISODE_SYNC_CRON
-   echo $TRANSCRIPT_WORKER_CRON
-   echo $NOTES_WORKER_CRON
+echo $DAILY_SUBSCRIPTION_REFRESH_ENABLED
+echo $EPISODE_SYNC_ENABLED
+echo $TRANSCRIPT_WORKER_ENABLED
+echo $NOTES_WORKER_ENABLED
+echo $EDITION_WORKER_ENABLED
+
+# Check cron schedules
+echo $DAILY_SUBSCRIPTION_REFRESH_CRON
+echo $EPISODE_SYNC_CRON
+echo $TRANSCRIPT_WORKER_CRON
+echo $NOTES_WORKER_CRON
+echo $EDITION_WORKER_CRON
    ```
 
 2. **Job Execution Failures:**
@@ -1123,11 +1216,13 @@ NOTES_WORKER_CRON=0 2 * * *
    
    # For Eastern Time (ET) - add 3 hours
    TRANSCRIPT_WORKER_CRON=0 4 * * *  # 4 AM ET = 1 AM PT
-   NOTES_WORKER_CRON=0 5 * * *       # 5 AM ET = 2 AM PT
+NOTES_WORKER_CRON=0 5 * * *       # 5 AM ET = 2 AM PT
+EDITION_WORKER_CRON=0 6 * * *     # 6 AM ET = 3 AM PT
    
    # For UTC - subtract 8 hours (or add 16)
    TRANSCRIPT_WORKER_CRON=0 9 * * *  # 9 AM UTC = 1 AM PT
-   NOTES_WORKER_CRON=0 10 * * *      # 10 AM UTC = 2 AM PT
+NOTES_WORKER_CRON=0 10 * * *      # 10 AM UTC = 2 AM PT
+EDITION_WORKER_CRON=0 11 * * *    # 11 AM UTC = 3 AM PT
    ```
 
 6. **Storage and File Issues:**
@@ -1164,7 +1259,8 @@ NOTES_WORKER_CRON=0 2 * * *
    # - "Job [job_name] failed with error"
    # - "BACKGROUND_JOBS: Starting scheduled [job_name] job"
    # - "EPISODE_NOTES_WORKER: Starting notes worker"
-   # - "TRANSCRIPT_WORKER: Starting transcript worker"
+# - "TRANSCRIPT_WORKER: Starting transcript worker"
+# - "NEWSLETTER_EDITION_WORKER: Starting edition worker"
    ```
 
 2. **Success Metrics:**
@@ -1172,7 +1268,8 @@ NOTES_WORKER_CRON=0 2 * * *
    # Daily subscription refresh: Users processed count
    # Episode sync: New episodes discovered count
    # Transcript worker: Transcripts processed count
-   # Notes worker: Notes generated count
+# Notes worker: Notes generated count
+# Newsletter edition worker: Newsletters generated count
    
    # Check these in application logs after each job run
    ```
@@ -1196,7 +1293,8 @@ NOTES_WORKER_CRON=0 2 * * *
    DAILY_SUBSCRIPTION_REFRESH_ENABLED=false
    EPISODE_SYNC_ENABLED=false
    TRANSCRIPT_WORKER_ENABLED=false
-   NOTES_WORKER_ENABLED=false
+NOTES_WORKER_ENABLED=false
+EDITION_WORKER_ENABLED=false
    ```
 
 2. **Manual Recovery:**
@@ -1205,7 +1303,8 @@ NOTES_WORKER_CRON=0 2 * * *
    # 1. Daily subscription refresh
    # 2. Episode sync
    # 3. Transcript worker
-   # 4. Notes worker
+# 4. Notes worker
+# 5. Newsletter edition worker
    
    cd packages/server
    npx tsx -e "
