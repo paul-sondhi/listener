@@ -306,6 +306,29 @@ function buildQuery(table?: string) {
       });
     }
     
+    // --- PATCH: Attach joins for episode_transcript_notes -> podcast_episodes!inner -> podcast_shows!inner ---
+    if (
+      state.table === 'episode_transcript_notes' &&
+      state.selectColumns &&
+      typeof state.selectColumns === 'string' &&
+      state.selectColumns.includes('podcast_episodes!inner')
+    ) {
+      out = out.map(note => {
+        // Find matching episode by episode_id
+        const matchingEpisode = db['podcast_episodes']?.find(e => e.id === note.episode_id);
+        if (!matchingEpisode) return note; // No join if not found
+        
+        // Find matching show by show_id
+        const matchingShow = db['podcast_shows']?.find(s => s.id === matchingEpisode.show_id);
+        
+        // Attach show to episode
+        const episodeWithShow = matchingShow ? { ...matchingEpisode, podcast_shows: [matchingShow] } : matchingEpisode;
+        
+        // Attach episode to note
+        return { ...note, podcast_episodes: [episodeWithShow] };
+      });
+    }
+    
     return out;
   };
 
