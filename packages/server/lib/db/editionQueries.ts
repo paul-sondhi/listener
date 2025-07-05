@@ -75,7 +75,7 @@ export async function queryUsersWithActiveSubscriptions(
       `)
       .eq('user_podcast_subscriptions.status', 'active')
       .is('user_podcast_subscriptions.deleted_at', null)
-      .order('users.id');
+      .order('id', { ascending: true });
 
     console.log('DEBUG: User subscription query completed', {
       error: !!queryError,
