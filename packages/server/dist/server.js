@@ -7296,7 +7296,7 @@ async function queryUsersWithActiveSubscriptions(supabase4) {
             rss_url
           )
         )
-      `).eq("user_podcast_subscriptions.status", "active").is("user_podcast_subscriptions.deleted_at", null).order("users.id");
+      `).eq("user_podcast_subscriptions.status", "active").is("user_podcast_subscriptions.deleted_at", null).order("id", { ascending: true });
     console.log("DEBUG: User subscription query completed", {
       error: !!queryError,
       dataLength: users?.length || 0,
