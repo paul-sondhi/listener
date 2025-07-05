@@ -65,6 +65,26 @@ const mockSession: Session = {
 const mockSubscription = { unsubscribe: vi.fn() }
 
 /**
+ * Helper function to render AuthProvider with proper cleanup tracking
+ * This ensures components are properly unmounted to prevent "window is not defined" errors
+ */
+const renderWithCleanup = (component: React.ReactElement) => {
+  const rendered = render(component);
+  
+  // Store the unmount function for cleanup
+  const originalUnmount = rendered.unmount;
+  rendered.unmount = () => {
+    // Ensure all async operations are settled before unmounting
+    act(() => {
+      // This ensures React state updates are processed before unmount
+    });
+    originalUnmount();
+  };
+  
+  return rendered;
+};
+
+/**
  * Test component to use the auth context including reauth functionality
  * Provides buttons to test signIn, signOut, and reauth functionality
  */
@@ -154,13 +174,28 @@ describe('AuthContext', () => {
     })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Clear all mocks
     vi.resetAllMocks();
+    
+    // Clear any timers that might still be running
+    vi.clearAllTimers();
+    
+    // Wait for any pending async operations to complete
+    // This prevents "window is not defined" errors from React state updates
+    // that happen after the test environment is torn down
+    await new Promise(resolve => setTimeout(resolve, 0));
+    
+    // Clear any pending microtasks (like queueMicrotask calls in AuthContext)
+    await new Promise(resolve => queueMicrotask(resolve));
+    
+    // Additional cleanup to ensure all async operations are settled
+    await new Promise(resolve => setTimeout(resolve, 10));
   })
 
   it('should initialize with no user and not loading after getSession resolves', async () => {
     // Act
-    render(
+    const { unmount } = renderWithCleanup(
       <AuthProvider>
         <TestConsumerComponent />
       </AuthProvider>
@@ -173,6 +208,9 @@ describe('AuthContext', () => {
     
     const userElement: HTMLElement = screen.getByTestId('user')
     expect(userElement.textContent).toBe('No user')
+    
+    // Clean up
+    unmount()
   })
 
   it('should set user if a session exists on initialization', async () => {
@@ -183,7 +221,7 @@ describe('AuthContext', () => {
     })
 
     // Act
-    render(
+    const { unmount } = renderWithCleanup(
       <AuthProvider>
         <TestConsumerComponent />
       </AuthProvider>
@@ -194,11 +232,14 @@ describe('AuthContext', () => {
       const userElement: HTMLElement = screen.getByTestId('user')
       expect(userElement.textContent).toBe(mockUser.email)
     })
+    
+    // Clean up
+    unmount()
   })
 
   it('should update user state when onAuthStateChange callback is triggered', async () => {
     // Act
-    render(
+    const { unmount } = renderWithCleanup(
       <AuthProvider>
         <TestConsumerComponent />
       </AuthProvider>
@@ -231,11 +272,14 @@ describe('AuthContext', () => {
     })
     
     expect(userElement.textContent).toBe('No user')
+    
+    // Clean up
+    unmount()
   })
 
   it('should call supabase.auth.signInWithOAuth when signIn is invoked', async () => {
     // Arrange
-    render(
+    const { unmount } = renderWithCleanup(
       <AuthProvider>
         <TestConsumerComponent />
       </AuthProvider>
@@ -254,6 +298,9 @@ describe('AuthContext', () => {
 
     // Assert
     expect(mockSupabase.auth.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google' })
+    
+    // Clean up
+    unmount()
   })
 
   it('should call supabase.auth.signOut when signOut is invoked', async () => {
@@ -266,7 +313,7 @@ describe('AuthContext', () => {
     // Make sure signOut mock returns a resolved promise
     mockSupabase.auth.signOut.mockResolvedValue({ error: null })
     
-    render(
+    const { unmount } = renderWithCleanup(
       <AuthProvider>
         <TestConsumerComponent />
       </AuthProvider>
@@ -291,11 +338,14 @@ describe('AuthContext', () => {
       const userElement: HTMLElement = screen.getByTestId('user')
       expect(userElement.textContent).toBe('No user')
     })
+    
+    // Clean up
+    unmount()
   })
 
   it('should unsubscribe from onAuthStateChange on unmount', async () => {
     // Arrange
-    const { unmount } = render(
+    const { unmount } = renderWithCleanup(
       <AuthProvider>
         <TestConsumerComponent />
       </AuthProvider>
@@ -321,7 +371,7 @@ describe('AuthContext', () => {
     })
 
     // Act
-    render(
+    const { unmount } = renderWithCleanup(
       <AuthProvider>
         <TestConsumerComponent />
       </AuthProvider>
@@ -334,6 +384,9 @@ describe('AuthContext', () => {
 
     const userElement: HTMLElement = screen.getByTestId('user')
     expect(userElement.textContent).toBe('No user')
+    
+    // Clean up
+    unmount()
   })
 
   it('useAuth should throw error if used outside of AuthProvider', () => {
@@ -344,9 +397,15 @@ describe('AuthContext', () => {
     }
 
     // Act & Assert - This should throw an error when rendering
+    let renderedComponent: any = null;
     expect(() => {
-      render(<BadConsumer />)
+      renderedComponent = render(<BadConsumer />)
     }).toThrow('useAuth must be used within an AuthProvider')
+    
+    // Clean up the rendered component if it was created despite the error
+    if (renderedComponent?.unmount) {
+      renderedComponent.unmount();
+    }
   })
 
   it('should handle unexpected errors during auth initialization', async () => {
@@ -355,7 +414,7 @@ describe('AuthContext', () => {
     mockSupabase.auth.getSession.mockRejectedValueOnce(unexpectedError)
 
     // Act
-    render(
+    const { unmount } = renderWithCleanup(
       <AuthProvider>
         <TestConsumerComponent />
       </AuthProvider>
@@ -368,6 +427,9 @@ describe('AuthContext', () => {
 
     const userElement: HTMLElement = screen.getByTestId('user')
     expect(userElement.textContent).toBe('No user')
+    
+    // Clean up
+    unmount()
   })
 
   describe('Reauth Functionality', () => {
@@ -400,7 +462,7 @@ describe('AuthContext', () => {
       })
 
       // Act
-      render(
+      const { unmount } = renderWithCleanup(
         <AuthProvider>
           <TestConsumerComponent />
         </AuthProvider>
@@ -419,6 +481,9 @@ describe('AuthContext', () => {
         const requiresReauthElement = screen.getByTestId('requires-reauth')
         expect(requiresReauthElement.textContent).toBe('true')
       }, { timeout: 2000 })
+      
+      // Clean up
+      unmount()
     })
 
     it('should handle network errors during reauth status check gracefully', async () => {
@@ -447,7 +512,7 @@ describe('AuthContext', () => {
       })
 
       // Act
-      render(
+      const { unmount } = renderWithCleanup(
         <AuthProvider>
           <TestConsumerComponent />
         </AuthProvider>
@@ -464,6 +529,9 @@ describe('AuthContext', () => {
         const requiresReauthElement = screen.getByTestId('requires-reauth')
         expect(requiresReauthElement.textContent).toBe('false') // Should default to false on error
       }, { timeout: 2000 })
+      
+      // Clean up
+      unmount()
     })
 
     it('should prevent multiple simultaneous reauth checks', async () => {
@@ -493,7 +561,7 @@ describe('AuthContext', () => {
       })
 
       // Act
-      render(
+      const { unmount } = renderWithCleanup(
         <AuthProvider>
           <TestConsumerComponent />
         </AuthProvider>
@@ -518,6 +586,9 @@ describe('AuthContext', () => {
       await waitFor(() => {
         // Multiple reauth checks should be prevented
       })
+      
+      // Clean up
+      unmount()
     })
 
     it('should clear reauth flag successfully', async () => {
@@ -544,7 +615,7 @@ describe('AuthContext', () => {
       })
 
       // Act
-      render(
+      const { unmount } = renderWithCleanup(
         <AuthProvider>
           <TestConsumerComponent />
         </AuthProvider>
@@ -565,6 +636,9 @@ describe('AuthContext', () => {
         const requiresReauthElement = screen.getByTestId('requires-reauth')
         expect(requiresReauthElement.textContent).toBe('false')
       })
+      
+      // Clean up
+      unmount()
     })
 
     it('should handle errors when clearing reauth flag', async () => {
@@ -592,7 +666,7 @@ describe('AuthContext', () => {
       })
 
       // Act
-      render(
+      const { unmount } = renderWithCleanup(
         <AuthProvider>
           <TestConsumerComponent />
         </AuthProvider>
@@ -607,6 +681,9 @@ describe('AuthContext', () => {
       await waitFor(() => {
         // Error should be handled gracefully
       })
+      
+      // Clean up
+      unmount()
     })
 
     it('should check reauth status on SIGNED_IN event', async () => {
@@ -629,7 +706,7 @@ describe('AuthContext', () => {
       })
 
       // Act
-      render(
+      const { unmount } = renderWithCleanup(
         <AuthProvider>
           <TestConsumerComponent />
         </AuthProvider>
@@ -662,6 +739,9 @@ describe('AuthContext', () => {
         const requiresReauthElement = screen.getByTestId('requires-reauth')
         expect(requiresReauthElement.textContent).toBe('true')
       }, { timeout: 2000 })
+      
+      // Clean up
+      unmount()
     })
 
     it('should clear reauth flag on SIGNED_OUT event', async () => {
@@ -681,7 +761,7 @@ describe('AuthContext', () => {
         update: mockUpdate
       })
 
-      render(
+      const { unmount } = renderWithCleanup(
         <AuthProvider>
           <TestConsumerComponent />
         </AuthProvider>
@@ -718,6 +798,9 @@ describe('AuthContext', () => {
         const requiresReauthElement = screen.getByTestId('requires-reauth')
         expect(requiresReauthElement.textContent).toBe('false')
       })
+      
+      // Clean up
+      unmount()
     })
   })
 
@@ -728,7 +811,7 @@ describe('AuthContext', () => {
       error: null 
     });
     
-    render(
+    const { unmount } = renderWithCleanup(
       <AuthProvider>
         <TestConsumerComponent />
       </AuthProvider>
@@ -762,5 +845,8 @@ describe('AuthContext', () => {
     // Verify user was cleared successfully
     const userElement: HTMLElement = screen.getByTestId('user')
     expect(userElement.textContent).toBe('No user')
+    
+    // Clean up
+    unmount()
   })
 }) 
