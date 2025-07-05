@@ -10,7 +10,7 @@ import { Database } from '../../../shared/src/types/supabase.js';
 import { EditionWorkerConfig } from '../../config/editionWorkerConfig.js';
 import { queryUsersWithActiveSubscriptions, queryLast10NewsletterEditions } from '../db/editionQueries.js';
 import { processUserForNewsletter, UserProcessingResult, aggregateUserProcessingResults } from './editionProcessor.js';
-import { updateNewsletterEdition } from '../db/newsletter-editions.js';
+import { updateNewsletterEdition } from '../db/newsletter-editions.ts';
 
 /**
  * Result of preparing users for newsletter generation

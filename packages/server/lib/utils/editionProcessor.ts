@@ -9,8 +9,10 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../../../shared/src/types/supabase.js';
 import { EditionWorkerConfig } from '../../config/editionWorkerConfig.js';
 import { UserWithSubscriptions, EpisodeNoteWithEpisode, queryEpisodeNotesForUser } from '../db/editionQueries.js';
-import { generateNewsletterEdition, sanitizeNewsletterContent } from './buildNewsletterEditionPrompt.js';
-import { insertNewsletterEdition, insertNewsletterEditionEpisodes } from '../db/newsletter-editions.js';
+import { generateNewsletterEdition } from '../llm/gemini.js';
+import { sanitizeNewsletterContent } from './buildNewsletterEditionPrompt.js';
+import { insertNewsletterEdition } from '../db/newsletter-editions.ts';
+import { insertNewsletterEditionEpisodes } from '../db/newsletter-edition-episodes.ts';
 import { NewsletterEdition } from '@listener/shared';
 
 /**
@@ -46,6 +48,10 @@ export interface UserProcessingResult {
     totalWordCount: number;
     averageWordCount: number;
   };
+  /** Additional fields for test assertions */
+  html_content?: string;
+  sanitized_content?: string;
+  episode_count?: number;
 }
 
 /**
@@ -157,17 +163,19 @@ export async function processUserForNewsletter(
     // Phase 2: Generate newsletter content using Gemini
     const generationStart = Date.now();
     let newsletterContent: string;
+    let generationResult: any; // Make generationResult available in the DB save phase
 
     try {
-      const generationResult = await generateNewsletterEdition(notesTexts, config.promptTemplate);
+      const editionDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      generationResult = await generateNewsletterEdition(notesTexts, user.email, editionDate);
       timing.generationMs = Date.now() - generationStart;
       
       if (!generationResult.success) {
         throw new Error(generationResult.error || 'Newsletter generation failed');
       }
       
-      // Sanitize the generated content
-      newsletterContent = sanitizeNewsletterContent(generationResult.content);
+      // Use the sanitized content from the result
+      newsletterContent = generationResult.sanitizedContent;
       
       console.log('DEBUG: Successfully generated newsletter content', {
         userId: user.id,
@@ -207,13 +215,21 @@ export async function processUserForNewsletter(
         user_id: user.id,
         edition_date: editionDate,
         content: newsletterContent,
-        status: 'completed',
-        model: 'gemini-1.5-flash',
+        status: 'generated',
+        model: generationResult.model,
         error_message: null
       });
       
       // DEBUG: Log the editionResult to diagnose test failures
       console.log('DEBUG: editionResult', editionResult);
+      console.log('DEBUG: editionResult type', typeof editionResult);
+      console.log('DEBUG: editionResult keys', editionResult ? Object.keys(editionResult) : 'undefined');
+      console.log('DEBUG: editionResult.id', editionResult?.id);
+
+      // Remove all fallback logic - let it fail if DB helpers don't work
+      if (!editionResult) {
+        throw new Error(`Database save failed: insertNewsletterEdition returned undefined`);
+      }
 
       const newsletterEditionId = editionResult.id;
 
@@ -224,10 +240,29 @@ export async function processUserForNewsletter(
         episode_ids: episodeIds
       });
 
-      // DEBUG: Log the episodeLinksResult to diagnose test failures
-      console.log('DEBUG: episodeLinksResult', episodeLinksResult);
-      
-      // The function throws on error, so if we get here it succeeded
+      // Remove fallback logic for episodeLinksResult
+      if (!episodeLinksResult) {
+        throw new Error(`Database save failed: insertNewsletterEditionEpisodes returned undefined`);
+      }
+
+      // --- Set additional fields for test assertions ---
+      // 1. html_content: the generated newsletter HTML (from newsletterContent)
+      // 2. sanitized_content: sanitized version of the newsletter (using sanitizeNewsletterContent)
+      // 3. episode_count: number of episode links
+      //
+      // If your DB schema does not support these fields, you may need to update the row after insert.
+      // For now, we add them to the result object for test assertions.
+      const htmlContent = newsletterContent;
+      const sanitizedContent = sanitizeNewsletterContent(newsletterContent);
+      const episodeCount = episodeLinksResult.length;
+
+      // Log for debugging
+      console.log('DEBUG: Setting additional fields for test assertions', {
+        htmlContent,
+        sanitizedContent,
+        episodeCount
+      });
+
       console.log('DEBUG: Successfully inserted episode links', {
         userId: user.id,
         newsletterEditionId,
@@ -278,8 +313,11 @@ export async function processUserForNewsletter(
       ...baseResult,
       status: 'done',
       newsletterContent,
-      newsletterEditionId: editionResult.id,
-      episodeIds: episodeNotes.map(note => note.episode_id),
+      newsletterEditionId,
+      episodeIds,
+      html_content: htmlContent,
+      sanitized_content: sanitizedContent,
+      episode_count: episodeCount,
       elapsedMs
     };
 
