@@ -227,10 +227,10 @@ function logEncryptedTokenOperation(userId, operation, elapsedMs, success, error
 async function createUserSecret(userId, tokenData) {
   const startTime = Date.now();
   try {
-    const supabase2 = getSupabaseAdmin();
+    const supabase4 = getSupabaseAdmin();
     const encryptionKey = getEncryptionKey();
     const tokenJson = tokenData;
-    const { error } = await supabase2.rpc("update_encrypted_tokens", {
+    const { error } = await supabase4.rpc("update_encrypted_tokens", {
       p_user_id: userId,
       p_token_data: tokenJson,
       p_encryption_key: encryptionKey
@@ -264,9 +264,9 @@ async function createUserSecret(userId, tokenData) {
 async function getUserSecret(userId) {
   const startTime = Date.now();
   try {
-    const supabase2 = getSupabaseAdmin();
+    const supabase4 = getSupabaseAdmin();
     const encryptionKey = getEncryptionKey();
-    const { data: userData, error: userError } = await supabase2.rpc("get_encrypted_tokens", {
+    const { data: userData, error: userError } = await supabase4.rpc("get_encrypted_tokens", {
       p_user_id: userId,
       p_encryption_key: encryptionKey
     });
@@ -311,10 +311,10 @@ async function getUserSecret(userId) {
 async function updateUserSecret(userId, tokenData) {
   const startTime = Date.now();
   try {
-    const supabase2 = getSupabaseAdmin();
+    const supabase4 = getSupabaseAdmin();
     const encryptionKey = getEncryptionKey();
     const tokenJson = tokenData;
-    const { error } = await supabase2.rpc("update_encrypted_tokens", {
+    const { error } = await supabase4.rpc("update_encrypted_tokens", {
       p_user_id: userId,
       p_token_data: tokenJson,
       p_encryption_key: encryptionKey
@@ -348,8 +348,8 @@ async function updateUserSecret(userId, tokenData) {
 async function deleteUserSecret(userId, _hardDelete = false, _deletionReason = "User request") {
   const startTime = Date.now();
   try {
-    const supabase2 = getSupabaseAdmin();
-    const { error } = await supabase2.from("users").update({
+    const supabase4 = getSupabaseAdmin();
+    const { error } = await supabase4.from("users").update({
       spotify_tokens_enc: null,
       spotify_reauth_required: true,
       updated_at: (/* @__PURE__ */ new Date()).toISOString()
@@ -385,8 +385,8 @@ async function deleteUserSecret(userId, _hardDelete = false, _deletionReason = "
 async function storeUserSecret(userId, tokenData) {
   const startTime = Date.now();
   try {
-    const supabase2 = getSupabaseAdmin();
-    const { data: userData, error: userError } = await supabase2.from("users").select("spotify_tokens_enc").eq("id", userId).single();
+    const supabase4 = getSupabaseAdmin();
+    const { data: userData, error: userError } = await supabase4.from("users").select("spotify_tokens_enc").eq("id", userId).single();
     if (userError) {
       const elapsedMs = Date.now() - startTime;
       return {
@@ -413,11 +413,11 @@ async function encryptedTokenHealthCheck() {
     return true;
   }
   try {
-    const supabase2 = getSupabaseAdmin();
+    const supabase4 = getSupabaseAdmin();
     const encryptionKey = getEncryptionKey();
     const dummyUserId = "00000000-0000-0000-0000-000000000000";
     const dummyTokenJson = { health_check: true };
-    const { error: updateFnErr } = await supabase2.rpc("update_encrypted_tokens", {
+    const { error: updateFnErr } = await supabase4.rpc("update_encrypted_tokens", {
       p_user_id: dummyUserId,
       p_token_data: dummyTokenJson,
       p_encryption_key: encryptionKey
@@ -426,7 +426,7 @@ async function encryptedTokenHealthCheck() {
       console.error("Encrypted token health check failed: update_encrypted_tokens missing or invalid \u2013", updateFnErr.message);
       return false;
     }
-    const { error: getFnErr } = await supabase2.rpc("get_encrypted_tokens", {
+    const { error: getFnErr } = await supabase4.rpc("get_encrypted_tokens", {
       p_user_id: dummyUserId,
       p_encryption_key: encryptionKey
     });
@@ -435,7 +435,7 @@ async function encryptedTokenHealthCheck() {
       return false;
     }
     const testData = "health-check-test";
-    const { data: echo, error: testErr } = await supabase2.rpc("test_encryption", {
+    const { data: echo, error: testErr } = await supabase4.rpc("test_encryption", {
       test_data: testData,
       encryption_key: encryptionKey
     });
@@ -586,6 +586,17 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import dotenv from "dotenv";
+
+// lib/debugFilter.ts
+if (process.env.LOG_LEVEL !== "debug") {
+  const originalLog = console.log.bind(console);
+  console.log = (...args) => {
+    if (args.length > 0 && typeof args[0] === "string" && args[0].startsWith("DEBUG:")) {
+      return;
+    }
+    originalLog(...args);
+  };
+}
 
 // routes/index.ts
 import express5 from "express";
@@ -1114,7 +1125,7 @@ router3.post("/", async (req, res) => {
           if (retries < maxRetries) {
             retries++;
             console.warn(`Retrying Spotify API call (${retries}/${maxRetries}) due to error:`, err.message);
-            await new Promise((resolve) => setTimeout(resolve, 500 * retries));
+            await new Promise((resolve4) => setTimeout(resolve4, 500 * retries));
             continue;
           } else {
             console.error("Failed to fetch shows from Spotify after retries:", err);
@@ -1694,9 +1705,9 @@ async function refreshTokens(userId, refreshToken) {
       elapsed_ms: Date.now() - startTime
     };
   }
-  const supabase2 = getSupabaseAdmin4();
+  const supabase4 = getSupabaseAdmin4();
   try {
-    const { data: _lockedUser, error: lockError } = await supabase2.rpc("begin_token_refresh_transaction", { p_user_id: userId });
+    const { data: _lockedUser, error: lockError } = await supabase4.rpc("begin_token_refresh_transaction", { p_user_id: userId });
     if (lockError) {
       console.error("Failed to acquire user lock for token refresh:", lockError);
       return {
@@ -1726,7 +1737,7 @@ async function refreshTokens(userId, refreshToken) {
         }
         const cache = getTokenCache();
         await cache.set(userId, encryptedTokenData, CONFIG.cache_ttl_seconds);
-        await supabase2.from("users").update({ spotify_reauth_required: false }).eq("id", userId);
+        await supabase4.from("users").update({ spotify_reauth_required: false }).eq("id", userId);
         emitMetric("spotify_token_refresh_success_total", 1, { user_id: userId });
         emitMetric("encrypted_token_write_total", 1, { operation: "token_refresh" });
         metrics.encrypted_token_write_total++;
@@ -1745,7 +1756,7 @@ async function refreshTokens(userId, refreshToken) {
         console.warn(`TOKEN_REFRESH: Attempt ${retryCount} failed for user ${userId}: ${errorMessage}`);
         if (errorMessage.includes("401") || errorMessage.includes("invalid_grant")) {
           console.error(`TOKEN_REFRESH: Invalid refresh token for user ${userId}, setting reauth required`);
-          await supabase2.from("users").update({ spotify_reauth_required: true }).eq("id", userId);
+          await supabase4.from("users").update({ spotify_reauth_required: true }).eq("id", userId);
           const cache = getTokenCache();
           await cache.delete(userId);
           emitMetric("spotify_token_refresh_failed_total", 1, {
@@ -1762,7 +1773,7 @@ async function refreshTokens(userId, refreshToken) {
         }
         if (errorMessage.includes("400") && errorMessage.includes("invalid_request")) {
           console.error(`TOKEN_REFRESH: Invalid request (400) for user ${userId}, likely expired refresh token, setting reauth required`);
-          await supabase2.from("users").update({ spotify_reauth_required: true }).eq("id", userId);
+          await supabase4.from("users").update({ spotify_reauth_required: true }).eq("id", userId);
           const cache = getTokenCache();
           await cache.delete(userId);
           emitMetric("spotify_token_refresh_failed_total", 1, {
@@ -1780,7 +1791,7 @@ async function refreshTokens(userId, refreshToken) {
         if (retryCount <= CONFIG.max_refresh_retries) {
           const delay = Math.min(1e3 * Math.pow(2, retryCount), 5e3);
           console.log(`TOKEN_REFRESH: Waiting ${delay}ms before retry`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await new Promise((resolve4) => setTimeout(resolve4, delay));
         }
       }
     }
@@ -1920,7 +1931,7 @@ async function healthCheck() {
 
 // lib/logger.ts
 var DEFAULT_LOGGER_CONFIG = {
-  minLevel: process.env.LOG_LEVEL || (process.env.NODE_ENV === "development" ? "debug" : "info"),
+  minLevel: process.env.LOG_LEVEL || (process.env.NODE_ENV === "test" ? "warn" : process.env.NODE_ENV === "development" ? "debug" : "info"),
   enableConsoleLogging: true,
   enableStructuredLogging: process.env.NODE_ENV !== "development",
   // JSON logs in production
@@ -2834,7 +2845,7 @@ async function getAllUsersWithSpotifyTokens() {
 }
 async function getUserSpotifyStatistics() {
   try {
-    const supabase2 = getSupabaseAdmin5();
+    const supabase4 = getSupabaseAdmin5();
     const extractCount = (res) => {
       if (res === void 0 || res === null) return void 0;
       if (typeof res === "number") return res;
@@ -2846,16 +2857,16 @@ async function getUserSpotifyStatistics() {
       return void 0;
     };
     const totalRes = await safeAwait2(
-      supabase2.from("users").select("*", { count: "exact", head: true })
+      supabase4.from("users").select("*", { count: "exact", head: true })
     );
     const totalUsers = extractCount(totalRes);
-    let integratedQuery = supabase2.from("users").select("*", { count: "exact", head: true });
+    let integratedQuery = supabase4.from("users").select("*", { count: "exact", head: true });
     if (typeof integratedQuery.not === "function" && typeof integratedQuery.is === "function") {
       integratedQuery = integratedQuery.not("spotify_tokens_enc", "is", null).is("spotify_reauth_required", false);
     }
     const integratedRes = await safeAwait2(integratedQuery);
     const spotifyIntegrated = extractCount(integratedRes);
-    let reauthQuery = supabase2.from("users").select("*", { count: "exact", head: true });
+    let reauthQuery = supabase4.from("users").select("*", { count: "exact", head: true });
     if (typeof reauthQuery.eq === "function") {
       reauthQuery = reauthQuery.eq("spotify_reauth_required", true);
     }
@@ -2910,7 +2921,7 @@ function sleep(ms = 0) {
   if (ms <= 0) {
     return Promise.resolve();
   }
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve4) => setTimeout(resolve4, ms));
 }
 async function safeAwait2(maybeBuilder) {
   if (process.env.NODE_ENV === "test") {
@@ -3034,7 +3045,7 @@ var EpisodeSyncService = class {
             showId: show.id
           });
         }
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve4) => setTimeout(resolve4, 500));
       }
       result.success = result.failedShows === 0;
       result.duration = Date.now() - startTime;
@@ -3175,7 +3186,7 @@ var EpisodeSyncService = class {
           error: lastError.message
         });
         if (attempt < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 1e3));
+          await new Promise((resolve4) => setTimeout(resolve4, 1e3));
         }
       }
     }
@@ -3418,7 +3429,7 @@ function calculateDelay(attempt, config) {
   return Math.round(finalDelay);
 }
 function sleep2(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve4) => setTimeout(resolve4, ms));
 }
 async function withHttpRetry(fn, options = {}) {
   return withRetry(fn, {
@@ -3486,13 +3497,18 @@ var TaddyFreeClient = class {
       }
       const episodeResult = await withHttpRetry(
         () => this.sdk.getPodcastEpisode?.({
-          podcastGuid: podcastResult.podcastGuid || void 0,
-          episodeGuid
+          guid: episodeGuid,
+          seriesUuidForLookup: podcastResult.uuid
         }),
         { maxAttempts: 2 }
       );
       if (!episodeResult) {
-        globalLogger.debug("No episode found for GUID", { episodeGuid, podcastGuid: podcastResult.podcastGuid });
+        globalLogger.debug("No episode found for GUID", {
+          episodeGuid,
+          podcastUuid: podcastResult.uuid,
+          podcastName: podcastResult.name,
+          context: "This would result in no_match status"
+        });
         return { kind: "no_match" };
       }
       const transcript = this.extractBestTranscript(episodeResult);
@@ -3653,7 +3669,10 @@ var TaddyBusinessClient = class {
         { maxAttempts: 2 }
       );
       if (!podcastResult) {
-        globalLogger.debug("No podcast series found for RSS URL", { feedUrl });
+        globalLogger.debug("No podcast series found for RSS URL", {
+          feedUrl,
+          context: "This would result in no_match status"
+        });
         return { kind: "no_match", creditsConsumed: 1 };
       }
       const episodeResult = await withHttpRetry(
@@ -3661,7 +3680,12 @@ var TaddyBusinessClient = class {
         { maxAttempts: 2 }
       );
       if (!episodeResult) {
-        globalLogger.debug("No episode found for GUID", { episodeGuid, podcastUuid: podcastResult.uuid });
+        globalLogger.debug("No episode found for GUID", {
+          episodeGuid,
+          podcastUuid: podcastResult.uuid,
+          podcastName: podcastResult.name,
+          context: "This would result in no_match status"
+        });
         return { kind: "no_match", creditsConsumed: 1 };
       }
       const transcriptResult = await withHttpRetry(
@@ -3827,16 +3851,16 @@ var TaddyBusinessClient = class {
     }
   }
   /**
-   * Query for podcast episode by podcast UUID and episode GUID
+   * Query for podcast episode by GUID with fallback strategies
    * 
-   * Attempts direct episode lookup first, then falls back to series-then-filter
-   * approach if the direct query fails due to schema issues.
+   * ATTEMPT 1: Direct episode query with seriesUuidForLookup (preferred approach)
+   * ATTEMPT 2: Series lookup with client-side filtering (fallback)
    */
   async queryPodcastEpisode(podcastUuid, episodeGuid) {
     try {
       const directQuery = `
-        query GetPodcastEpisode($guid: String!) {
-          getPodcastEpisode(guid: $guid) {
+        query GetPodcastEpisode($guid: String!, $seriesUuidForLookup: ID!) {
+          getPodcastEpisode(guid: $guid, seriesUuidForLookup: $seriesUuidForLookup) {
             uuid
             name
             guid
@@ -3844,7 +3868,10 @@ var TaddyBusinessClient = class {
           }
         }
       `;
-      const result = await this.client.request(directQuery, { guid: episodeGuid });
+      const result = await this.client.request(directQuery, {
+        guid: episodeGuid,
+        seriesUuidForLookup: podcastUuid
+      });
       if (result.getPodcastEpisode) {
         globalLogger.debug("Found episode via direct query", {
           episodeGuid,
@@ -3854,7 +3881,11 @@ var TaddyBusinessClient = class {
         });
         return result.getPodcastEpisode;
       }
-      globalLogger.debug("No episode found via direct query", { episodeGuid });
+      globalLogger.debug("No episode found via direct query", {
+        episodeGuid,
+        podcastUuid,
+        context: "This would result in no_match status"
+      });
       return null;
     } catch (error) {
       if (error instanceof Error && (error.message.includes("Cannot query field") || error.message.includes("Unknown argument") || error.message.includes("getPodcastEpisode"))) {
@@ -3890,13 +3921,17 @@ var TaddyBusinessClient = class {
     const result = await this.client.request(query, { podcastUuid });
     const series = result.getPodcastSeries;
     if (!series) {
-      globalLogger.debug("No podcast series found for UUID", { podcastUuid });
+      globalLogger.debug("No podcast series found for UUID", {
+        podcastUuid,
+        context: "This would result in no_match status"
+      });
       return null;
     }
     if (!series.episodes || series.episodes.length === 0) {
       globalLogger.debug("Podcast series has no episodes", {
         podcastUuid,
-        seriesName: series.name
+        seriesName: series.name,
+        context: "This would result in no_match status"
       });
       return null;
     }
@@ -3908,7 +3943,10 @@ var TaddyBusinessClient = class {
         podcastUuid,
         episodeGuid,
         seriesName: series.name,
-        availableEpisodes: series.episodes.length
+        availableEpisodes: series.episodes.length,
+        context: "This would result in no_match status",
+        availableGuids: series.episodes.slice(0, 3).map((e) => e.guid)
+        // Log first 3 GUIDs for debugging
       });
       return null;
     }
@@ -4790,8 +4828,6 @@ var TranscriptWorker = class {
    */
   async queryEpisodesNeedingTranscripts() {
     const startTime = Date.now();
-    console.log("DEBUG: Starting episode query with lookback hours:", this.config.lookbackHours);
-    console.log("DEBUG: Lookback date:", new Date(Date.now() - this.config.lookbackHours * 60 * 60 * 1e3).toISOString());
     this.logger.debug("system", "Querying episodes needing transcripts", {
       metadata: {
         lookback_hours: this.config.lookbackHours,
@@ -4820,10 +4856,6 @@ var TranscriptWorker = class {
         `).gte("pub_date", new Date(Date.now() - this.config.lookbackHours * 60 * 60 * 1e3).toISOString()).not("podcast_shows.rss_url", "is", null).not("podcast_shows.rss_url", "eq", "").not("guid", "is", null).not("guid", "eq", "").order("pub_date", { ascending: false }).limit(this.config.maxRequests * 2);
       const queryError = initialError;
       let rawEpisodes = initialData || [];
-      console.log("DEBUG: Query completed - error:", !!queryError, "data length:", rawEpisodes.length);
-      if (rawEpisodes.length > 0) {
-        console.log("DEBUG: First episode data:", JSON.stringify(rawEpisodes[0], null, 2));
-      }
       this.logger.info("system", "Supabase query completed", {
         metadata: {
           has_error: !!queryError,
@@ -4859,8 +4891,8 @@ var TranscriptWorker = class {
         }
         rawEpisodes = fallbackEpisodes;
       }
-      const episodeIds = rawEpisodes.map((ep) => ep.id);
-      const { data: existingTranscripts, error: transcriptError } = await this.supabase.from("transcripts").select("episode_id").in("episode_id", episodeIds).is("deleted_at", null);
+      const episodeIds2 = rawEpisodes.map((ep) => ep.id);
+      const { data: existingTranscripts, error: transcriptError } = await this.supabase.from("transcripts").select("episode_id").in("episode_id", episodeIds2).is("deleted_at", null);
       if (transcriptError) {
         throw new Error(`Failed to query existing transcripts: ${transcriptError.message}`);
       }
@@ -4876,7 +4908,6 @@ var TranscriptWorker = class {
       if (this.config.last10Mode) {
         episodesNeedingTranscripts = episodesNeedingTranscripts.slice(0, 10);
       }
-      console.log("DEBUG: episodesNeedingTranscripts length:", episodesNeedingTranscripts.length);
       const episodesMissingShowInfo = episodesNeedingTranscripts.filter((ep) => !ep.podcast_shows);
       if (episodesMissingShowInfo.length > 0) {
         const showIdsToFetch = Array.from(new Set(episodesMissingShowInfo.map((ep) => ep.show_id)));
@@ -5032,7 +5063,7 @@ var TranscriptWorker = class {
         break;
       }
       if (batchIndex < batches.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve4) => setTimeout(resolve4, 100));
       }
     }
     this.logger.info("system", "Episode processing completed", {
@@ -5419,6 +5450,2865 @@ var TranscriptWorker = class {
   }
 };
 
+// lib/db/notesQueries.ts
+async function queryTranscriptsNeedingNotes(supabase4, lookbackHours, last10Mode, nowOverride) {
+  const now = nowOverride ?? Date.now();
+  const startTime = now;
+  console.log("DEBUG: Starting transcript notes query", {
+    lookbackHours,
+    last10Mode,
+    lookbackDate: last10Mode ? "N/A" : new Date(now - lookbackHours * 60 * 60 * 1e3).toISOString()
+  });
+  try {
+    let baseQuery = supabase4.from("transcripts").select(`
+        id,
+        episode_id,
+        storage_path,
+        created_at,
+        podcast_episodes!inner (
+          id,
+          show_id,
+          title,
+          description,
+          pub_date,
+          podcast_shows!inner (
+            id,
+            title,
+            rss_url
+          )
+        )
+      `).not("storage_path", "is", null).not("storage_path", "eq", "").is("deleted_at", null).order("created_at", { ascending: false });
+    if (!last10Mode) {
+      const cutoffTime = new Date(now - lookbackHours * 60 * 60 * 1e3).toISOString();
+      baseQuery = baseQuery.gte("created_at", cutoffTime);
+    }
+    const limit = last10Mode ? 10 : 100;
+    baseQuery = baseQuery.limit(limit);
+    const { data: rawTranscripts, error: queryError } = await baseQuery;
+    console.log("DEBUG: Transcript query completed", {
+      error: !!queryError,
+      dataLength: rawTranscripts?.length || 0,
+      errorMessage: queryError?.message || "none"
+    });
+    if (queryError) {
+      throw new Error(`Failed to query transcripts: ${queryError.message}`);
+    }
+    if (!rawTranscripts || rawTranscripts.length === 0) {
+      console.log("DEBUG: No transcripts found in time window");
+      return [];
+    }
+    let candidateTranscripts = rawTranscripts;
+    if (!last10Mode) {
+      const transcriptIds = rawTranscripts.map((t) => t.id);
+      const { data: existingNotes, error: notesError } = await supabase4.from("episode_transcript_notes").select("transcript_id").in("transcript_id", transcriptIds).is("deleted_at", null);
+      if (notesError) {
+        throw new Error(`Failed to query existing notes: ${notesError.message}`);
+      }
+      const transcriptsWithNotes = new Set(
+        (existingNotes || []).map((n) => n.transcript_id)
+      );
+      candidateTranscripts = rawTranscripts.filter(
+        (transcript) => !transcriptsWithNotes.has(transcript.id)
+      );
+      console.log("DEBUG: Filtered transcripts", {
+        totalTranscripts: rawTranscripts.length,
+        transcriptsWithNotes: transcriptsWithNotes.size,
+        candidatesRemaining: candidateTranscripts.length
+      });
+    } else {
+      console.log("DEBUG: L10 mode - including all transcripts regardless of existing notes");
+    }
+    const elapsedMs = Date.now() - startTime;
+    console.log("DEBUG: Query completed successfully", {
+      totalCandidates: candidateTranscripts.length,
+      elapsedMs,
+      mode: last10Mode ? "L10" : "normal"
+    });
+    return candidateTranscripts.map((transcript) => {
+      const episodeJoin = transcript.podcast_episodes;
+      let episode;
+      if (Array.isArray(episodeJoin)) {
+        if (episodeJoin.length > 0) {
+          const ep = episodeJoin[0];
+          const showJoin = ep.podcast_shows;
+          let show;
+          if (Array.isArray(showJoin) && showJoin.length > 0) {
+            show = {
+              id: showJoin[0].id,
+              title: showJoin[0].title,
+              rss_url: showJoin[0].rss_url
+            };
+          } else if (showJoin && typeof showJoin === "object") {
+            show = {
+              id: showJoin.id,
+              title: showJoin.title,
+              rss_url: showJoin.rss_url
+            };
+          }
+          episode = {
+            id: ep.id,
+            show_id: ep.show_id,
+            title: ep.title,
+            description: ep.description,
+            pub_date: ep.pub_date,
+            podcast_shows: show
+          };
+        }
+      } else if (episodeJoin && typeof episodeJoin === "object") {
+        const showJoin = episodeJoin.podcast_shows;
+        let show;
+        if (Array.isArray(showJoin) && showJoin.length > 0) {
+          show = {
+            id: showJoin[0].id,
+            title: showJoin[0].title,
+            rss_url: showJoin[0].rss_url
+          };
+        } else if (showJoin && typeof showJoin === "object") {
+          show = {
+            id: showJoin.id,
+            title: showJoin.title,
+            rss_url: showJoin.rss_url
+          };
+        }
+        episode = {
+          id: episodeJoin.id,
+          show_id: episodeJoin.show_id,
+          title: episodeJoin.title,
+          description: episodeJoin.description,
+          pub_date: episodeJoin.pub_date,
+          podcast_shows: show
+        };
+      }
+      return {
+        id: transcript.id,
+        episode_id: transcript.episode_id,
+        storage_path: transcript.storage_path,
+        created_at: transcript.created_at,
+        episode
+      };
+    });
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    console.error("DEBUG: Query failed", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      elapsedMs
+    });
+    throw error;
+  }
+}
+
+// lib/db/notesDatabase.ts
+async function upsertEpisodeNotes(supabase4, params) {
+  const startTime = Date.now();
+  console.log("DEBUG: Upserting episode notes", {
+    episodeId: params.episodeId,
+    transcriptId: params.transcriptId,
+    status: params.status,
+    hasNotes: !!params.notes,
+    hasError: !!params.errorMessage
+  });
+  try {
+    if (!params.episodeId || !params.transcriptId) {
+      throw new Error("episodeId and transcriptId are required");
+    }
+    if (!params.status || params.status !== "done" && params.status !== "error") {
+      throw new Error('status must be either "done" or "error"');
+    }
+    if (params.status === "error" && !params.errorMessage) {
+      throw new Error('errorMessage is required when status is "error"');
+    }
+    if (params.status === "done" && !params.notes) {
+      throw new Error('notes are required when status is "done"');
+    }
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const upsertData = {
+      episode_id: params.episodeId,
+      transcript_id: params.transcriptId,
+      status: params.status,
+      updated_at: now,
+      deleted_at: null
+      // Ensure the record is not soft-deleted
+    };
+    if (params.status === "done") {
+      upsertData.notes = params.notes;
+      upsertData.model = params.model || "gemini-1.5-flash";
+      upsertData.error_message = null;
+    } else {
+      const rawError = params.errorMessage || "Unknown error";
+      const errorType = classifyError(rawError);
+      const prefix = `${errorType}: `;
+      const maxErrorLength = 260 - prefix.length;
+      const trimmed = rawError.length > maxErrorLength ? rawError.substring(0, maxErrorLength - 3) + "..." : rawError;
+      upsertData.notes = null;
+      upsertData.model = null;
+      upsertData.error_message = `${errorType}: ${trimmed}`;
+    }
+    if (params.inputTokens !== void 0) {
+      upsertData.input_tokens = params.inputTokens;
+    }
+    if (params.outputTokens !== void 0) {
+      upsertData.output_tokens = params.outputTokens;
+    }
+    console.log("DEBUG: Prepared upsert data", {
+      episodeId: params.episodeId,
+      transcriptId: params.transcriptId,
+      status: upsertData.status,
+      hasNotes: !!upsertData.notes,
+      hasError: !!upsertData.error_message,
+      model: upsertData.model
+    });
+    const { data, error } = await supabase4.from("episode_transcript_notes").upsert(upsertData, {
+      onConflict: "episode_id",
+      ignoreDuplicates: false
+      // We want to update existing records
+    }).select("id").single();
+    if (error) {
+      throw new Error(`Database upsert failed: ${error.message}`);
+    }
+    const elapsedMs = Date.now() - startTime;
+    console.log("DEBUG: Successfully upserted episode notes", {
+      noteId: data?.id,
+      episodeId: params.episodeId,
+      status: params.status,
+      elapsedMs
+    });
+    return {
+      success: true,
+      noteId: data?.id,
+      elapsedMs
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("DEBUG: Failed to upsert episode notes", {
+      episodeId: params.episodeId,
+      transcriptId: params.transcriptId,
+      error: errorMessage,
+      elapsedMs
+    });
+    return {
+      success: false,
+      error: errorMessage,
+      elapsedMs
+    };
+  }
+}
+async function deleteExistingNotes(supabase4, transcriptIds) {
+  if (transcriptIds.length === 0) {
+    return { success: true, deletedCount: 0 };
+  }
+  console.log("DEBUG: Soft-deleting existing notes", {
+    transcriptCount: transcriptIds.length,
+    transcriptIds: transcriptIds.slice(0, 3)
+    // Log first 3 for debugging
+  });
+  try {
+    const { data, error } = await supabase4.from("episode_transcript_notes").update({
+      deleted_at: (/* @__PURE__ */ new Date()).toISOString(),
+      updated_at: (/* @__PURE__ */ new Date()).toISOString()
+    }).in("transcript_id", transcriptIds).is("deleted_at", null).select("id");
+    if (error) {
+      throw new Error(`Failed to delete existing notes: ${error.message}`);
+    }
+    const deletedCount = data?.length || 0;
+    console.log("DEBUG: Successfully deleted existing notes", {
+      deletedCount,
+      transcriptCount: transcriptIds.length
+    });
+    return {
+      success: true,
+      deletedCount
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("DEBUG: Failed to delete existing notes", {
+      error: errorMessage,
+      transcriptCount: transcriptIds.length
+    });
+    return {
+      success: false,
+      deletedCount: 0,
+      error: errorMessage
+    };
+  }
+}
+function classifyError(errorMessage) {
+  const msg = errorMessage.toLowerCase();
+  if (msg.includes("404") || msg.includes("not found")) return "download_error";
+  if (msg.includes("gunzip") || msg.includes("parse") || msg.includes("jsonl")) return "transcript_parse_error";
+  if (msg.includes("gemini") || msg.includes("api")) return "generation_error";
+  if (msg.includes("database") || msg.includes("upsert")) return "database_error";
+  return "unknown_error";
+}
+
+// lib/utils/notesWorkflow.ts
+async function prepareTranscriptsForNotes(supabase4, config) {
+  const startTime = Date.now();
+  console.log("DEBUG: Preparing transcripts for notes generation", {
+    lookbackHours: config.lookbackHours,
+    last10Mode: config.last10Mode,
+    mode: config.last10Mode ? "L10_TESTING" : "NORMAL"
+  });
+  try {
+    const candidates = await queryTranscriptsNeedingNotes(
+      supabase4,
+      config.lookbackHours,
+      config.last10Mode
+    );
+    console.log("DEBUG: Found candidate transcripts", {
+      candidateCount: candidates.length,
+      mode: config.last10Mode ? "L10" : "normal"
+    });
+    let clearedNotesCount = 0;
+    if (config.last10Mode && candidates.length > 0) {
+      console.log("DEBUG: L10 mode active - clearing existing notes for selected transcripts");
+      const transcriptIds = candidates.map((c) => c.id);
+      const deleteResult = await deleteExistingNotes(supabase4, transcriptIds);
+      if (!deleteResult.success) {
+        console.warn("DEBUG: Failed to clear some existing notes in L10 mode", {
+          error: deleteResult.error,
+          transcriptCount: transcriptIds.length
+        });
+      } else {
+        clearedNotesCount = deleteResult.deletedCount;
+        console.log("DEBUG: Successfully cleared existing notes for L10 mode", {
+          clearedCount: clearedNotesCount,
+          transcriptCount: transcriptIds.length
+        });
+      }
+    }
+    const elapsedMs = Date.now() - startTime;
+    console.log("DEBUG: Transcript preparation completed", {
+      candidateCount: candidates.length,
+      clearedNotesCount,
+      wasL10Mode: config.last10Mode,
+      elapsedMs
+    });
+    return {
+      candidates,
+      clearedNotesCount,
+      wasL10Mode: config.last10Mode,
+      elapsedMs
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("DEBUG: Failed to prepare transcripts for notes generation", {
+      error: errorMessage,
+      lookbackHours: config.lookbackHours,
+      last10Mode: config.last10Mode,
+      elapsedMs
+    });
+    throw new Error(`Failed to prepare transcripts: ${errorMessage}`);
+  }
+}
+function validateL10Mode(candidates, config) {
+  const warnings = [];
+  const expectedCount = config.last10Mode ? 10 : -1;
+  const actualCount = candidates.length;
+  if (!config.last10Mode) {
+    return {
+      isValid: true,
+      warnings: [],
+      expectedCount: -1,
+      actualCount
+    };
+  }
+  if (actualCount === 0) {
+    warnings.push("L10 mode is active but no transcripts were found - this may indicate no transcripts exist in the database");
+  } else if (actualCount < 10) {
+    warnings.push(`L10 mode is active but only ${actualCount} transcripts were found (expected up to 10) - this may be normal if fewer transcripts exist`);
+  } else if (actualCount > 10) {
+    warnings.push(`L10 mode returned ${actualCount} transcripts but should be limited to 10 - this indicates a query logic issue`);
+  }
+  if (actualCount > 1) {
+    const isProperlyOrdered = candidates.every((candidate, index) => {
+      if (index === 0) return true;
+      const current = new Date(candidate.created_at);
+      const previous = new Date(candidates[index - 1].created_at);
+      return current <= previous;
+    });
+    if (!isProperlyOrdered) {
+      warnings.push("L10 mode transcripts are not properly ordered by creation date (most recent first)");
+    }
+  }
+  const isValid = actualCount <= 10 && (actualCount > 0 || warnings.length === 1);
+  return {
+    isValid,
+    warnings,
+    expectedCount,
+    actualCount
+  };
+}
+function logL10ModeSummary(result, validation) {
+  if (!result.wasL10Mode) {
+    return;
+  }
+  console.log("=== L10 MODE SUMMARY ===", {
+    mode: "L10_TESTING",
+    transcriptsFound: result.candidates.length,
+    expectedCount: validation.expectedCount,
+    clearedExistingNotes: result.clearedNotesCount,
+    validationPassed: validation.isValid,
+    warnings: validation.warnings,
+    preparationTimeMs: result.elapsedMs
+  });
+  if (validation.warnings.length > 0) {
+    console.warn("L10 MODE WARNINGS:", validation.warnings);
+  }
+  if (result.candidates.length > 0) {
+    console.log("L10 MODE TRANSCRIPT DETAILS:", {
+      oldestTranscript: {
+        id: result.candidates[result.candidates.length - 1]?.id,
+        createdAt: result.candidates[result.candidates.length - 1]?.created_at
+      },
+      newestTranscript: {
+        id: result.candidates[0]?.id,
+        createdAt: result.candidates[0]?.created_at
+      }
+    });
+  }
+  console.log("=== END L10 MODE SUMMARY ===");
+}
+
+// lib/utils/concurrencyController.ts
+var Semaphore = class {
+  /**
+   * Create a new semaphore with the specified number of permits
+   * @param permits - Maximum number of concurrent operations allowed
+   */
+  constructor(permits) {
+    this.waitQueue = [];
+    if (permits <= 0) {
+      throw new Error("Semaphore permits must be greater than 0");
+    }
+    this.permits = permits;
+  }
+  /**
+   * Acquire a permit, waiting if necessary
+   * @returns Promise that resolves when a permit is acquired
+   */
+  async acquire() {
+    return new Promise((resolve4) => {
+      if (this.permits > 0) {
+        this.permits--;
+        resolve4();
+      } else {
+        this.waitQueue.push(resolve4);
+      }
+    });
+  }
+  /**
+   * Release a permit, allowing waiting operations to proceed
+   */
+  release() {
+    if (this.waitQueue.length > 0) {
+      const next = this.waitQueue.shift();
+      if (next) {
+        next();
+      }
+    } else {
+      this.permits++;
+    }
+  }
+  /**
+   * Get the current number of available permits
+   */
+  getAvailablePermits() {
+    return this.permits;
+  }
+  /**
+   * Get the number of operations waiting for permits
+   */
+  getQueueLength() {
+    return this.waitQueue.length;
+  }
+};
+var ConcurrencyPool = class {
+  constructor(maxConcurrency) {
+    this.activeOperations = 0;
+    this.completedOperations = 0;
+    this.totalOperations = 0;
+    this.startTime = 0;
+    this.semaphore = new Semaphore(maxConcurrency);
+  }
+  /**
+   * Process items with the pool, providing progress callbacks
+   * 
+   * @param items - Items to process
+   * @param processor - Function to process each item
+   * @param onProgress - Optional progress callback
+   * @returns Promise resolving to results
+   */
+  async process(items, processor, onProgress) {
+    this.totalOperations = items.length;
+    this.completedOperations = 0;
+    this.activeOperations = 0;
+    this.startTime = Date.now();
+    if (items.length === 0) {
+      return {
+        results: [],
+        errors: [],
+        successCount: 0,
+        errorCount: 0,
+        totalElapsedMs: 0
+      };
+    }
+    const results = new Array(items.length).fill(null);
+    const errors = new Array(items.length).fill(null);
+    const processItem = async (item, index) => {
+      await this.semaphore.acquire();
+      this.activeOperations++;
+      try {
+        const result = await processor(item, index);
+        results[index] = result;
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        errors[index] = err;
+      } finally {
+        this.semaphore.release();
+        this.activeOperations--;
+        this.completedOperations++;
+        if (onProgress) {
+          const elapsedMs = Date.now() - this.startTime;
+          const percentage = this.completedOperations / this.totalOperations * 100;
+          const avgTimePerItem = elapsedMs / this.completedOperations;
+          const remainingItems = this.totalOperations - this.completedOperations;
+          const estimatedRemainingMs = avgTimePerItem * remainingItems;
+          onProgress({
+            completed: this.completedOperations,
+            total: this.totalOperations,
+            active: this.activeOperations,
+            percentage,
+            elapsedMs,
+            estimatedRemainingMs
+          });
+        }
+      }
+    };
+    const promises = items.map((item, index) => processItem(item, index));
+    await Promise.allSettled(promises);
+    const successCount = results.filter((r) => r !== null).length;
+    const errorCount = errors.filter((e) => e !== null).length;
+    const totalElapsedMs = Date.now() - this.startTime;
+    return {
+      results,
+      errors,
+      successCount,
+      errorCount,
+      totalElapsedMs
+    };
+  }
+  /**
+   * Get current pool statistics
+   */
+  getStats() {
+    return {
+      active: this.activeOperations,
+      completed: this.completedOperations,
+      total: this.totalOperations,
+      availablePermits: this.semaphore.getAvailablePermits(),
+      queueLength: this.semaphore.getQueueLength()
+    };
+  }
+};
+
+// lib/utils/transcriptDownloader.ts
+import { gunzipSync } from "node:zlib";
+var TranscriptDownloadError = class extends Error {
+  constructor(message, storagePath, cause) {
+    super(message);
+    this.storagePath = storagePath;
+    this.cause = cause;
+    this.name = "TranscriptDownloadError";
+  }
+};
+async function downloadAndParseTranscript(supabase4, storagePath) {
+  const startTime = Date.now();
+  console.log("DEBUG: Downloading transcript file", {
+    storagePath,
+    bucket: "transcripts"
+  });
+  try {
+    const { data: fileData, error: downloadError } = await supabase4.storage.from("transcripts").download(storagePath);
+    if (downloadError) {
+      throw new TranscriptDownloadError(
+        `download_error: Failed to download transcript file: ${downloadError.message}`,
+        storagePath,
+        downloadError
+      );
+    }
+    if (!fileData) {
+      throw new TranscriptDownloadError(
+        "download_error: Downloaded file data is null or undefined",
+        storagePath
+      );
+    }
+    const compressedBuffer = Buffer.from(await fileData.arrayBuffer());
+    const fileSizeBytes = compressedBuffer.length;
+    console.log("DEBUG: File downloaded successfully", {
+      storagePath,
+      fileSizeBytes,
+      compressionType: "gzip"
+    });
+    let decompressedBuffer;
+    try {
+      decompressedBuffer = gunzipSync(compressedBuffer);
+    } catch (gunzipError) {
+      throw new TranscriptDownloadError(
+        `Failed to decompress transcript file: ${gunzipError instanceof Error ? gunzipError.message : "Unknown gunzip error"}`,
+        storagePath,
+        gunzipError instanceof Error ? gunzipError : void 0
+      );
+    }
+    const decompressedText = decompressedBuffer.toString("utf-8");
+    console.log("DEBUG: File decompressed successfully", {
+      storagePath,
+      originalSizeBytes: fileSizeBytes,
+      decompressedSizeBytes: decompressedBuffer.length,
+      compressionRatio: (fileSizeBytes / decompressedBuffer.length).toFixed(2)
+    });
+    const transcript = parseJsonlTranscript(decompressedText, storagePath);
+    const wordCount = countWords(transcript);
+    const elapsedMs = Date.now() - startTime;
+    console.log("DEBUG: Transcript parsed successfully", {
+      storagePath,
+      transcriptLength: transcript.length,
+      wordCount,
+      elapsedMs
+    });
+    return {
+      transcript,
+      wordCount,
+      fileSizeBytes,
+      elapsedMs
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    console.error("DEBUG: Transcript download failed", {
+      storagePath,
+      error: error instanceof Error ? error.message : "Unknown error",
+      elapsedMs
+    });
+    if (error instanceof TranscriptDownloadError) {
+      throw error;
+    }
+    throw new TranscriptDownloadError(
+      `download_error: Unexpected error downloading transcript: ${error instanceof Error ? error.message : "Unknown error"}`,
+      storagePath,
+      error instanceof Error ? error : void 0
+    );
+  }
+}
+function parseJsonlTranscript(jsonlText, storagePath) {
+  if (!jsonlText || jsonlText.trim().length === 0) {
+    throw new TranscriptDownloadError(
+      "Transcript file is empty after decompression",
+      storagePath
+    );
+  }
+  const lines = jsonlText.trim().split("\n");
+  const transcriptSegments = [];
+  console.log("DEBUG: Parsing JSONL transcript", {
+    storagePath,
+    totalLines: lines.length
+  });
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) {
+      continue;
+    }
+    try {
+      const segment = JSON.parse(line);
+      let text;
+      if (typeof segment === "string") {
+        text = segment;
+      } else if (segment && typeof segment === "object") {
+        text = segment.text || segment.transcript || segment.content || segment.words;
+      }
+      if (typeof text === "string" && text.trim().length > 0) {
+        transcriptSegments.push(text.trim());
+      }
+    } catch (parseError) {
+      console.warn("DEBUG: Failed to parse JSONL line", {
+        storagePath,
+        lineNumber: i + 1,
+        line: line.substring(0, 100) + (line.length > 100 ? "..." : ""),
+        error: parseError instanceof Error ? parseError.message : "Unknown parse error"
+      });
+      continue;
+    }
+  }
+  if (transcriptSegments.length === 0) {
+    throw new TranscriptDownloadError(
+      "No valid transcript segments found in JSONL file",
+      storagePath
+    );
+  }
+  const fullTranscript = transcriptSegments.join(" ");
+  console.log("DEBUG: JSONL parsing completed", {
+    storagePath,
+    totalSegments: transcriptSegments.length,
+    transcriptLength: fullTranscript.length
+  });
+  return fullTranscript;
+}
+function countWords(text) {
+  if (!text || text.trim().length === 0) {
+    return 0;
+  }
+  return text.trim().split(/\s+/).filter((word) => word.length > 0).length;
+}
+
+// lib/utils/buildNewsletterEditionPrompt.ts
+import { readFileSync } from "fs";
+import { resolve } from "path";
+import sanitizeHtml from "sanitize-html";
+async function buildNewsletterEditionPrompt(episodeNotesOrParams, userEmail, editionDate) {
+  let params;
+  if (Array.isArray(episodeNotesOrParams)) {
+    if (!userEmail || !editionDate) {
+      throw new Error("userEmail and editionDate are required when using simple function signature");
+    }
+    params = {
+      episodeNotes: episodeNotesOrParams,
+      userEmail,
+      editionDate
+    };
+  } else {
+    params = episodeNotesOrParams;
+  }
+  const startTime = Date.now();
+  console.log("DEBUG: Building newsletter edition prompt", {
+    episodeCount: params.episodeNotes.length,
+    userEmail: params.userEmail,
+    editionDate: params.editionDate,
+    promptTemplatePath: params.promptTemplatePath || "prompts/newsletter-edition.md"
+  });
+  try {
+    if (!params.episodeNotes || !Array.isArray(params.episodeNotes)) {
+      throw new Error("episodeNotes must be a non-empty array");
+    }
+    if (params.episodeNotes.length === 0) {
+      throw new Error("episodeNotes array cannot be empty - at least one episode note is required");
+    }
+    if (params.episodeNotes.length === 1) {
+      const singleNote = params.episodeNotes[0];
+      if (!singleNote || typeof singleNote !== "string" || singleNote.trim().length === 0) {
+        throw new Error("Single episode note cannot be empty or null");
+      }
+      console.log("DEBUG: Processing single episode note", {
+        noteLength: singleNote.length,
+        wordCount: countWords2(singleNote)
+      });
+    }
+    if (params.episodeNotes.length > 1) {
+      const validNotes = params.episodeNotes.filter((note, index) => {
+        if (!note || typeof note !== "string" || note.trim().length === 0) {
+          console.warn(`DEBUG: Skipping empty episode note at index ${index}`);
+          return false;
+        }
+        return true;
+      });
+      if (validNotes.length === 0) {
+        throw new Error("All episode notes are empty or invalid - at least one valid note is required");
+      }
+      if (validNotes.length < params.episodeNotes.length) {
+        console.warn(`DEBUG: Filtered out ${params.episodeNotes.length - validNotes.length} invalid episode notes`);
+        params.episodeNotes = validNotes;
+      }
+      console.log("DEBUG: Processing multiple episode notes", {
+        originalCount: params.episodeNotes.length,
+        validCount: validNotes.length,
+        totalWordCount: validNotes.reduce((sum, note) => sum + countWords2(note), 0)
+      });
+    }
+    if (!params.userEmail || typeof params.userEmail !== "string" || params.userEmail.trim() === "") {
+      throw new Error("userEmail must be a non-empty string");
+    }
+    if (!params.editionDate || typeof params.editionDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(params.editionDate)) {
+      throw new Error("editionDate must be a valid YYYY-MM-DD string");
+    }
+    const template = await loadPromptTemplate(params.promptTemplatePath);
+    console.log("DEBUG: Loaded prompt template", {
+      templateLength: template.length,
+      episodeCount: params.episodeNotes.length
+    });
+    const prompt = buildFullPrompt(template, params);
+    console.log("DEBUG: Built full prompt", {
+      promptLength: prompt.length,
+      episodeCount: params.episodeNotes.length,
+      elapsedMs: Date.now() - startTime
+    });
+    return {
+      prompt,
+      template,
+      episodeCount: params.episodeNotes.length,
+      success: true
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    let errorMessage;
+    let errorType;
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      errorType = error.constructor.name;
+      console.error("DEBUG: Newsletter prompt building error", {
+        errorType,
+        error: error.message,
+        stack: error.stack,
+        elapsedMs,
+        params: {
+          episodeCount: params.episodeNotes?.length || 0,
+          userEmail: params.userEmail ? "***" + params.userEmail.slice(-4) : "undefined",
+          editionDate: params.editionDate || "undefined",
+          promptTemplatePath: params.promptTemplatePath || "default"
+        }
+      });
+    } else {
+      errorMessage = "Unknown error occurred during prompt building";
+      errorType = "UnknownError";
+      console.error("DEBUG: Unknown error in newsletter prompt building", {
+        errorType,
+        error,
+        elapsedMs,
+        params: {
+          episodeCount: params.episodeNotes?.length || 0,
+          userEmail: params.userEmail ? "***" + params.userEmail.slice(-4) : "undefined",
+          editionDate: params.editionDate || "undefined"
+        }
+      });
+    }
+    return {
+      prompt: "",
+      template: "",
+      episodeCount: 0,
+      success: false,
+      error: errorMessage
+    };
+  }
+}
+async function loadPromptTemplate(templatePath) {
+  const envPromptPath = process.env.NEWSLETTER_PROMPT_PATH;
+  const defaultPath = "prompts/newsletter-edition.md";
+  const path4 = templatePath || envPromptPath || defaultPath;
+  console.log("DEBUG: Loading newsletter prompt template", {
+    explicitPath: templatePath || "not provided",
+    envPath: envPromptPath || "not set",
+    defaultPath,
+    finalPath: path4,
+    source: templatePath ? "explicit" : envPromptPath ? "environment" : "default"
+  });
+  try {
+    const fullPath = resolve(path4);
+    const template = readFileSync(fullPath, "utf-8").trim();
+    if (!template) {
+      throw new Error(`Prompt template file is empty: ${fullPath}`);
+    }
+    if (template.length < 100) {
+      throw new Error(`Prompt template seems too short (${template.length} chars). Expected detailed instructions.`);
+    }
+    if (!template.includes("[USER_EMAIL]") || !template.includes("[EDITION_DATE]") || !template.includes("[EPISODE_COUNT]")) {
+      throw new Error(`Prompt template missing required placeholders: [USER_EMAIL], [EDITION_DATE], [EPISODE_COUNT]`);
+    }
+    return template;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to load prompt template from "${path4}": ${error.message}`);
+    }
+    throw new Error(`Failed to load prompt template from "${path4}": Unknown error`);
+  }
+}
+function buildFullPrompt(template, params) {
+  let prompt = template.replace(/\[USER_EMAIL\]/g, params.userEmail).replace(/\[EDITION_DATE\]/g, params.editionDate).replace(/\[EPISODE_COUNT\]/g, params.episodeNotes.length.toString());
+  let episodeNotesContent;
+  if (params.episodeNotes.length === 1) {
+    const singleNote = params.episodeNotes[0].trim();
+    episodeNotesContent = `**Episode Notes:**
+
+${singleNote}`;
+    console.log("DEBUG: Built prompt for single episode note", {
+      noteLength: singleNote.length,
+      wordCount: countWords2(singleNote)
+    });
+  } else {
+    episodeNotesContent = params.episodeNotes.map((notes, index) => `**Episode ${index + 1} Notes:**
+
+${notes.trim()}`).join("\n\n---\n\n");
+    console.log("DEBUG: Built prompt for multiple episode notes", {
+      episodeCount: params.episodeNotes.length,
+      totalWordCount: params.episodeNotes.reduce((sum, note) => sum + countWords2(note), 0)
+    });
+  }
+  prompt = prompt.replace(/\[EPISODE_NOTES_CONTENT\]/g, episodeNotesContent);
+  return prompt.trim();
+}
+function sanitizeNewsletterContent(htmlContent2) {
+  const sanitized = sanitizeHtml(htmlContent2, {
+    // Allow safe HTML elements for newsletter formatting
+    allowedTags: [
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      // Headings
+      "p",
+      "br",
+      "hr",
+      // Paragraphs and line breaks
+      "ul",
+      "ol",
+      "li",
+      // Lists
+      "strong",
+      "b",
+      "em",
+      "i",
+      "u",
+      // Text formatting
+      "blockquote",
+      "q",
+      // Quotes
+      "div",
+      "span",
+      // Containers
+      "a",
+      // Links (with restrictions)
+      "img"
+      // Images (with restrictions)
+    ],
+    // Allow safe attributes
+    allowedAttributes: {
+      // Global attributes
+      "*": ["class", "id", "style"],
+      // Link attributes
+      "a": ["href", "title", "target"],
+      // Image attributes
+      "img": ["src", "alt", "title", "width", "height"],
+      // Style attributes for email compatibility
+      "h1": ["style"],
+      "h2": ["style"],
+      "h3": ["style"],
+      "h4": ["style"],
+      "h5": ["style"],
+      "h6": ["style"],
+      "p": ["style"],
+      "ul": ["style"],
+      "ol": ["style"],
+      "li": ["style"],
+      "div": ["style"],
+      "span": ["style"]
+    },
+    // Allow safe CSS properties in style attributes
+    allowedStyles: {
+      "*": {
+        "color": [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/],
+        "background-color": [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/],
+        "font-size": [/^\d+(?:px|em|%)$/],
+        "font-weight": [/^(normal|bold|bolder|lighter|\d{3})$/],
+        "text-align": [/^(left|right|center|justify)$/],
+        "line-height": [/^\d+(?:\.\d+)?$/],
+        "margin": [/^\d+(?:px|em|%)?$/],
+        "margin-top": [/^\d+(?:px|em|%)?$/],
+        "margin-bottom": [/^\d+(?:px|em|%)?$/],
+        "margin-left": [/^\d+(?:px|em|%)?$/],
+        "margin-right": [/^\d+(?:px|em|%)?$/],
+        "padding": [/^\d+(?:px|em|%)?$/],
+        "padding-top": [/^\d+(?:px|em|%)?$/],
+        "padding-bottom": [/^\d+(?:px|em|%)?$/],
+        "padding-left": [/^\d+(?:px|em|%)?$/],
+        "padding-right": [/^\d+(?:px|em|%)?$/]
+      }
+    },
+    // Allow safe URL schemes
+    allowedSchemes: ["http", "https", "mailto"],
+    // Allow relative URLs
+    allowProtocolRelative: false,
+    // Transform functions for additional security
+    transformTags: {
+      "a": (tagName, attribs) => {
+        if (attribs.href && attribs.href.startsWith("http")) {
+          attribs.target = "_blank";
+          attribs.rel = "noopener noreferrer";
+        }
+        return { tagName, attribs };
+      }
+    }
+  });
+  return sanitized.trim();
+}
+function countWords2(text) {
+  if (!text || text.trim().length === 0) {
+    return 0;
+  }
+  return text.trim().split(/\s+/).filter((word) => word.length > 0).length;
+}
+
+// lib/llm/gemini.ts
+function validateEnvironment() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "GEMINI_API_KEY is required but not found in environment variables. Please set your Google AI Studio API key in .env file. Get your key at: https://aistudio.google.com/app/apikey"
+    );
+  }
+  if (process.env.DEBUG_API === "true") {
+    console.log("DEBUG: Gemini API key loaded:", apiKey.substring(0, 8) + "...");
+    console.log("DEBUG: Gemini model:", getModelName());
+  }
+}
+function getModelName() {
+  const raw = process.env.GEMINI_MODEL_NAME || "gemini-1.5-flash-latest";
+  return raw.replace(/^models\//, "");
+}
+validateEnvironment();
+var GeminiAPIError = class _GeminiAPIError extends Error {
+  /**
+   * Create a new GeminiAPIError
+   * @param message - Human-readable error message
+   * @param statusCode - HTTP status code
+   * @param responseBody - Raw API response body
+   */
+  constructor(message, statusCode, responseBody) {
+    super(message);
+    this.name = "GeminiAPIError";
+    this.statusCode = statusCode;
+    this.responseBody = responseBody;
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, _GeminiAPIError);
+    }
+  }
+};
+function debugLog(message, data) {
+  if (process.env.DEBUG_API === "true") {
+    console.log(`[Gemini] ${message}`, data || "");
+  }
+}
+async function generateEpisodeNotes(transcript, promptOverrides) {
+  if (!transcript || typeof transcript !== "string") {
+    throw new Error("transcript must be a non-empty string");
+  }
+  const model = getModelName();
+  const apiKey = process.env.GEMINI_API_KEY;
+  const overrides = promptOverrides || {};
+  const defaultPrompt = `Please analyze the following podcast transcript and extract key topics, themes, and insights. Focus on:
+
+1. **Main Topics Discussed**: What are the primary subjects covered?
+2. **Key Insights & Takeaways**: What are the most valuable learnings?
+3. **Notable Quotes or Moments**: Any particularly memorable or impactful statements?
+4. **Emerging Themes**: What patterns or recurring ideas appear throughout?
+
+Format your response as clear, well-organized bullet points grouped by category. Be concise but comprehensive.
+
+Transcript:
+${transcript}`;
+  const prompt = overrides.systemPrompt || defaultPrompt;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const requestBody = {
+    contents: [
+      {
+        parts: [
+          {
+            text: prompt
+          }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature: overrides.temperature || 0.3,
+      maxOutputTokens: overrides.maxTokens || 2048,
+      topP: 0.8,
+      topK: 40
+    }
+  };
+  try {
+    debugLog("Making request to Gemini API", { endpoint, model });
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify(requestBody)
+    });
+    const responseData = await response.json();
+    if (!response.ok) {
+      debugLog("Gemini API error response", {
+        status: response.status,
+        data: responseData
+      });
+      throw new GeminiAPIError(
+        `Gemini API request failed: ${responseData.error?.message || "Unknown error"}`,
+        response.status,
+        JSON.stringify(responseData)
+      );
+    }
+    const candidates = responseData.candidates;
+    if (!candidates || candidates.length === 0) {
+      throw new GeminiAPIError(
+        "No candidates returned from Gemini API",
+        200,
+        JSON.stringify(responseData)
+      );
+    }
+    const content = candidates[0]?.content?.parts?.[0]?.text;
+    if (!content) {
+      throw new GeminiAPIError(
+        "No text content found in Gemini API response",
+        200,
+        JSON.stringify(responseData)
+      );
+    }
+    debugLog("Successfully generated episode notes", {
+      model,
+      notesLength: content.length
+    });
+    return {
+      notes: content.trim(),
+      model
+    };
+  } catch (error) {
+    if (error instanceof GeminiAPIError) {
+      throw error;
+    }
+    debugLog("Unexpected error in generateEpisodeNotes", { error });
+    throw new GeminiAPIError(
+      `Unexpected error calling Gemini API: ${error instanceof Error ? error.message : "Unknown error"}`,
+      0,
+      JSON.stringify({ originalError: error })
+    );
+  }
+}
+async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, promptOverrides) {
+  const startTime = Date.now();
+  debugLog("Starting newsletter edition generation", {
+    episodeCount: episodeNotes.length,
+    userEmail: userEmail ? "***" + userEmail.slice(-4) : "undefined",
+    editionDate
+  });
+  try {
+    if (!episodeNotes || !Array.isArray(episodeNotes)) {
+      throw new Error("episodeNotes must be a non-empty array");
+    }
+    if (episodeNotes.length === 0) {
+      throw new Error("episodeNotes array cannot be empty - at least one episode note is required");
+    }
+    if (!userEmail || typeof userEmail !== "string" || userEmail.trim() === "") {
+      throw new Error("userEmail must be a non-empty string");
+    }
+    if (!editionDate || typeof editionDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(editionDate)) {
+      throw new Error("editionDate must be a valid YYYY-MM-DD string");
+    }
+    const promptResult = await buildNewsletterEditionPrompt({
+      episodeNotes,
+      userEmail,
+      editionDate
+    });
+    if (!promptResult.success) {
+      throw new Error(`Failed to build newsletter prompt: ${promptResult.error}`);
+    }
+    debugLog("Built newsletter prompt", {
+      promptLength: promptResult.prompt.length,
+      episodeCount: promptResult.episodeCount
+    });
+    const model = getModelName();
+    const apiKey = process.env.GEMINI_API_KEY;
+    const overrides = promptOverrides || {};
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: promptResult.prompt
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: overrides.temperature || 0.4,
+        // Slightly higher for creative newsletter content
+        maxOutputTokens: overrides.maxTokens || 4096,
+        // Higher token limit for newsletter content
+        topP: 0.9,
+        topK: 40
+      }
+    };
+    debugLog("Making newsletter request to Gemini API", {
+      endpoint,
+      model,
+      temperature: requestBody.generationConfig.temperature,
+      maxTokens: requestBody.generationConfig.maxOutputTokens
+    });
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify(requestBody)
+    });
+    const responseData = await response.json();
+    if (!response.ok) {
+      debugLog("Gemini API error response for newsletter", {
+        status: response.status,
+        data: responseData
+      });
+      throw new GeminiAPIError(
+        `Gemini API request failed for newsletter generation: ${responseData.error?.message || "Unknown error"}`,
+        response.status,
+        JSON.stringify(responseData)
+      );
+    }
+    const candidates = responseData.candidates;
+    if (!candidates || candidates.length === 0) {
+      throw new GeminiAPIError(
+        "No candidates returned from Gemini API for newsletter generation",
+        200,
+        JSON.stringify(responseData)
+      );
+    }
+    const htmlContent2 = candidates[0]?.content?.parts?.[0]?.text;
+    if (!htmlContent2) {
+      throw new GeminiAPIError(
+        "No HTML content found in Gemini API response for newsletter generation",
+        200,
+        JSON.stringify(responseData)
+      );
+    }
+    const sanitizedContent2 = sanitizeNewsletterContent(htmlContent2);
+    debugLog("Successfully generated newsletter edition", {
+      model,
+      htmlContentLength: htmlContent2.length,
+      sanitizedContentLength: sanitizedContent2.length,
+      episodeCount: promptResult.episodeCount,
+      elapsedMs: Date.now() - startTime
+    });
+    return {
+      htmlContent: htmlContent2.trim(),
+      sanitizedContent: sanitizedContent2.trim(),
+      model,
+      episodeCount: promptResult.episodeCount,
+      success: true
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    if (error instanceof GeminiAPIError) {
+      debugLog("Gemini API error in newsletter generation", {
+        error: error.message,
+        statusCode: error.statusCode,
+        elapsedMs
+      });
+      return {
+        htmlContent: "",
+        sanitizedContent: "",
+        model: getModelName(),
+        episodeCount: 0,
+        success: false,
+        error: error.message
+      };
+    }
+    debugLog("Unexpected error in generateNewsletterEdition", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      elapsedMs
+    });
+    return {
+      htmlContent: "",
+      sanitizedContent: "",
+      model: getModelName(),
+      episodeCount: 0,
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred during newsletter generation"
+    };
+  }
+}
+
+// lib/utils/notesGenerator.ts
+async function generateNotesWithPrompt(transcript, config) {
+  const startTime = Date.now();
+  console.log("DEBUG: Generating episode notes", {
+    transcriptLength: transcript.length,
+    promptTemplateLength: config.promptTemplate.length,
+    model: "gemini-1.5-flash"
+  });
+  try {
+    if (!transcript || transcript.trim().length === 0) {
+      throw new Error("Transcript is empty or null");
+    }
+    if (!config.promptTemplate || config.promptTemplate.trim().length === 0) {
+      throw new Error("Prompt template is empty or null");
+    }
+    const fullPrompt = buildFullPrompt2(config.promptTemplate, transcript);
+    console.log("DEBUG: Built full prompt", {
+      promptLength: fullPrompt.length,
+      transcriptWordCount: countWords3(transcript)
+    });
+    const result = await generateEpisodeNotes(transcript, {
+      systemPrompt: fullPrompt,
+      temperature: 0.3,
+      // Consistent, focused responses
+      maxTokens: 2048
+      // Reasonable limit for episode notes
+    });
+    const elapsedMs = Date.now() - startTime;
+    console.log("DEBUG: Successfully generated episode notes", {
+      notesLength: result.notes.length,
+      model: result.model,
+      elapsedMs
+    });
+    return {
+      notes: result.notes,
+      model: result.model,
+      elapsedMs,
+      success: true
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    let errorMessage;
+    if (error instanceof GeminiAPIError) {
+      errorMessage = `Gemini API error (${error.statusCode}): ${error.message}`;
+      console.error("DEBUG: Gemini API error", {
+        statusCode: error.statusCode,
+        message: error.message,
+        responseBody: error.responseBody.substring(0, 500),
+        elapsedMs
+      });
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+      console.error("DEBUG: Notes generation error", {
+        error: error.message,
+        stack: error.stack,
+        elapsedMs
+      });
+    } else {
+      errorMessage = "Unknown error occurred";
+      console.error("DEBUG: Unknown error in notes generation", {
+        error,
+        elapsedMs
+      });
+    }
+    return {
+      notes: "",
+      model: "",
+      elapsedMs,
+      success: false,
+      error: errorMessage
+    };
+  }
+}
+function buildFullPrompt2(promptTemplate, transcript) {
+  return `${promptTemplate.trim()}
+
+---
+
+**TRANSCRIPT TO ANALYZE:**
+
+${transcript.trim()}`;
+}
+function countWords3(text) {
+  if (!text || text.trim().length === 0) {
+    return 0;
+  }
+  return text.trim().split(/\s+/).filter((word) => word.length > 0).length;
+}
+
+// lib/utils/episodeProcessor.ts
+async function processEpisodeForNotes(supabase4, transcript, config) {
+  const startTime = Date.now();
+  const timing = { downloadMs: 0, generationMs: 0, databaseMs: 0 };
+  const baseResult = {
+    episodeId: transcript.episode_id,
+    transcriptId: transcript.id,
+    timing,
+    metadata: {
+      storagePath: transcript.storage_path,
+      episodeTitle: transcript.episode?.title,
+      showTitle: transcript.episode?.podcast_shows?.title
+    }
+  };
+  console.log("DEBUG: Processing episode for notes", {
+    episodeId: transcript.episode_id,
+    transcriptId: transcript.id,
+    storagePath: transcript.storage_path,
+    episodeTitle: transcript.episode?.title,
+    showTitle: transcript.episode?.podcast_shows?.title
+  });
+  try {
+    const downloadStart = Date.now();
+    let transcriptText;
+    let wordCount;
+    let fileSizeBytes;
+    try {
+      const downloadResult = await downloadAndParseTranscript(supabase4, transcript.storage_path);
+      transcriptText = downloadResult.transcript;
+      wordCount = downloadResult.wordCount;
+      fileSizeBytes = downloadResult.fileSizeBytes;
+      timing.downloadMs = Date.now() - downloadStart;
+      console.log("DEBUG: Successfully downloaded transcript", {
+        episodeId: transcript.episode_id,
+        transcriptLength: transcriptText.length,
+        wordCount,
+        fileSizeBytes,
+        downloadMs: timing.downloadMs
+      });
+    } catch (error) {
+      timing.downloadMs = Date.now() - downloadStart;
+      let errorMessage;
+      if (error instanceof TranscriptDownloadError) {
+        errorMessage = `Transcript download failed: ${error.message}`;
+      } else {
+        errorMessage = `Unexpected download error: ${error instanceof Error ? error.message : "Unknown error"}`;
+      }
+      console.error("DEBUG: Failed to download transcript", {
+        episodeId: transcript.episode_id,
+        storagePath: transcript.storage_path,
+        error: errorMessage,
+        downloadMs: timing.downloadMs
+      });
+      await recordErrorResult(supabase4, transcript, errorMessage, timing);
+      return {
+        ...baseResult,
+        status: "error",
+        error: errorMessage,
+        elapsedMs: Date.now() - startTime
+      };
+    }
+    baseResult.metadata.transcriptWordCount = wordCount;
+    baseResult.metadata.transcriptSizeBytes = fileSizeBytes;
+    const generationStart = Date.now();
+    let notesResult;
+    try {
+      notesResult = await generateNotesWithPrompt(transcriptText, config);
+      timing.generationMs = Date.now() - generationStart;
+      if (!notesResult.success) {
+        throw new Error(notesResult.error || "Notes generation failed");
+      }
+      console.log("DEBUG: Successfully generated notes", {
+        episodeId: transcript.episode_id,
+        notesLength: notesResult.notes.length,
+        model: notesResult.model,
+        generationMs: timing.generationMs
+      });
+    } catch (error) {
+      timing.generationMs = Date.now() - generationStart;
+      const errorMessage = `Notes generation failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+      console.error("DEBUG: Failed to generate notes", {
+        episodeId: transcript.episode_id,
+        transcriptWordCount: wordCount,
+        error: errorMessage,
+        generationMs: timing.generationMs
+      });
+      await recordErrorResult(supabase4, transcript, errorMessage, timing);
+      return {
+        ...baseResult,
+        status: "error",
+        error: errorMessage,
+        elapsedMs: Date.now() - startTime
+      };
+    }
+    const databaseStart = Date.now();
+    try {
+      const upsertResult = await upsertEpisodeNotes(supabase4, {
+        episodeId: transcript.episode_id,
+        transcriptId: transcript.id,
+        notes: notesResult.notes,
+        model: notesResult.model,
+        status: "done"
+      });
+      timing.databaseMs = Date.now() - databaseStart;
+      if (!upsertResult.success) {
+        throw new Error(upsertResult.error || "Database upsert failed");
+      }
+      console.log("DEBUG: Successfully saved notes to database", {
+        episodeId: transcript.episode_id,
+        noteId: upsertResult.noteId,
+        databaseMs: timing.databaseMs
+      });
+    } catch (error) {
+      timing.databaseMs = Date.now() - databaseStart;
+      const errorMessage = `Database save failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+      console.error("DEBUG: Failed to save notes to database", {
+        episodeId: transcript.episode_id,
+        error: errorMessage,
+        databaseMs: timing.databaseMs
+      });
+      return {
+        ...baseResult,
+        status: "error",
+        error: errorMessage,
+        elapsedMs: Date.now() - startTime
+      };
+    }
+    const elapsedMs = Date.now() - startTime;
+    console.log("DEBUG: Episode processing completed successfully", {
+      episodeId: transcript.episode_id,
+      totalElapsedMs: elapsedMs,
+      timing,
+      notesLength: notesResult.notes.length
+    });
+    return {
+      ...baseResult,
+      status: "done",
+      notes: notesResult.notes,
+      model: notesResult.model,
+      elapsedMs
+    };
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = `Unexpected processing error: ${error instanceof Error ? error.message : "Unknown error"}`;
+    console.error("DEBUG: Unexpected error processing episode", {
+      episodeId: transcript.episode_id,
+      error: errorMessage,
+      elapsedMs,
+      timing
+    });
+    try {
+      await recordErrorResult(supabase4, transcript, errorMessage, timing);
+    } catch (dbError) {
+      console.error("DEBUG: Failed to record error result", {
+        episodeId: transcript.episode_id,
+        originalError: errorMessage,
+        dbError: dbError instanceof Error ? dbError.message : "Unknown DB error"
+      });
+    }
+    return {
+      ...baseResult,
+      status: "error",
+      error: errorMessage,
+      elapsedMs
+    };
+  }
+}
+async function recordErrorResult(supabase4, transcript, errorMessage, timing) {
+  const dbStart = Date.now();
+  try {
+    const result = await upsertEpisodeNotes(supabase4, {
+      episodeId: transcript.episode_id,
+      transcriptId: transcript.id,
+      status: "error",
+      errorMessage
+    });
+    timing.databaseMs = Date.now() - dbStart;
+    if (!result.success) {
+      console.error("DEBUG: Failed to record error in database", {
+        episodeId: transcript.episode_id,
+        originalError: errorMessage,
+        dbError: result.error
+      });
+    }
+  } catch (error) {
+    timing.databaseMs = Date.now() - dbStart;
+    console.error("DEBUG: Exception while recording error in database", {
+      episodeId: transcript.episode_id,
+      originalError: errorMessage,
+      dbException: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+function aggregateProcessingResults(results) {
+  const totalEpisodes = results.length;
+  const successfulResults = results.filter((r) => r.status === "done");
+  const errorResults = results.filter((r) => r.status === "error");
+  const successfulNotes = successfulResults.length;
+  const errorCount = errorResults.length;
+  const successRate = totalEpisodes > 0 ? successfulNotes / totalEpisodes * 100 : 0;
+  const totalElapsedMs = results.reduce((sum, r) => sum + r.elapsedMs, 0);
+  const averageProcessingTimeMs = totalEpisodes > 0 ? totalElapsedMs / totalEpisodes : 0;
+  const averageTiming = {
+    downloadMs: totalEpisodes > 0 ? results.reduce((sum, r) => sum + r.timing.downloadMs, 0) / totalEpisodes : 0,
+    generationMs: totalEpisodes > 0 ? results.reduce((sum, r) => sum + r.timing.generationMs, 0) / totalEpisodes : 0,
+    databaseMs: totalEpisodes > 0 ? results.reduce((sum, r) => sum + r.timing.databaseMs, 0) / totalEpisodes : 0
+  };
+  const errorBreakdown = {};
+  errorResults.forEach((result) => {
+    if (result.error) {
+      const errorType = extractErrorType(result.error);
+      errorBreakdown[errorType] = (errorBreakdown[errorType] || 0) + 1;
+    }
+  });
+  const wordCounts = results.map((r) => r.metadata.transcriptWordCount).filter((count) => count !== void 0);
+  const wordCountStats = {
+    min: wordCounts.length > 0 ? Math.min(...wordCounts) : 0,
+    max: wordCounts.length > 0 ? Math.max(...wordCounts) : 0,
+    average: wordCounts.length > 0 ? wordCounts.reduce((sum, count) => sum + count, 0) / wordCounts.length : 0,
+    total: wordCounts.reduce((sum, count) => sum + count, 0)
+  };
+  return {
+    totalEpisodes,
+    successfulNotes,
+    errorCount,
+    successRate,
+    totalElapsedMs,
+    averageProcessingTimeMs,
+    averageTiming,
+    errorBreakdown,
+    wordCountStats
+  };
+}
+function extractErrorType(errorMessage) {
+  const lowerMessage = errorMessage.toLowerCase();
+  if (lowerMessage.includes("download") || lowerMessage.includes("storage") || lowerMessage.includes("file")) {
+    return "download_error";
+  }
+  if (lowerMessage.includes("gemini") || lowerMessage.includes("api") || lowerMessage.includes("generation")) {
+    return "generation_error";
+  }
+  if (lowerMessage.includes("database") || lowerMessage.includes("upsert") || lowerMessage.includes("save")) {
+    return "database_error";
+  }
+  if (lowerMessage.includes("transcript") && (lowerMessage.includes("empty") || lowerMessage.includes("parse"))) {
+    return "transcript_parse_error";
+  }
+  return "unknown_error";
+}
+
+// config/notesWorkerConfig.ts
+import { readFileSync as readFileSync2 } from "fs";
+import { resolve as resolve2 } from "path";
+function getNotesWorkerConfig() {
+  const enabled = process.env.NOTES_WORKER_ENABLED !== "false";
+  const lookbackHours = parseInt(process.env.NOTES_LOOKBACK_HOURS || "24", 10);
+  if (isNaN(lookbackHours) || lookbackHours < 1 || lookbackHours > 168) {
+    throw new Error(`Invalid NOTES_LOOKBACK_HOURS: "${process.env.NOTES_LOOKBACK_HOURS}". Must be a number between 1 and 168 (hours).`);
+  }
+  const last10Mode = process.env.NOTES_WORKER_L10 === "true";
+  const maxConcurrency = parseInt(process.env.NOTES_MAX_CONCURRENCY || "30", 10);
+  if (isNaN(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 100) {
+    throw new Error(`Invalid NOTES_MAX_CONCURRENCY: "${process.env.NOTES_MAX_CONCURRENCY}". Must be a number between 1 and 100.`);
+  }
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey || geminiApiKey.trim().length === 0) {
+    throw new Error("GEMINI_API_KEY environment variable is required but not set.");
+  }
+  if (!geminiApiKey.startsWith("AIza")) {
+    console.warn('Warning: GEMINI_API_KEY does not start with "AIza" - this may not be a valid Google API key.');
+  }
+  const promptPath = process.env.NOTES_PROMPT_PATH || "prompts/episode-notes.md";
+  let promptTemplate;
+  try {
+    const fullPromptPath = resolve2(promptPath);
+    promptTemplate = readFileSync2(fullPromptPath, "utf-8").trim();
+    if (!promptTemplate) {
+      throw new Error(`Prompt template file is empty: ${fullPromptPath}`);
+    }
+    if (promptTemplate.length < 50) {
+      throw new Error(`Prompt template seems too short (${promptTemplate.length} chars). Expected detailed instructions.`);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to load prompt template from "${promptPath}": ${error.message}`);
+    }
+    throw new Error(`Failed to load prompt template from "${promptPath}": Unknown error`);
+  }
+  return {
+    enabled,
+    lookbackHours,
+    last10Mode,
+    maxConcurrency,
+    promptPath,
+    promptTemplate,
+    geminiApiKey: geminiApiKey.trim()
+  };
+}
+function validateDependencies(config) {
+  const requiredSections = [
+    "main topics",
+    "key insights",
+    "takeaways"
+  ];
+  const lowerPrompt = config.promptTemplate.toLowerCase();
+  const missingSections = requiredSections.filter(
+    (section) => !lowerPrompt.includes(section)
+  );
+  if (missingSections.length > 0) {
+    console.warn(`Warning: Prompt template may be missing expected sections: ${missingSections.join(", ")}`);
+  }
+  if (!lowerPrompt.includes("transcript") && !lowerPrompt.includes("episode")) {
+    console.warn('Warning: Prompt template does not mention "transcript" or "episode" - this may not be suitable for episode notes generation.');
+  }
+}
+
+// jobs/noteGenerator.ts
+var EpisodeNotesWorker = class {
+  constructor() {
+    // Store partial results for graceful shutdown
+    this.partialResults = [];
+    this.logger = createLogger();
+    this.startTime = Date.now();
+  }
+  /**
+   * Main entry point for the episode notes worker
+   * @returns Promise<NotesWorkerSummary> Summary of processing results
+   */
+  async run() {
+    const jobId = `notes-${Date.now()}`;
+    const config = getNotesWorkerConfig();
+    validateDependencies(config);
+    this.logger.info("system", "Episode Notes Worker starting", {
+      metadata: {
+        job_id: jobId,
+        lookback_hours: config.lookbackHours,
+        max_concurrency: config.maxConcurrency,
+        last10_mode: config.last10Mode,
+        prompt_template_length: config.promptTemplate.length
+      }
+    });
+    const startTime = Date.now();
+    const supabase4 = getSharedSupabaseClient();
+    try {
+      const prepResult = await prepareTranscriptsForNotes(supabase4, config);
+      if (config.last10Mode) {
+        const validation = validateL10Mode(prepResult.candidates, config);
+        logL10ModeSummary(prepResult, validation);
+      }
+      if (prepResult.candidates.length === 0) {
+        this.logger.warn("system", "No transcripts found for notes generation; exiting");
+        return {
+          totalCandidates: 0,
+          processedEpisodes: 0,
+          successfulNotes: 0,
+          errorCount: 0,
+          totalElapsedMs: Date.now() - startTime,
+          averageProcessingTimeMs: 0
+        };
+      }
+      const pool = new ConcurrencyPool(config.maxConcurrency);
+      const processResults = await pool.process(
+        prepResult.candidates,
+        async (candidate) => {
+          const result = await processEpisodeForNotes(supabase4, candidate, config);
+          this.partialResults.push(result);
+          return result;
+        },
+        (progress) => {
+          this.logger.info("system", "Notes worker progress", {
+            metadata: {
+              job_id: jobId,
+              progress: `${progress.completed}/${progress.total}`,
+              percentage: progress.percentage.toFixed(1),
+              active: progress.active,
+              elapsed_ms: progress.elapsedMs,
+              est_remaining_ms: progress.estimatedRemainingMs
+            }
+          });
+        }
+      );
+      const { results } = processResults;
+      this.partialResults = results.filter((r) => r !== null);
+      const summaryStats = aggregateProcessingResults(results);
+      const totalElapsedMs = Date.now() - startTime;
+      const summary = {
+        totalCandidates: prepResult.candidates.length,
+        processedEpisodes: summaryStats.totalEpisodes,
+        successfulNotes: summaryStats.successfulNotes,
+        errorCount: summaryStats.errorCount,
+        totalElapsedMs,
+        averageProcessingTimeMs: summaryStats.averageProcessingTimeMs
+      };
+      this.logger.info("system", "Episode Notes Worker completed", {
+        metadata: {
+          job_id: jobId,
+          ...summary,
+          success_rate: summaryStats.successRate.toFixed(1),
+          avg_timing_ms: summaryStats.averageTiming,
+          error_breakdown: summaryStats.errorBreakdown,
+          word_count_stats: summaryStats.wordCountStats
+        }
+      });
+      return summary;
+    } catch (error) {
+      const elapsedMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      this.logger.error("system", "Episode Notes Worker failed", {
+        metadata: {
+          job_id: jobId,
+          error: errorMessage,
+          elapsed_ms: elapsedMs,
+          stack_trace: error instanceof Error ? error.stack : void 0
+        }
+      });
+      throw error;
+    }
+  }
+};
+function setupSignalHandlers(worker) {
+  const gracefulShutdown = (signal) => {
+    if (worker._shuttingDown) return;
+    worker._shuttingDown = true;
+    console.warn(`Received ${signal}. Flushing in-flight operations and writing summary\u2026`);
+    try {
+      const results = worker.partialResults;
+      const summary = aggregateProcessingResults(results);
+      worker.logger.warn("system", "Episode Notes Worker interrupted", {
+        metadata: {
+          signal,
+          processed_episodes: summary.totalEpisodes,
+          successful: summary.successfulNotes,
+          errors: summary.errorCount,
+          success_rate: summary.successRate.toFixed(1)
+        }
+      });
+    } catch (err) {
+      console.error("Failed to write interrupt summary:", err);
+    } finally {
+      setTimeout(() => process.exit(0), 200);
+    }
+  };
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+}
+function setupUnhandledExceptionHandlers() {
+  process.on("unhandledRejection", (reason) => {
+    console.error("UNHANDLED REJECTION:", reason);
+    setTimeout(() => process.exit(3), 100);
+  });
+  process.on("uncaughtException", (err) => {
+    console.error("UNCAUGHT EXCEPTION:", err);
+    setTimeout(() => process.exit(3), 100);
+  });
+}
+if (process.env.NOTES_WORKER_CLI === "true" && import.meta.url === `file://${process.argv[1]}`) {
+  const w = new EpisodeNotesWorker();
+  setupSignalHandlers(w);
+  setupUnhandledExceptionHandlers();
+  w.run().then(() => process.exit(0)).catch((error) => {
+    console.error("Unhandled error in main:", error);
+    process.exit(3);
+  });
+}
+
+// lib/db/editionQueries.ts
+async function queryUsersWithActiveSubscriptions(supabase4) {
+  console.log("DEBUG: Starting user subscription query");
+  try {
+    const { data: users, error: queryError } = await supabase4.from("users").select(`
+        id,
+        email,
+        user_podcast_subscriptions!inner (
+          id,
+          show_id,
+          status,
+          podcast_shows!inner (
+            id,
+            title,
+            rss_url
+          )
+        )
+      `).eq("user_podcast_subscriptions.status", "active").is("user_podcast_subscriptions.deleted_at", null).order("users.id");
+    console.log("DEBUG: User subscription query completed", {
+      error: !!queryError,
+      dataLength: users?.length || 0,
+      errorMessage: queryError?.message || "none"
+    });
+    if (queryError) {
+      throw new Error(`Failed to query users with subscriptions: ${queryError.message}`);
+    }
+    if (!users || users.length === 0) {
+      console.log("DEBUG: No users with active subscriptions found");
+      return [];
+    }
+    return users.map((user) => {
+      const subscriptionsJoin = user.user_podcast_subscriptions;
+      let subscriptions = [];
+      if (Array.isArray(subscriptionsJoin)) {
+        subscriptions = subscriptionsJoin.map((sub) => {
+          const showJoin = sub.podcast_shows;
+          let show;
+          if (Array.isArray(showJoin) && showJoin.length > 0) {
+            show = {
+              id: showJoin[0].id,
+              title: showJoin[0].title,
+              rss_url: showJoin[0].rss_url
+            };
+          } else if (showJoin && typeof showJoin === "object") {
+            show = {
+              id: showJoin.id,
+              title: showJoin.title,
+              rss_url: showJoin.rss_url
+            };
+          }
+          return {
+            id: sub.id,
+            show_id: sub.show_id,
+            status: sub.status,
+            podcast_shows: show
+          };
+        });
+      } else if (subscriptionsJoin && typeof subscriptionsJoin === "object") {
+        const showJoin = subscriptionsJoin.podcast_shows;
+        let show;
+        if (Array.isArray(showJoin) && showJoin.length > 0) {
+          show = {
+            id: showJoin[0].id,
+            title: showJoin[0].title,
+            rss_url: showJoin[0].rss_url
+          };
+        } else if (showJoin && typeof showJoin === "object") {
+          show = {
+            id: showJoin.id,
+            title: showJoin.title,
+            rss_url: showJoin.rss_url
+          };
+        }
+        subscriptions = [{
+          id: subscriptionsJoin.id,
+          show_id: subscriptionsJoin.show_id,
+          status: subscriptionsJoin.status,
+          podcast_shows: show
+        }];
+      }
+      return {
+        id: user.id,
+        email: user.email || "",
+        subscriptions
+      };
+    });
+  } catch (error) {
+    console.error("ERROR: Failed to query users with subscriptions:", error);
+    throw error;
+  }
+}
+async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOverride) {
+  const now = nowOverride ?? Date.now();
+  const startTime = now;
+  console.log("DEBUG: Starting episode notes query for user", {
+    userId,
+    lookbackHours,
+    lookbackDate: new Date(now - lookbackHours * 60 * 60 * 1e3).toISOString()
+  });
+  try {
+    const { data: userSubscriptions, error: subscriptionError } = await supabase4.from("user_podcast_subscriptions").select("show_id").eq("user_id", userId).eq("status", "active").is("deleted_at", null);
+    if (subscriptionError) {
+      throw new Error(`Failed to query user subscriptions: ${subscriptionError.message}`);
+    }
+    if (!userSubscriptions || userSubscriptions.length === 0) {
+      console.log("DEBUG: User has no active subscriptions");
+      return [];
+    }
+    const subscribedShowIds = userSubscriptions.map((sub) => sub.show_id);
+    const cutoffTime = new Date(now - lookbackHours * 60 * 60 * 1e3).toISOString();
+    const { data: episodeNotes, error: notesError } = await supabase4.from("episode_transcript_notes").select(`
+        id,
+        episode_id,
+        notes,
+        status,
+        created_at,
+        podcast_episodes!inner (
+          id,
+          show_id,
+          title,
+          description,
+          pub_date,
+          podcast_shows!inner (
+            id,
+            title,
+            rss_url
+          )
+        )
+      `).in("podcast_episodes.show_id", subscribedShowIds).gte("created_at", cutoffTime).eq("status", "done").is("deleted_at", null).order("created_at", { ascending: false });
+    console.log("DEBUG: Episode notes query completed", {
+      error: !!notesError,
+      dataLength: episodeNotes?.length || 0,
+      errorMessage: notesError?.message || "none",
+      subscribedShowCount: subscribedShowIds.length,
+      cutoffTime
+    });
+    if (notesError) {
+      throw new Error(`Failed to query episode notes: ${notesError.message}`);
+    }
+    if (!episodeNotes || episodeNotes.length === 0) {
+      console.log("DEBUG: No episode notes found for user in time window");
+      return [];
+    }
+    const elapsedMs = Date.now() - startTime;
+    console.log("DEBUG: Episode notes query completed successfully", {
+      totalNotes: episodeNotes.length,
+      elapsedMs
+    });
+    return episodeNotes.map((note) => {
+      const episodeJoin = note.podcast_episodes;
+      let episode;
+      if (Array.isArray(episodeJoin)) {
+        if (episodeJoin.length > 0) {
+          const ep = episodeJoin[0];
+          const showJoin = ep.podcast_shows;
+          let show;
+          if (Array.isArray(showJoin) && showJoin.length > 0) {
+            show = {
+              id: showJoin[0].id,
+              title: showJoin[0].title,
+              rss_url: showJoin[0].rss_url
+            };
+          } else if (showJoin && typeof showJoin === "object") {
+            show = {
+              id: showJoin.id,
+              title: showJoin.title,
+              rss_url: showJoin.rss_url
+            };
+          }
+          episode = {
+            id: ep.id,
+            show_id: ep.show_id,
+            title: ep.title,
+            description: ep.description,
+            pub_date: ep.pub_date,
+            podcast_shows: show
+          };
+        }
+      } else if (episodeJoin && typeof episodeJoin === "object") {
+        const showJoin = episodeJoin.podcast_shows;
+        let show;
+        if (Array.isArray(showJoin) && showJoin.length > 0) {
+          show = {
+            id: showJoin[0].id,
+            title: showJoin[0].title,
+            rss_url: showJoin[0].rss_url
+          };
+        } else if (showJoin && typeof showJoin === "object") {
+          show = {
+            id: showJoin.id,
+            title: showJoin.title,
+            rss_url: showJoin.rss_url
+          };
+        }
+        episode = {
+          id: episodeJoin.id,
+          show_id: episodeJoin.show_id,
+          title: episodeJoin.title,
+          description: episodeJoin.description,
+          pub_date: episodeJoin.pub_date,
+          podcast_shows: show
+        };
+      }
+      return {
+        id: note.id,
+        episode_id: note.episode_id,
+        notes: note.notes || "",
+        status: note.status,
+        created_at: note.created_at,
+        episode
+      };
+    });
+  } catch (error) {
+    console.error("ERROR: Failed to query episode notes for user:", error);
+    throw error;
+  }
+}
+async function queryLast10NewsletterEditions(supabase4) {
+  console.log("DEBUG: Starting L10 newsletter editions query");
+  try {
+    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("id").order("created_at", { ascending: false }).limit(10);
+    console.log("DEBUG: L10 newsletter editions query completed", {
+      error: !!queryError,
+      dataLength: editions?.length || 0,
+      errorMessage: queryError?.message || "none"
+    });
+    if (queryError) {
+      throw new Error(`Failed to query last 10 newsletter editions: ${queryError.message}`);
+    }
+    if (!editions || editions.length === 0) {
+      console.log("DEBUG: No newsletter editions found for L10 mode");
+      return [];
+    }
+    const editionIds = editions.map((edition) => edition.id);
+    console.log("DEBUG: L10 mode - found editions to overwrite", {
+      count: editionIds.length,
+      editionIds
+    });
+    return editionIds;
+  } catch (error) {
+    console.error("ERROR: Failed to query last 10 newsletter editions:", error);
+    throw error;
+  }
+}
+
+// lib/db/newsletter-editions.ts
+import { randomUUID } from "crypto";
+
+// lib/db/newsletter-edition-episodes.ts
+var supabase2 = null;
+function getSupabaseClient2() {
+  if (!supabase2) {
+    supabase2 = getSharedSupabaseClient();
+  }
+  return supabase2;
+}
+async function insertNewsletterEditionEpisodes(params) {
+  if (!params.newsletter_edition_id || typeof params.newsletter_edition_id !== "string" || params.newsletter_edition_id.trim() === "") {
+    throw new Error("newsletter_edition_id is required and must be a non-empty string");
+  }
+  if (!params.episode_ids || !Array.isArray(params.episode_ids) || params.episode_ids.length === 0) {
+    throw new Error("episode_ids array is required and must contain at least one episode_id");
+  }
+  for (let i = 0; i < params.episode_ids.length; i++) {
+    const episodeId = params.episode_ids[i];
+    if (!episodeId || typeof episodeId !== "string" || episodeId.trim() === "") {
+      throw new Error(`episode_ids[${i}] must be a non-empty string`);
+    }
+  }
+  const { data: newsletter, error: newsletterError } = await getSupabaseClient2().from("newsletter_editions").select("id").eq("id", params.newsletter_edition_id).single();
+  if (newsletterError || !newsletter) {
+    throw new Error(`Newsletter edition with id ${params.newsletter_edition_id} does not exist`);
+  }
+  for (const episodeId of params.episode_ids) {
+    const { data: episodeNote, error: episodeError } = await getSupabaseClient2().from("episode_transcript_notes").select("episode_id").eq("episode_id", episodeId).single();
+    if (episodeError || !episodeNote) {
+      throw new Error(`Episode transcript note with episode_id ${episodeId} does not exist`);
+    }
+  }
+  const uniqueEpisodeIds = [...new Set(params.episode_ids)];
+  const insertData = uniqueEpisodeIds.map((episodeId) => ({
+    newsletter_edition_id: params.newsletter_edition_id,
+    episode_id: episodeId
+  }));
+  const { data, error } = await getSupabaseClient2().from("newsletter_edition_episodes").insert(insertData).select();
+  if (error) {
+    throw new Error(`Failed to insert newsletter edition episodes: ${error.message}`);
+  }
+  if (Array.isArray(data) && data.length > 0) {
+    return data;
+  }
+  throw new Error("No data returned from newsletter edition episodes insertion");
+}
+
+// lib/db/newsletter-editions.ts
+var supabase3 = null;
+function getSupabaseClient3() {
+  if (!supabase3) {
+    supabase3 = getSharedSupabaseClient();
+  }
+  return supabase3;
+}
+async function insertNewsletterEdition(params) {
+  if (!params.user_id || typeof params.user_id !== "string" || params.user_id.trim() === "") {
+    throw new Error("user_id is required and must be a non-empty string");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(params.edition_date)) {
+    throw new Error("edition_date must be a valid YYYY-MM-DD string");
+  }
+  const { data: user, error: userError } = await getSupabaseClient3().from("users").select("email").eq("id", params.user_id).single();
+  if (userError) {
+    throw new Error(`Failed to fetch user: ${userError.message}`);
+  }
+  if (!user || !user.email) {
+    throw new Error(`No user found with id: ${params.user_id}`);
+  }
+  const insertData = {
+    user_id: params.user_id,
+    edition_date: params.edition_date,
+    status: params.status,
+    user_email: user.email,
+    content: params.content ?? null,
+    model: params.model ?? null,
+    error_message: params.error_message ?? null,
+    deleted_at: null,
+    id: randomUUID()
+  };
+  const { data, error } = await getSupabaseClient3().from("newsletter_editions").insert(insertData).select().single();
+  if (error) {
+    throw new Error(`Failed to insert newsletter edition: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error("No data returned from newsletter edition insertion");
+  }
+  if (params.episode_ids && params.episode_ids.length > 0) {
+    try {
+      await insertNewsletterEditionEpisodes({
+        newsletter_edition_id: data.id,
+        episode_ids: params.episode_ids
+      });
+    } catch (episodeError) {
+      await getSupabaseClient3().from("newsletter_editions").delete().eq("id", data.id);
+      throw new Error(`Failed to link episodes to newsletter edition: ${episodeError instanceof Error ? episodeError.message : "Unknown error"}`);
+    }
+  }
+  return data;
+}
+
+// lib/utils/editionProcessor.ts
+async function processUserForNewsletter(supabase4, user, config, nowOverride) {
+  const startTime = Date.now();
+  const timing = { queryMs: 0, generationMs: 0, databaseMs: 0 };
+  const baseResult = {
+    userId: user.id,
+    userEmail: user.email,
+    timing,
+    metadata: {
+      episodeNotesCount: 0,
+      subscribedShowsCount: user.subscriptions.length,
+      totalWordCount: 0,
+      averageWordCount: 0
+    }
+  };
+  console.log("DEBUG: Processing user for newsletter", {
+    userId: user.id,
+    userEmail: user.email,
+    subscribedShowsCount: user.subscriptions.length,
+    lookbackHours: config.lookbackHours
+  });
+  try {
+    const queryStart = Date.now();
+    let episodeNotes;
+    try {
+      episodeNotes = await queryEpisodeNotesForUser(
+        supabase4,
+        user.id,
+        config.lookbackHours,
+        nowOverride
+      );
+      timing.queryMs = Date.now() - queryStart;
+      console.log("DEBUG: Successfully queried episode notes", {
+        userId: user.id,
+        episodeNotesCount: episodeNotes.length,
+        queryMs: timing.queryMs
+      });
+    } catch (error) {
+      timing.queryMs = Date.now() - queryStart;
+      const errorMessage = `Failed to query episode notes: ${error instanceof Error ? error.message : "Unknown error"}`;
+      console.error("DEBUG: Failed to query episode notes", {
+        userId: user.id,
+        error: errorMessage,
+        queryMs: timing.queryMs
+      });
+      return {
+        ...baseResult,
+        status: "error",
+        error: errorMessage,
+        elapsedMs: Date.now() - startTime
+      };
+    }
+    if (episodeNotes.length === 0) {
+      console.log("DEBUG: No episode notes found for user", {
+        userId: user.id,
+        subscribedShowsCount: user.subscriptions.length,
+        lookbackHours: config.lookbackHours
+      });
+      return {
+        ...baseResult,
+        status: "no_content_found",
+        elapsedMs: Date.now() - startTime
+      };
+    }
+    const notesTexts = episodeNotes.map((note) => note.notes);
+    const totalWordCount = notesTexts.reduce((sum, notes) => sum + countWords4(notes), 0);
+    const averageWordCount = episodeNotes.length > 0 ? totalWordCount / episodeNotes.length : 0;
+    baseResult.metadata.episodeNotesCount = episodeNotes.length;
+    baseResult.metadata.totalWordCount = totalWordCount;
+    baseResult.metadata.averageWordCount = averageWordCount;
+    const generationStart = Date.now();
+    let newsletterContent;
+    let generationResult;
+    try {
+      const editionDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      generationResult = await generateNewsletterEdition(notesTexts, user.email, editionDate);
+      timing.generationMs = Date.now() - generationStart;
+      if (!generationResult.success) {
+        throw new Error(generationResult.error || "Newsletter generation failed");
+      }
+      newsletterContent = generationResult.sanitizedContent;
+      console.log("DEBUG: Successfully generated newsletter content", {
+        userId: user.id,
+        contentLength: newsletterContent.length,
+        model: generationResult.model,
+        generationMs: timing.generationMs
+      });
+    } catch (error) {
+      timing.generationMs = Date.now() - generationStart;
+      const errorMessage = `Newsletter generation failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+      console.error("DEBUG: Failed to generate newsletter content", {
+        userId: user.id,
+        episodeNotesCount: episodeNotes.length,
+        error: errorMessage,
+        generationMs: timing.generationMs
+      });
+      return {
+        ...baseResult,
+        status: "error",
+        error: errorMessage,
+        elapsedMs: Date.now() - startTime
+      };
+    }
+    const databaseStart = Date.now();
+    try {
+      const editionDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      const editionResult = await insertNewsletterEdition({
+        user_id: user.id,
+        edition_date: editionDate,
+        content: newsletterContent,
+        status: "generated",
+        model: generationResult.model,
+        error_message: null
+      });
+      console.log("DEBUG: editionResult", editionResult);
+      console.log("DEBUG: editionResult type", typeof editionResult);
+      console.log("DEBUG: editionResult keys", editionResult ? Object.keys(editionResult) : "undefined");
+      console.log("DEBUG: editionResult.id", editionResult?.id);
+      if (!editionResult) {
+        throw new Error(`Database save failed: insertNewsletterEdition returned undefined`);
+      }
+      const newsletterEditionId2 = editionResult.id;
+      const episodeIds2 = episodeNotes.map((note) => note.episode_id);
+      const episodeLinksResult = await insertNewsletterEditionEpisodes({
+        newsletter_edition_id: newsletterEditionId2,
+        episode_ids: episodeIds2
+      });
+      if (!episodeLinksResult) {
+        throw new Error(`Database save failed: insertNewsletterEditionEpisodes returned undefined`);
+      }
+      const htmlContent2 = newsletterContent;
+      const sanitizedContent2 = sanitizeNewsletterContent(newsletterContent);
+      const episodeCount2 = episodeLinksResult.length;
+      console.log("DEBUG: Setting additional fields for test assertions", {
+        htmlContent: htmlContent2,
+        sanitizedContent: sanitizedContent2,
+        episodeCount: episodeCount2
+      });
+      console.log("DEBUG: Successfully inserted episode links", {
+        userId: user.id,
+        newsletterEditionId: newsletterEditionId2,
+        episodeCount: episodeIds2.length,
+        linksCount: episodeLinksResult.length
+      });
+      timing.databaseMs = Date.now() - databaseStart;
+      console.log("DEBUG: Successfully saved newsletter to database", {
+        userId: user.id,
+        newsletterEditionId: newsletterEditionId2,
+        episodeCount: episodeIds2.length,
+        databaseMs: timing.databaseMs
+      });
+    } catch (error) {
+      timing.databaseMs = Date.now() - databaseStart;
+      const errorMessage = `Database save failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+      console.error("DEBUG: Failed to save newsletter to database", {
+        userId: user.id,
+        error: errorMessage,
+        databaseMs: timing.databaseMs
+      });
+      return {
+        ...baseResult,
+        status: "error",
+        error: errorMessage,
+        elapsedMs: Date.now() - startTime
+      };
+    }
+    const elapsedMs = Date.now() - startTime;
+    console.log("DEBUG: User processing completed successfully", {
+      userId: user.id,
+      totalElapsedMs: elapsedMs,
+      timing,
+      contentLength: newsletterContent.length,
+      episodeCount: episodeNotes.length
+    });
+    return {
+      ...baseResult,
+      status: "done",
+      newsletterContent,
+      newsletterEditionId,
+      episodeIds,
+      html_content: htmlContent,
+      sanitized_content: sanitizedContent,
+      episode_count: episodeCount,
+      elapsedMs
+    };
+  } catch (error) {
+    const errorMessage = `Unexpected error processing user: ${error instanceof Error ? error.message : "Unknown error"}`;
+    console.error("DEBUG: Unexpected error in user processing", {
+      userId: user.id,
+      error: errorMessage
+    });
+    return {
+      ...baseResult,
+      status: "error",
+      error: errorMessage,
+      elapsedMs: Date.now() - startTime
+    };
+  }
+}
+function countWords4(text) {
+  if (!text || typeof text !== "string") {
+    return 0;
+  }
+  return text.trim().split(/\s+/).filter((word) => word.length > 0).length;
+}
+function aggregateUserProcessingResults(results) {
+  const totalUsers = results.length;
+  const successfulResults = results.filter((r) => r.status === "done");
+  const errorResults = results.filter((r) => r.status === "error");
+  const noContentResults = results.filter((r) => r.status === "no_content_found");
+  const successfulNewsletters = successfulResults.length;
+  const errorCount = errorResults.length;
+  const noContentCount = noContentResults.length;
+  const successRate = totalUsers > 0 ? successfulNewsletters / totalUsers * 100 : 0;
+  const totalElapsedMs = results.reduce((sum, r) => sum + r.elapsedMs, 0);
+  const averageProcessingTimeMs = totalUsers > 0 ? totalElapsedMs / totalUsers : 0;
+  const averageTiming = {
+    queryMs: totalUsers > 0 ? results.reduce((sum, r) => sum + r.timing.queryMs, 0) / totalUsers : 0,
+    generationMs: totalUsers > 0 ? results.reduce((sum, r) => sum + r.timing.generationMs, 0) / totalUsers : 0,
+    databaseMs: totalUsers > 0 ? results.reduce((sum, r) => sum + r.timing.databaseMs, 0) / totalUsers : 0
+  };
+  const errorBreakdown = {};
+  errorResults.forEach((result) => {
+    if (result.error) {
+      const errorType = extractErrorType2(result.error);
+      errorBreakdown[errorType] = (errorBreakdown[errorType] || 0) + 1;
+    }
+  });
+  const contentLengths = successfulResults.map((r) => r.newsletterContent?.length || 0).filter((length) => length > 0);
+  const contentStats = {
+    minLength: contentLengths.length > 0 ? Math.min(...contentLengths) : 0,
+    maxLength: contentLengths.length > 0 ? Math.max(...contentLengths) : 0,
+    averageLength: contentLengths.length > 0 ? contentLengths.reduce((sum, length) => sum + length, 0) / contentLengths.length : 0,
+    totalLength: contentLengths.reduce((sum, length) => sum + length, 0)
+  };
+  const episodeCounts = successfulResults.map((r) => r.episodeIds?.length || 0).filter((count) => count > 0);
+  const episodeStats = {
+    minEpisodes: episodeCounts.length > 0 ? Math.min(...episodeCounts) : 0,
+    maxEpisodes: episodeCounts.length > 0 ? Math.max(...episodeCounts) : 0,
+    averageEpisodes: episodeCounts.length > 0 ? episodeCounts.reduce((sum, count) => sum + count, 0) / episodeCounts.length : 0,
+    totalEpisodes: episodeCounts.reduce((sum, count) => sum + count, 0)
+  };
+  return {
+    totalUsers,
+    successfulNewsletters,
+    errorCount,
+    noContentCount,
+    successRate,
+    totalElapsedMs,
+    averageProcessingTimeMs,
+    averageTiming,
+    errorBreakdown,
+    contentStats,
+    episodeStats
+  };
+}
+function extractErrorType2(errorMessage) {
+  const lowerError = errorMessage.toLowerCase();
+  if (lowerError.includes("database") || lowerError.includes("supabase")) {
+    return "database_error";
+  }
+  if (lowerError.includes("gemini") || lowerError.includes("api") || lowerError.includes("generation")) {
+    return "generation_error";
+  }
+  if (lowerError.includes("query") || lowerError.includes("fetch")) {
+    return "query_error";
+  }
+  if (lowerError.includes("validation") || lowerError.includes("invalid")) {
+    return "validation_error";
+  }
+  return "unknown_error";
+}
+
+// lib/utils/editionWorkflow.ts
+async function prepareUsersForNewsletters(supabase4, config) {
+  const startTime = Date.now();
+  console.log("DEBUG: Preparing users for newsletter generation", {
+    lookbackHours: config.lookbackHours,
+    last10Mode: config.last10Mode,
+    mode: config.last10Mode ? "L10_TESTING" : "NORMAL"
+  });
+  try {
+    const candidates = await queryUsersWithActiveSubscriptions(supabase4);
+    console.log("DEBUG: Found users with active subscriptions", {
+      candidateCount: candidates.length,
+      mode: config.last10Mode ? "L10" : "normal"
+    });
+    let clearedEditionsCount = 0;
+    if (config.last10Mode) {
+      console.log("DEBUG: L10 mode active - clearing content for last 10 newsletter editions");
+      const editionIds = await queryLast10NewsletterEditions(supabase4);
+      if (editionIds.length > 0) {
+        const clearResult = await clearNewsletterEditionContent(supabase4, editionIds);
+        if (!clearResult.success) {
+          console.warn("DEBUG: Failed to clear some existing edition content in L10 mode", {
+            error: clearResult.error,
+            editionCount: editionIds.length
+          });
+        } else {
+          clearedEditionsCount = clearResult.clearedCount;
+          console.log("DEBUG: Successfully cleared content for L10 mode", {
+            clearedCount: clearedEditionsCount,
+            editionCount: editionIds.length
+          });
+        }
+      }
+    }
+    const elapsedMs = Date.now() - startTime;
+    console.log("DEBUG: User preparation completed", {
+      candidateCount: candidates.length,
+      clearedEditionsCount,
+      wasL10Mode: config.last10Mode,
+      elapsedMs
+    });
+    return {
+      candidates,
+      clearedEditionsCount,
+      wasL10Mode: config.last10Mode,
+      elapsedMs
+    };
+  } catch (error) {
+    console.error("ERROR: Failed to prepare users for newsletters:", error);
+    throw error;
+  }
+}
+async function clearNewsletterEditionContent(supabase4, editionIds) {
+  try {
+    const { data, error } = await supabase4.from("newsletter_editions").update({
+      content: "[Content cleared for L10 test mode]",
+      status: "cleared_for_testing",
+      updated_at: (/* @__PURE__ */ new Date()).toISOString()
+    }).in("id", editionIds).select("id");
+    if (error) {
+      return {
+        success: false,
+        clearedCount: 0,
+        error: error.message
+      };
+    }
+    return {
+      success: true,
+      clearedCount: data?.length || 0
+    };
+  } catch (error) {
+    return {
+      success: false,
+      clearedCount: 0,
+      error: error instanceof Error ? error.message : "Unknown error"
+    };
+  }
+}
+function validateL10Mode2(candidates, config) {
+  const warnings = [];
+  const recommendations = [];
+  if (!config.last10Mode) {
+    return { isValid: true, warnings: [], recommendations: [] };
+  }
+  if (candidates.length === 0) {
+    warnings.push("L10 mode is active but no users with active subscriptions found");
+    recommendations.push("Ensure there are users with active podcast subscriptions");
+  }
+  if (candidates.length < 3) {
+    warnings.push(`L10 mode is active but only ${candidates.length} users found - limited test coverage`);
+    recommendations.push("Consider running with more users for better test coverage");
+  }
+  const usersWithSubscriptions = candidates.filter((user) => user.subscriptions.length > 0);
+  if (usersWithSubscriptions.length === 0) {
+    warnings.push("L10 mode is active but no users have active subscriptions");
+    recommendations.push("Ensure users have active podcast subscriptions");
+  }
+  return {
+    isValid: candidates.length > 0,
+    warnings,
+    recommendations
+  };
+}
+function logL10ModeSummary2(prepResult, validation) {
+  console.log("DEBUG: L10 Mode Summary", {
+    candidateCount: prepResult.candidates.length,
+    clearedEditionsCount: prepResult.clearedEditionsCount,
+    isValid: validation.isValid,
+    warnings: validation.warnings,
+    recommendations: validation.recommendations
+  });
+  if (validation.warnings.length > 0) {
+    console.warn("DEBUG: L10 Mode Warnings", {
+      warnings: validation.warnings
+    });
+  }
+  if (validation.recommendations.length > 0) {
+    console.info("DEBUG: L10 Mode Recommendations", {
+      recommendations: validation.recommendations
+    });
+  }
+}
+async function executeEditionWorkflow(supabase4, config, nowOverride) {
+  const startTime = Date.now();
+  console.log("DEBUG: Starting newsletter edition workflow", {
+    lookbackHours: config.lookbackHours,
+    last10Mode: config.last10Mode,
+    mode: config.last10Mode ? "L10_TESTING" : "NORMAL"
+  });
+  try {
+    const prepResult = await prepareUsersForNewsletters(supabase4, config);
+    if (config.last10Mode) {
+      const validation = validateL10Mode2(prepResult.candidates, config);
+      logL10ModeSummary2(prepResult, validation);
+    }
+    if (prepResult.candidates.length === 0) {
+      console.log("DEBUG: No users found for newsletter generation; exiting");
+      return {
+        totalCandidates: 0,
+        processedUsers: 0,
+        successfulNewsletters: 0,
+        errorCount: 0,
+        noContentCount: 0,
+        totalElapsedMs: Date.now() - startTime,
+        averageProcessingTimeMs: 0,
+        successRate: 0,
+        averageTiming: { queryMs: 0, generationMs: 0, databaseMs: 0 },
+        errorBreakdown: {},
+        contentStats: { minLength: 0, maxLength: 0, averageLength: 0, totalLength: 0 },
+        episodeStats: { minEpisodes: 0, maxEpisodes: 0, averageEpisodes: 0, totalEpisodes: 0 }
+      };
+    }
+    const results = [];
+    for (const user of prepResult.candidates) {
+      try {
+        const result = await processUserForNewsletter(supabase4, user, config, nowOverride);
+        results.push(result);
+        console.log("DEBUG: Processed user", {
+          userId: user.id,
+          userEmail: user.email,
+          status: result.status,
+          elapsedMs: result.elapsedMs,
+          episodeNotesCount: result.metadata.episodeNotesCount
+        });
+      } catch (error) {
+        console.error("DEBUG: Unexpected error processing user", {
+          userId: user.id,
+          userEmail: user.email,
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+        results.push({
+          userId: user.id,
+          userEmail: user.email,
+          status: "error",
+          error: error instanceof Error ? error.message : "Unknown error",
+          elapsedMs: Date.now() - startTime,
+          timing: { queryMs: 0, generationMs: 0, databaseMs: 0 },
+          metadata: {
+            episodeNotesCount: 0,
+            subscribedShowsCount: user.subscriptions.length,
+            totalWordCount: 0,
+            averageWordCount: 0
+          }
+        });
+      }
+    }
+    const summaryStats = aggregateUserProcessingResults(results);
+    const totalElapsedMs = Date.now() - startTime;
+    const workflowResult = {
+      totalCandidates: prepResult.candidates.length,
+      processedUsers: summaryStats.totalUsers,
+      successfulNewsletters: summaryStats.successfulNewsletters,
+      errorCount: summaryStats.errorCount,
+      noContentCount: summaryStats.noContentCount,
+      totalElapsedMs,
+      averageProcessingTimeMs: summaryStats.averageProcessingTimeMs,
+      successRate: summaryStats.successRate,
+      averageTiming: summaryStats.averageTiming,
+      errorBreakdown: summaryStats.errorBreakdown,
+      contentStats: summaryStats.contentStats,
+      episodeStats: summaryStats.episodeStats
+    };
+    console.log("DEBUG: Newsletter edition workflow completed", {
+      ...workflowResult,
+      success_rate: summaryStats.successRate.toFixed(1),
+      avg_timing_ms: summaryStats.averageTiming,
+      error_breakdown: summaryStats.errorBreakdown,
+      content_stats: summaryStats.contentStats,
+      episode_stats: summaryStats.episodeStats
+    });
+    return workflowResult;
+  } catch (error) {
+    console.error("ERROR: Failed to execute newsletter edition workflow:", error);
+    throw error;
+  }
+}
+
+// config/editionWorkerConfig.ts
+import { readFileSync as readFileSync3 } from "fs";
+import { resolve as resolve3 } from "path";
+function getEditionWorkerConfig() {
+  const enabled = process.env.EDITION_WORKER_ENABLED !== "false";
+  const lookbackHours = parseInt(process.env.EDITION_LOOKBACK_HOURS || "24", 10);
+  if (isNaN(lookbackHours) || lookbackHours < 1 || lookbackHours > 168) {
+    throw new Error(`Invalid EDITION_LOOKBACK_HOURS: "${process.env.EDITION_LOOKBACK_HOURS}". Must be a number between 1 and 168 (hours).`);
+  }
+  const last10Mode = process.env.EDITION_WORKER_L10 === "true";
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey || geminiApiKey.trim().length === 0) {
+    throw new Error("GEMINI_API_KEY environment variable is required but not set.");
+  }
+  if (!geminiApiKey.startsWith("AIza")) {
+    console.warn('Warning: GEMINI_API_KEY does not start with "AIza" - this may not be a valid Google API key.');
+  }
+  const promptPath = process.env.EDITION_PROMPT_PATH || "prompts/newsletter-edition.md";
+  let promptTemplate;
+  try {
+    const fullPromptPath = resolve3(promptPath);
+    promptTemplate = readFileSync3(fullPromptPath, "utf-8").trim();
+    if (!promptTemplate) {
+      throw new Error(`Prompt template file is empty: ${fullPromptPath}`);
+    }
+    if (promptTemplate.length < 50) {
+      throw new Error(`Prompt template seems too short (${promptTemplate.length} chars). Expected detailed instructions.`);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to load prompt template from "${promptPath}": ${error.message}`);
+    }
+    throw new Error(`Failed to load prompt template from "${promptPath}": Unknown error`);
+  }
+  return {
+    enabled,
+    lookbackHours,
+    last10Mode,
+    promptPath,
+    promptTemplate,
+    geminiApiKey: geminiApiKey.trim()
+  };
+}
+function validateDependencies2(config) {
+  const requiredSections = [
+    "episode notes",
+    "newsletter",
+    "user"
+  ];
+  const lowerPrompt = config.promptTemplate.toLowerCase();
+  const missingSections = requiredSections.filter(
+    (section) => !lowerPrompt.includes(section)
+  );
+  if (missingSections.length > 0) {
+    console.warn(`Warning: Prompt template may be missing expected sections: ${missingSections.join(", ")}`);
+  }
+  if (!lowerPrompt.includes("newsletter") && !lowerPrompt.includes("edition")) {
+    console.warn('Warning: Prompt template does not mention "newsletter" or "edition" - this may not be suitable for newsletter generation.');
+  }
+}
+
+// jobs/editionGenerator.ts
+var NewsletterEditionWorker = class {
+  constructor() {
+    // Store partial results for graceful shutdown
+    this.partialResults = [];
+    this.logger = createLogger();
+    this.startTime = Date.now();
+  }
+  /**
+   * Main entry point for the newsletter edition worker
+   * @returns Promise<EditionWorkerSummary> Summary of processing results
+   */
+  async run() {
+    const jobId = `edition-${Date.now()}`;
+    const config = getEditionWorkerConfig();
+    validateDependencies2(config);
+    this.logger.info("system", "Newsletter Edition Worker starting", {
+      metadata: {
+        job_id: jobId,
+        lookback_hours: config.lookbackHours,
+        last10_mode: config.last10Mode,
+        prompt_template_length: config.promptTemplate.length
+      }
+    });
+    const startTime = Date.now();
+    const supabase4 = getSharedSupabaseClient();
+    try {
+      const workflowResult = await executeEditionWorkflow(supabase4, config);
+      const summary = {
+        totalCandidates: workflowResult.totalCandidates,
+        processedUsers: workflowResult.processedUsers,
+        successfulNewsletters: workflowResult.successfulNewsletters,
+        errorCount: workflowResult.errorCount,
+        noContentCount: workflowResult.noContentCount,
+        totalElapsedMs: workflowResult.totalElapsedMs,
+        averageProcessingTimeMs: workflowResult.averageProcessingTimeMs,
+        successRate: workflowResult.successRate
+      };
+      this.logger.info("system", "Newsletter Edition Worker completed", {
+        metadata: {
+          job_id: jobId,
+          ...summary,
+          success_rate: workflowResult.successRate.toFixed(1),
+          avg_timing_ms: workflowResult.averageTiming,
+          error_breakdown: workflowResult.errorBreakdown,
+          content_stats: workflowResult.contentStats,
+          episode_stats: workflowResult.episodeStats
+        }
+      });
+      return summary;
+    } catch (error) {
+      const elapsedMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      this.logger.error("system", "Newsletter Edition Worker failed", {
+        metadata: {
+          job_id: jobId,
+          error: errorMessage,
+          elapsed_ms: elapsedMs,
+          stack_trace: error instanceof Error ? error.stack : void 0
+        }
+      });
+      throw error;
+    }
+  }
+};
+async function main() {
+  const worker = new NewsletterEditionWorker();
+  setupSignalHandlers2(worker);
+  setupUnhandledExceptionHandlers2();
+  try {
+    console.log("\u{1F680} Starting Newsletter Edition Generator Worker...");
+    const result = await worker.run();
+    console.log("\u2705 Newsletter Edition Worker completed successfully", {
+      totalUsers: result.totalCandidates,
+      processedUsers: result.processedUsers,
+      successfulNewsletters: result.successfulNewsletters,
+      errorCount: result.errorCount,
+      noContentCount: result.noContentCount,
+      successRate: `${result.successRate.toFixed(1)}%`,
+      totalTime: `${(result.totalElapsedMs / 1e3).toFixed(1)}s`
+    });
+    process.exit(0);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("\u274C Newsletter Edition Worker failed:", errorMessage);
+    if (error instanceof Error && error.stack) {
+      console.error("Stack trace:", error.stack);
+    }
+    let exitCode = 3;
+    if (errorMessage.includes("configuration") || errorMessage.includes("environment") || errorMessage.includes("prompt")) {
+      exitCode = 1;
+    } else if (errorMessage.includes("database") || errorMessage.includes("connection") || errorMessage.includes("supabase")) {
+      exitCode = 2;
+    }
+    process.exit(exitCode);
+  }
+}
+function setupSignalHandlers2(worker) {
+  const gracefulShutdown = (signal) => {
+    console.log(`
+\u{1F6D1} Received ${signal}, shutting down gracefully...`);
+    if (worker["partialResults"] && worker["partialResults"].length > 0) {
+      console.log(`\u{1F4CA} Partial results: ${worker["partialResults"].length} users processed`);
+    }
+    setTimeout(() => {
+      console.log("\u{1F44B} Goodbye!");
+      process.exit(0);
+    }, 1e3);
+  };
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+}
+function setupUnhandledExceptionHandlers2() {
+  process.on("unhandledRejection", (reason, promise) => {
+    console.error("\u274C Unhandled Promise Rejection:", reason);
+    console.error("Promise:", promise);
+    process.exit(3);
+  });
+  process.on("uncaughtException", (error) => {
+    console.error("\u274C Uncaught Exception:", error.message);
+    console.error("Stack trace:", error.stack);
+    process.exit(3);
+  });
+}
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error("\u274C Fatal error in main:", error);
+    process.exit(3);
+  });
+}
+
 // services/backgroundJobs.ts
 function logJobExecution(execution) {
   console.log(`BACKGROUND_JOB: ${JSON.stringify(execution)}`);
@@ -5650,26 +8540,21 @@ async function transcriptWorkerJob() {
   const jobName = "transcript_worker";
   const jobId = `transcript-worker-${(/* @__PURE__ */ new Date()).toISOString()}`;
   let recordsProcessed = 0;
-  console.log("DEBUG: Starting transcriptWorkerJob");
   log.info("scheduler", `Starting ${jobName} job`, {
     job_id: jobId,
     component: "background_jobs"
   });
   try {
-    console.log("DEBUG: About to create TranscriptWorker instance");
     const transcriptWorker = new TranscriptWorker(
       void 0,
       void 0,
       getSharedSupabaseClient()
     );
-    console.log("DEBUG: TranscriptWorker instance created successfully");
     log.info("scheduler", "Executing nightly transcript worker for recent episodes", {
       job_id: jobId,
       component: "transcript_worker"
     });
-    console.log("DEBUG: About to call transcriptWorker.run()");
     const result = await transcriptWorker.run();
-    console.log("DEBUG: transcriptWorker.run() completed with result:", result);
     const elapsedMs = Date.now() - startTime;
     recordsProcessed = result.processedEpisodes;
     log.info("scheduler", `Transcript worker processed ${result.processedEpisodes} episodes`, {
@@ -5754,6 +8639,203 @@ async function transcriptWorkerJob() {
     }
   }
 }
+async function notesWorkerJob() {
+  const startTime = Date.now();
+  const jobName = "notes_worker";
+  const jobId = `notes-worker-${(/* @__PURE__ */ new Date()).toISOString()}`;
+  let recordsProcessed = 0;
+  log.info("scheduler", `Starting ${jobName} job`, {
+    job_id: jobId,
+    component: "background_jobs"
+  });
+  try {
+    const notesWorker = new EpisodeNotesWorker();
+    log.info("scheduler", "Executing nightly notes worker for recent transcripts", {
+      job_id: jobId,
+      component: "notes_worker"
+    });
+    const result = await notesWorker.run();
+    const elapsedMs = Date.now() - startTime;
+    recordsProcessed = result.processedEpisodes;
+    log.info("scheduler", `Notes worker processed ${result.processedEpisodes} episodes`, {
+      job_id: jobId,
+      total_candidates: result.totalCandidates,
+      processed_episodes: result.processedEpisodes,
+      successful_notes: result.successfulNotes,
+      error_count: result.errorCount,
+      success_rate: result.processedEpisodes > 0 ? (result.successfulNotes / result.processedEpisodes * 100).toFixed(1) : "0",
+      duration_ms: elapsedMs,
+      avg_processing_time_ms: result.averageProcessingTimeMs
+    });
+    if (result.errorCount > 0) {
+      log.warn("scheduler", "Notes worker completed with some failures", {
+        job_id: jobId,
+        error_count: result.errorCount,
+        success_count: result.successfulNotes,
+        percentage: result.processedEpisodes > 0 ? (result.errorCount / result.processedEpisodes * 100).toFixed(1) : "0"
+      });
+    }
+    const success = result.processedEpisodes > 0 || result.totalCandidates === 0;
+    const execution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs,
+      ...(!success || result.errorCount > 0) && {
+        error: result.errorCount > 0 ? `${result.errorCount} episodes failed to process` : "Notes worker failed"
+      }
+    };
+    logJobExecution(execution);
+    emitJobMetric(jobName, success, recordsProcessed, elapsedMs);
+    if (success) {
+      log.info("scheduler", `Notes worker completed successfully`, {
+        job_id: jobId,
+        component: "background_jobs",
+        duration_ms: elapsedMs,
+        episodes_processed: recordsProcessed,
+        notes_generated: result.successfulNotes,
+        success_rate: result.processedEpisodes > 0 ? (result.successfulNotes / result.processedEpisodes * 100).toFixed(1) : "100"
+      });
+    } else {
+      log.error("scheduler", `Notes worker completed with issues`, {
+        job_id: jobId,
+        component: "background_jobs",
+        duration_ms: elapsedMs,
+        episodes_processed: recordsProcessed,
+        error_count: result.errorCount,
+        notes_generated: result.successfulNotes
+      });
+    }
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const err = error;
+    log.error("scheduler", `Notes worker job failed with exception`, {
+      job_id: jobId,
+      component: "background_jobs",
+      duration_ms: elapsedMs,
+      episodes_processed: recordsProcessed,
+      error: err.message,
+      stack_trace: err?.stack,
+      job_name: jobName
+    });
+    const execution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: false,
+      error: errorMessage,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs
+    };
+    logJobExecution(execution);
+    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
+    if (process.env.NODE_ENV !== "test") {
+      throw error;
+    } else {
+      console.warn("NOTES_WORKER_JOB: Swallowed exception during tests:", error);
+    }
+  }
+}
+async function editionGeneratorJob() {
+  const startTime = Date.now();
+  const jobName = "edition_generator";
+  const jobId = `edition-${(/* @__PURE__ */ new Date()).toISOString()}`;
+  let recordsProcessed = 0;
+  log.info("scheduler", `Starting ${jobName} job`, {
+    job_id: jobId,
+    component: "background_jobs"
+  });
+  try {
+    const worker = new NewsletterEditionWorker();
+    const result = await worker.run();
+    const elapsedMs = Date.now() - startTime;
+    recordsProcessed = result.processedUsers;
+    log.info("scheduler", `Edition generator processed ${result.processedUsers} users`, {
+      job_id: jobId,
+      total_candidates: result.totalCandidates,
+      processed_users: result.processedUsers,
+      successful_newsletters: result.successfulNewsletters,
+      error_count: result.errorCount,
+      no_content_count: result.noContentCount,
+      success_rate: result.successRate.toFixed(1),
+      duration_ms: elapsedMs,
+      avg_processing_time_ms: result.averageProcessingTimeMs
+    });
+    if (result.errorCount > 0) {
+      log.warn("scheduler", "Edition generator completed with errors", {
+        job_id: jobId,
+        error_count: result.errorCount,
+        no_content_count: result.noContentCount,
+        success_rate: result.successRate.toFixed(1)
+      });
+    }
+    const execution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: result.successRate >= 50,
+      // Consider successful if at least 50% success rate
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs,
+      ...result.errorCount > 0 && {
+        error: `${result.errorCount} users failed to process`
+      }
+    };
+    logJobExecution(execution);
+    emitJobMetric(jobName, result.successRate >= 50, recordsProcessed, elapsedMs);
+    if (result.successRate >= 50) {
+      log.info("scheduler", `Edition generator completed successfully`, {
+        job_id: jobId,
+        component: "background_jobs",
+        duration_ms: elapsedMs,
+        users_processed: recordsProcessed,
+        newsletters_generated: result.successfulNewsletters,
+        success_rate: result.successRate.toFixed(1)
+      });
+    } else {
+      log.error("scheduler", `Edition generator completed with issues`, {
+        job_id: jobId,
+        component: "background_jobs",
+        duration_ms: elapsedMs,
+        users_processed: recordsProcessed,
+        error_count: result.errorCount,
+        success_rate: result.successRate.toFixed(1)
+      });
+    }
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const err = error;
+    log.error("scheduler", `Edition generator job failed with exception`, {
+      job_id: jobId,
+      component: "background_jobs",
+      duration_ms: elapsedMs,
+      users_processed: recordsProcessed,
+      error: err.message,
+      stack_trace: err?.stack,
+      job_name: jobName
+    });
+    const execution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: false,
+      error: errorMessage,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs
+    };
+    logJobExecution(execution);
+    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
+    if (process.env.NODE_ENV !== "test") {
+      throw error;
+    } else {
+      console.warn("EDITION_GENERATOR_JOB: Swallowed exception during tests:", error);
+    }
+  }
+}
 function initializeBackgroundJobs() {
   console.log("BACKGROUND_JOBS: Initializing scheduled jobs");
   if (process.env.NODE_ENV === "test") {
@@ -5803,6 +8885,34 @@ function initializeBackgroundJobs() {
   } else {
     console.log("  - Transcript worker: DISABLED");
   }
+  const notesWorkerEnabled = process.env.NOTES_WORKER_ENABLED !== "false";
+  const notesWorkerCron = process.env.NOTES_WORKER_CRON || "0 2 * * *";
+  if (notesWorkerEnabled) {
+    cron.schedule(notesWorkerCron, async () => {
+      console.log("BACKGROUND_JOBS: Starting scheduled notes worker job");
+      await notesWorkerJob();
+    }, {
+      scheduled: true,
+      timezone: cronTimezone
+    });
+    console.log(`  - Notes worker: ${notesWorkerCron} ${cronTimezone}`);
+  } else {
+    console.log("  - Notes worker: DISABLED");
+  }
+  const editionWorkerEnabled = process.env.EDITION_WORKER_ENABLED !== "false";
+  const editionWorkerCron = process.env.EDITION_WORKER_CRON || "0 3 * * *";
+  if (editionWorkerEnabled) {
+    cron.schedule(editionWorkerCron, async () => {
+      console.log("BACKGROUND_JOBS: Starting scheduled edition generator job");
+      await editionGeneratorJob();
+    }, {
+      scheduled: true,
+      timezone: cronTimezone
+    });
+    console.log(`  - Edition worker: ${editionWorkerCron} ${cronTimezone}`);
+  } else {
+    console.log("  - Edition worker: DISABLED");
+  }
   console.log("BACKGROUND_JOBS: Background jobs scheduled successfully");
 }
 async function runJob(jobName) {
@@ -5813,6 +8923,8 @@ async function runJob(jobName) {
     case "episode_sync":
     case "transcript_worker":
     case "transcript":
+    case "notes_worker":
+    case "edition_generator":
       break;
     default:
       console.error(`BACKGROUND_JOBS: Unknown job name: ${jobName}`);
@@ -5830,6 +8942,12 @@ async function runJob(jobName) {
       case "transcript_worker":
       case "transcript":
         await transcriptWorkerJob();
+        break;
+      case "notes_worker":
+        await notesWorkerJob();
+        break;
+      case "edition_generator":
+        await editionGeneratorJob();
         break;
     }
     return true;
