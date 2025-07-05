@@ -32,7 +32,7 @@ vi.resetModules();
 
 // Now import the modules after mocks are set up
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
-import { SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { runJob } from '../../services/backgroundJobs.js';
 import { _resetDb } from '../../tests/supabaseMock.js';
 import { _EditionGenerator } from '../../jobs/editionGenerator.js';
