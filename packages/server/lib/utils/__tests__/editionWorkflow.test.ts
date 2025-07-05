@@ -9,7 +9,7 @@ import {
   validateL10Mode,
   logL10ModeSummary,
   PrepareUsersResult,
-  EditionWorkflowResult
+  _EditionWorkflowResult
 } from '../editionWorkflow.js';
 
 // Helper function to generate unique IDs for testing

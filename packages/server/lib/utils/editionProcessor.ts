@@ -13,7 +13,7 @@ import { generateNewsletterEdition } from '../llm/gemini.js';
 import { sanitizeNewsletterContent } from './buildNewsletterEditionPrompt.js';
 import { insertNewsletterEdition } from '../db/newsletter-editions.ts';
 import { insertNewsletterEditionEpisodes } from '../db/newsletter-edition-episodes.ts';
-import { NewsletterEdition } from '@listener/shared';
+import { _NewsletterEdition } from '@listener/shared';
 
 /**
  * Result of processing a single user for newsletter generation

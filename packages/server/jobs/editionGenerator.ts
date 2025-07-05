@@ -28,7 +28,7 @@
  */
 
 import { createLogger, Logger } from '../lib/logger.js';
-import { prepareUsersForNewsletters, validateL10Mode, logL10ModeSummary, executeEditionWorkflow } from '../lib/utils/editionWorkflow.js';
+import { _prepareUsersForNewsletters, _validateL10Mode, _logL10ModeSummary, executeEditionWorkflow } from '../lib/utils/editionWorkflow.js';
 import { getEditionWorkerConfig, validateDependencies } from '../config/editionWorkerConfig.js';
 import { getSharedSupabaseClient } from '../lib/db/sharedSupabaseClient.js';
 import '../lib/debugFilter.js';

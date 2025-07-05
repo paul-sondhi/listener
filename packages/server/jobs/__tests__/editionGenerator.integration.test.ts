@@ -32,18 +32,19 @@ vi.resetModules();
 
 // Now import the modules after mocks are set up
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { runJob } from '../../services/backgroundJobs.js';
-import { resetDb } from '../../tests/supabaseMock.js';
-import { EditionGenerator } from '../../jobs/editionGenerator.js';
-import { processUserForNewsletter } from '../../lib/utils/editionProcessor.js';
-import { executeEditionWorkflow } from '../../lib/utils/editionWorkflow.js';
-import { queryUsersWithActiveSubscriptions, queryEpisodeNotesForUser } from '../../lib/db/editionQueries.js';
-import { NewsletterEdition } from '@listener/shared';
+import { _resetDb } from '../../tests/supabaseMock.js';
+import { _EditionGenerator } from '../../jobs/editionGenerator.js';
+import { _processUserForNewsletter } from '../../lib/utils/editionProcessor.js';
+import { _executeEditionWorkflow } from '../../lib/utils/editionWorkflow.js';
+import { _queryUsersWithActiveSubscriptions, _queryEpisodeNotesForUser } from '../../lib/db/editionQueries.js';
+import { _NewsletterEdition } from '@listener/shared';
 import * as geminiModule from '../../lib/llm/gemini.js';
 
 // --- TEMP: Restore real console for debugging ---
-global.console = require('console');
+import console from 'console';
+global.console = console;
 // --------------------------------------------------
 
 // Set up environment variables before importing the service
@@ -62,7 +63,7 @@ const cannedNewsletterHtml = `
 </body></html>
 `;
 
-const singleEpisodeHtml = `
+const _singleEpisodeHtml = `
 <html><head><title>Single Episode Newsletter</title></head><body>
 <h1>Single Episode Show</h1>
 <h2>Single Episode</h2>
@@ -362,7 +363,7 @@ class EditionGeneratorIntegrationTestDataFactory {
   }>) {
     const mockGenerateNewsletterEdition = vi.mocked(geminiModule.generateNewsletterEdition);
     
-    responses.forEach((response, index) => {
+    responses.forEach((response, _index) => {
       if (response.status === 'success') {
         mockGenerateNewsletterEdition.mockResolvedValueOnce({
           htmlContent: response.htmlContent || cannedNewsletterHtml,

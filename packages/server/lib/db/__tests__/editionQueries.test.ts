@@ -4,8 +4,8 @@ import {
   queryUsersWithActiveSubscriptions, 
   queryEpisodeNotesForUser, 
   queryLast10NewsletterEditions,
-  UserWithSubscriptions,
-  EpisodeNoteWithEpisode
+  _UserWithSubscriptions,
+  _EpisodeNoteWithEpisode
 } from '../editionQueries.js';
 import { resetDb } from '../../../tests/supabaseMock.js';
 

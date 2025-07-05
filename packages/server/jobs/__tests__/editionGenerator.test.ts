@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import { NewsletterEditionWorker } from '../editionGenerator.js';
 import { EditionWorkerConfig } from '../../config/editionWorkerConfig.js';
 import { Logger } from '../../lib/logger.js';
-import { createClient } from '@supabase/supabase-js';
+import { _createClient } from '@supabase/supabase-js';
 
 // Mock all external dependencies
 vi.mock('../../config/editionWorkerConfig.js');
@@ -510,7 +510,7 @@ describe('NewsletterEditionWorker', () => {
       await worker.run();
       
       const endTime = Date.now();
-      const actualElapsed = endTime - startTime;
+      const _actualElapsed = endTime - startTime;
       
       // Verify the result includes timing information
       expect(mockWorkflowResult.totalElapsedMs).toBe(5000);
