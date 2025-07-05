@@ -826,6 +826,25 @@ export function initializeBackgroundJobs(): void {
     console.log('  - Notes worker: DISABLED');
   }
   
+  // Edition worker job configuration
+  const editionWorkerEnabled = process.env.EDITION_WORKER_ENABLED !== 'false';
+  const editionWorkerCron = process.env.EDITION_WORKER_CRON || '0 3 * * *'; // Default: 3:00 AM PT
+  
+  if (editionWorkerEnabled) {
+    // Nightly edition worker at configured time and timezone
+    // Cron format: minute hour day-of-month month day-of-week
+    cron.schedule(editionWorkerCron, async () => {
+      console.log('BACKGROUND_JOBS: Starting scheduled edition generator job');
+      await editionGeneratorJob();
+    }, {
+      scheduled: true,
+      timezone: cronTimezone
+    });
+    console.log(`  - Edition worker: ${editionWorkerCron} ${cronTimezone}`);
+  } else {
+    console.log('  - Edition worker: DISABLED');
+  }
+  
   console.log('BACKGROUND_JOBS: Background jobs scheduled successfully');
 }
 

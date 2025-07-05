@@ -936,8 +936,8 @@ describe('initializeBackgroundJobs', () => {
       })
     );
 
-    // Assert: Verify total number of scheduled jobs (daily refresh, episode sync, transcript worker) - 3 jobs
-    expect(mockCronSchedule).toHaveBeenCalledTimes(4);
+    // Assert: Verify total number of scheduled jobs (daily refresh, episode sync, transcript worker, notes worker, edition worker) - 5 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(5);
 
     // Assert: Verify success logging
     expect(console.log).toHaveBeenCalledWith(
@@ -1030,8 +1030,8 @@ describe('initializeBackgroundJobs', () => {
       expect.any(Object)
     );
 
-    // Assert: Verify total number of scheduled jobs (episode sync, transcript worker, notes worker) when daily refresh is disabled - 3 jobs
-    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
+    // Assert: Verify total number of scheduled jobs (episode sync, transcript worker, notes worker, edition worker) when daily refresh is disabled - 4 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(4);
   });
 
   /**
@@ -1116,8 +1116,85 @@ describe('initializeBackgroundJobs', () => {
       expect.any(Object)
     );
 
-    // Assert: Verify total number of scheduled jobs (daily refresh, transcript worker, notes worker) when episode sync is disabled - 3 jobs
-    expect(mockCronSchedule).toHaveBeenCalledTimes(3);
+    // Assert: Verify total number of scheduled jobs (daily refresh, transcript worker, notes worker, edition worker) when episode sync is disabled - 4 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(4);
+  });
+
+  /**
+   * Test edition worker configuration
+   * Verifies that edition worker respects environment configuration
+   */
+  it('should respect edition worker environment variable configuration', () => {
+    // Arrange: Set custom edition worker environment variables
+    process.env.NODE_ENV = 'production'; // Set production environment
+    process.env.EDITION_WORKER_ENABLED = 'true';
+    process.env.EDITION_WORKER_CRON = '0 3 * * *'; // 3 AM PT
+
+    // Mock cron schedule function
+    const mockScheduleTask = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      getStatus: vi.fn().mockReturnValue('scheduled')
+    };
+    mockCronSchedule.mockReturnValue(mockScheduleTask);
+
+    // Act: Initialize background jobs
+    initializeBackgroundJobs();
+
+    // Assert: Verify edition worker was scheduled with custom configuration
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '0 3 * * *', // Custom 3 AM cron expression
+      expect.any(Function),
+      expect.objectContaining({
+        scheduled: true,
+        timezone: 'America/Los_Angeles'
+      })
+    );
+
+    // Assert: Verify custom configuration logging
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('0 3 * * * America/Los_Angeles')
+    );
+  });
+
+  /**
+   * Test edition worker disabling
+   * Verifies that edition worker can be disabled via environment variable
+   */
+  it('should disable edition worker when EDITION_WORKER_ENABLED is false', () => {
+    // Arrange: Disable edition worker
+    process.env.NODE_ENV = 'production'; // Set production environment
+    process.env.EDITION_WORKER_ENABLED = 'false';
+    process.env.TRANSCRIPT_WORKER_ENABLED = 'true'; // Enable transcript worker for this test
+    process.env.NOTES_WORKER_ENABLED = 'true'; // Enable notes worker for this test
+
+    // Mock cron schedule function
+    const mockScheduleTask = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      destroy: vi.fn(),
+      getStatus: vi.fn().mockReturnValue('scheduled')
+    };
+    mockCronSchedule.mockReturnValue(mockScheduleTask);
+
+    // Act: Initialize background jobs
+    initializeBackgroundJobs();
+
+    // Assert: Verify other jobs were still scheduled (daily refresh, transcript worker, notes worker)
+    expect(mockCronSchedule).toHaveBeenCalledWith(
+      '30 0 * * *', // Daily refresh should still be scheduled at 12:30 AM PT
+      expect.any(Function),
+      expect.any(Object)
+    );
+
+    // Assert: Verify total number of scheduled jobs (daily refresh, transcript worker, notes worker) when edition worker is disabled - 4 jobs
+    expect(mockCronSchedule).toHaveBeenCalledTimes(4);
+
+    // Assert: Verify edition worker disabled logging
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('- Edition worker: DISABLED')
+    );
   });
 
   /**
