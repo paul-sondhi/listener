@@ -209,16 +209,13 @@ export async function processUserForNewsletter(
         content: newsletterContent,
         status: 'completed',
         model: 'gemini-1.5-flash',
-        input_tokens: 0, // TODO: Add token tracking if needed
-        output_tokens: 0, // TODO: Add token tracking if needed
-        episode_count: episodeNotes.length
+        error_message: null
       });
       
-      if (!editionResult.success) {
-        throw new Error(editionResult.error || 'Failed to insert newsletter edition');
-      }
+      // DEBUG: Log the editionResult to diagnose test failures
+      console.log('DEBUG: editionResult', editionResult);
 
-      const newsletterEditionId = editionResult.editionId;
+      const newsletterEditionId = editionResult.id;
 
       // Insert episode references
       const episodeIds = episodeNotes.map(note => note.episode_id);
@@ -227,15 +224,16 @@ export async function processUserForNewsletter(
         episode_ids: episodeIds
       });
 
-      if (!episodeLinksResult.success) {
-        console.warn('DEBUG: Failed to insert some episode links', {
-          userId: user.id,
-          newsletterEditionId,
-          error: episodeLinksResult.error,
-          episodeCount: episodeIds.length
-        });
-        // Don't fail the entire operation - just log the warning
-      }
+      // DEBUG: Log the episodeLinksResult to diagnose test failures
+      console.log('DEBUG: episodeLinksResult', episodeLinksResult);
+      
+      // The function throws on error, so if we get here it succeeded
+      console.log('DEBUG: Successfully inserted episode links', {
+        userId: user.id,
+        newsletterEditionId,
+        episodeCount: episodeIds.length,
+        linksCount: episodeLinksResult.length
+      });
       
       timing.databaseMs = Date.now() - databaseStart;
       
@@ -280,7 +278,7 @@ export async function processUserForNewsletter(
       ...baseResult,
       status: 'done',
       newsletterContent,
-      newsletterEditionId: editionResult.editionId,
+      newsletterEditionId: editionResult.id,
       episodeIds: episodeNotes.map(note => note.episode_id),
       elapsedMs
     };
