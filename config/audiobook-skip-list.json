@@ -1,0 +1,14 @@
+{
+  "description": "Spotify show IDs that should be skipped during subscription refresh because they are audiobooks, not podcasts",
+  "lastUpdated": "2025-01-27",
+  "skipShowIds": [
+    "279JRLPYDjvmsS81C7SOzg",
+    "65EmNJTbiIuyhBf2Rtradq",
+    "75ZQbL2ZpbzQx8CJTkPSyO"
+  ],
+  "notes": [
+    "Add Spotify show IDs here when you discover audiobooks that slip through",
+    "Format: Extract the show ID from the Spotify URL (e.g., from https://open.spotify.com/show/279JRLPYDjvmsS81C7SOzg, use 279JRLPYDjvmsS81C7SOzg)",
+    "The subscription refresh worker will automatically skip these shows and log them"
+  ]
+} 

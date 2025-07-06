@@ -3,6 +3,7 @@ import { Database, SpotifyShow, SpotifyUserShows } from '@listener/shared';
 import { getValidTokens } from './tokenService.js';
 import { createSubscriptionRefreshLogger, log } from '../lib/logger.js';
 import { getTitleSlug, getFeedUrl } from '../lib/utils.js';
+import { shouldSkipAudiobook, getAudiobookSkipListCount } from '../lib/audiobookFilter.js';
 
 // Initialize Supabase Admin client lazily with proper typing
 let supabaseAdmin: SupabaseClient<Database> | null = null;
@@ -311,10 +312,32 @@ async function updateSubscriptionStatus(
 ): Promise<{ active_count: number; inactive_count: number }> {
     const now: string = new Date().toISOString();
     const showIds: string[] = [];
+    const skippedAudiobooks: string[] = [];
+    
+    // Log the total number of shows in the skip list for context
+    const skipListCount = getAudiobookSkipListCount();
+    if (skipListCount > 0) {
+        log.info('subscription_refresh', `Audiobook skip list contains ${skipListCount} shows`, {
+            user_id: userId,
+            skip_list_count: skipListCount
+        });
+    }
     
     // First, upsert shows into podcast_shows table and collect their IDs
     for (const podcastUrl of currentPodcastUrls) {
         const showId = podcastUrl.split('/').pop(); // Extract Spotify show ID from URL
+        
+        // Check if this show should be skipped (is an audiobook)
+        if (showId && shouldSkipAudiobook(showId)) {
+            skippedAudiobooks.push(showId);
+            log.info('subscription_refresh', `Skipping audiobook show: ${showId}`, {
+                user_id: userId,
+                show_id: showId,
+                spotify_url: podcastUrl,
+                reason: 'audiobook_in_skip_list'
+            });
+            continue; // Skip this show and move to the next one
+        }
         const spotifyUrl = podcastUrl; // Directly map Spotify URL to the spotify_url column
         
         try {
@@ -458,6 +481,17 @@ async function updateSubscriptionStatus(
             throw new Error(`Failed to update inactive subscriptions: ${updateResult.error.message}`);
         }
         inactiveCount = inactiveIds.length;
+    }
+    
+    // Log summary of skipped audiobooks
+    if (skippedAudiobooks.length > 0) {
+        log.info('subscription_refresh', `Skipped ${skippedAudiobooks.length} audiobook(s) for user ${userId}`, {
+            user_id: userId,
+            skipped_count: skippedAudiobooks.length,
+            skipped_show_ids: skippedAudiobooks,
+            active_count: showIds.length,
+            inactive_count: inactiveCount
+        });
     }
     
     return {
