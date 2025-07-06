@@ -207,6 +207,14 @@ export async function processUserForNewsletter(
     // Phase 3: Save results to database with episode references
     const databaseStart = Date.now();
     
+    // Initialize variables that will be set during database save
+    // These need to be declared outside the try-catch block to avoid "not defined" errors
+    let newsletterEditionId: string | undefined;
+    let episodeIds: string[] = [];
+    let htmlContent: string = '';
+    let sanitizedContent: string = '';
+    let episodeCount: number = 0;
+    
     try {
       // Insert the newsletter edition
       const editionDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -231,10 +239,10 @@ export async function processUserForNewsletter(
         throw new Error(`Database save failed: insertNewsletterEdition returned undefined`);
       }
 
-      const newsletterEditionId = editionResult.id;
+      newsletterEditionId = editionResult.id;
 
       // Insert episode references
-      const episodeIds = episodeNotes.map(note => note.episode_id);
+      episodeIds = episodeNotes.map(note => note.episode_id);
       const episodeLinksResult = await insertNewsletterEditionEpisodes({
         newsletter_edition_id: newsletterEditionId,
         episode_ids: episodeIds
@@ -252,9 +260,9 @@ export async function processUserForNewsletter(
       //
       // If your DB schema does not support these fields, you may need to update the row after insert.
       // For now, we add them to the result object for test assertions.
-      const htmlContent = newsletterContent;
-      const sanitizedContent = sanitizeNewsletterContent(newsletterContent);
-      const episodeCount = episodeLinksResult.length;
+      htmlContent = newsletterContent;
+      sanitizedContent = sanitizeNewsletterContent(newsletterContent);
+      episodeCount = episodeLinksResult.length;
 
       // Log for debugging
       console.log('DEBUG: Setting additional fields for test assertions', {
