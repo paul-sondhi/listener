@@ -227,10 +227,25 @@ function setupUnhandledExceptionHandlers(): void {
   });
 }
 
-// Only run if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
-    console.error('❌ Fatal error in main:', error);
-    process.exit(3);
-  });
+// ---------------------------------------------------------------------------
+// Optional stand-alone CLI entry (EDITION_WORKER_CLI=true)
+// ---------------------------------------------------------------------------
+// We intentionally require an explicit environment flag **and** that this
+// file is the direct entrypoint before running the worker.  This prevents the
+// job from executing (and calling process.exit) when it is simply imported by
+// the application server or unit tests – the exact same pattern used by the
+// Episode Notes Worker.
+
+if (process.env.EDITION_WORKER_CLI === 'true' && import.meta.url === `file://${process.argv[1]}`) {
+  const worker = new NewsletterEditionWorker();
+  setupSignalHandlers(worker);
+  setupUnhandledExceptionHandlers();
+
+  worker
+    .run()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error('❌ Fatal error in edition worker CLI:', error instanceof Error ? error.message : error);
+      process.exit(3);
+    });
 } 
