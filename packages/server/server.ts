@@ -1,3 +1,4 @@
+console.log('MAIN SERVER ENTRYPOINT: packages/server/server.ts loaded');
 import express, { Application, Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
