@@ -297,7 +297,7 @@ TRANSCRIPT_TIER=business              # 'free' or 'business'
 # - Better transcript quality and speaker identification
 ```
 
-#### Deployment Sequence
+#### Deployment Sequence 
 
 1. **Database First:** Apply migration before deploying application code
 2. **Environment Variables:** Set `TRANSCRIPT_TIER=business` in production
