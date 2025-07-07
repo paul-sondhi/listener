@@ -139,7 +139,7 @@ export type Database = {
           error_message: string | null
           id: string
           model: string | null
-          sent: boolean
+          sent_at: string | null
           status: string
           updated_at: string
           user_email: string
@@ -153,7 +153,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           model?: string | null
-          sent?: boolean
+          sent_at?: string | null
           status: string
           updated_at?: string
           user_email: string
@@ -167,7 +167,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           model?: string | null
-          sent?: boolean
+          sent_at?: string | null
           status?: string
           updated_at?: string
           user_email?: string
@@ -338,6 +338,7 @@ export type Database = {
       user_podcast_subscriptions: {
         Row: {
           created_at: string
+          deleted_at: string | null
           id: string
           show_id: string
           status: Database["public"]["Enums"]["subscription_status"]
@@ -346,6 +347,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           show_id: string
           status?: Database["public"]["Enums"]["subscription_status"]
@@ -354,6 +356,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           show_id?: string
           status?: Database["public"]["Enums"]["subscription_status"]
