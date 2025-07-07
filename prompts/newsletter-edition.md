@@ -33,28 +33,50 @@ Analyze the provided episode notes and generate a newsletter edition that:
 Generate clean HTML content suitable for email newsletters. Use this structure:
 
 ```html
-<h2 style="color: #2c3e50; margin-bottom: 20px;">Today's Podcast Insights</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Podcast Insights – [EDITION_DATE]</title>
+</head>
+<body style="margin:0; padding:0; font-family: Arial, sans-serif; background-color:#ffffff;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px; max-width:100%;">
+          <tr>
+            <td style="padding:20px;">
+              <h2 style="color:#2c3e50;margin-bottom:20px;">Today's Podcast Insights</h2>
 
-<p style="line-height: 1.6; margin-bottom: 20px;">[Engaging introduction that overviews the day's content and highlights the most interesting insights across all episodes. Include the edition date to establish timeliness and reference the episode count to set expectations.]</p>
+              <p style="line-height:1.6;margin-bottom:20px;">[Engaging introduction that overviews the day's content and highlights the most interesting insights across all episodes. Include the edition date to establish timeliness and reference the episode count to set expectations.]</p>
 
-<h3 style="color: #34495e; margin-top: 25px; margin-bottom: 15px;">[Theme/Show Section 1]</h3>
-<p style="line-height: 1.6; margin-bottom: 20px;">[Synthesized summary of related episodes, combining insights from multiple episodes when they cover similar topics. Include specific episode references when mentioning key insights.]</p>
+              <h3 style="color:#34495e;margin-top:25px;margin-bottom:15px;">[Theme/Show Section 1]</h3>
+              <p style="line-height:1.6;margin-bottom:20px;">[Synthesized summary of related episodes, combining insights from multiple episodes when they cover similar topics. Include specific episode references when mentioning key insights.]</p>
 
-<h3 style="color: #34495e; margin-top: 25px; margin-bottom: 15px;">[Theme/Show Section 2]</h3>
-<p style="line-height: 1.6; margin-bottom: 20px;">[Synthesized summary of related episodes, combining insights from multiple episodes when they cover similar topics. Include specific episode references when mentioning key insights.]</p>
+              <h3 style="color:#34495e;margin-top:25px;margin-bottom:15px;">[Theme/Show Section 2]</h3>
+              <p style="line-height:1.6;margin-bottom:20px;">[Synthesized summary of related episodes, combining insights from multiple episodes when they cover similar topics. Include specific episode references when mentioning key insights.]</p>
 
-<h3 style="color: #34495e; margin-top: 25px; margin-bottom: 15px;">Cross-Episode Connections</h3>
-<p style="line-height: 1.6; margin-bottom: 20px;">[Highlight patterns, trends, or surprising connections that emerged across multiple episodes. Note when different shows approach similar topics from different angles.]</p>
+              <h3 style="color:#34495e;margin-top:25px;margin-bottom:15px;">Cross-Episode Connections</h3>
+              <p style="line-height:1.6;margin-bottom:20px;">[Highlight patterns, trends, or surprising connections that emerged across multiple episodes. Note when different shows approach similar topics from different angles.]</p>
 
-<h3 style="color: #34495e; margin-top: 25px; margin-bottom: 15px;">Key Takeaways</h3>
-<ul style="line-height: 1.6; margin-bottom: 20px;">
-<li style="margin-bottom: 8px;">[Takeaway 1 with context from relevant episodes]</li>
-<li style="margin-bottom: 8px;">[Takeaway 2 with context from relevant episodes]</li>
-<li style="margin-bottom: 8px;">[Takeaway 3 with context from relevant episodes]</li>
-</ul>
+              <h3 style="color:#34495e;margin-top:25px;margin-bottom:15px;">Key Takeaways</h3>
+              <ul style="line-height:1.6;margin-bottom:20px;">
+                <li style="margin-bottom:8px;">[Takeaway 1 with context from relevant episodes]</li>
+                <li style="margin-bottom:8px;">[Takeaway 2 with context from relevant episodes]</li>
+                <li style="margin-bottom:8px;">[Takeaway 3 with context from relevant episodes]</li>
+              </ul>
 
-<h3 style="color: #34495e; margin-top: 25px; margin-bottom: 15px;">What to Listen to Next</h3>
-<p style="line-height: 1.6; margin-bottom: 20px;">[Recommendations for which episodes to prioritize based on reader interests, with brief reasoning for each recommendation]</p>
+              <h3 style="color:#34495e;margin-top:25px;margin-bottom:15px;">What to Listen to Next</h3>
+              <p style="line-height:1.6;margin-bottom:20px;">[Recommendations for which episodes to prioritize based on reader interests, with brief reasoning for each recommendation]</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
 ```
 
 ## Guidelines
@@ -65,7 +87,7 @@ Generate clean HTML content suitable for email newsletters. Use this structure:
 - **Use clear language**: Avoid jargon unless it's central to the topic
 - **Target length**: Aim for 800-1200 words total for a comprehensive but digestible newsletter
 - **HTML structure**: Use semantic HTML tags (h2, h3, p, ul, li) with inline styles for email compatibility
-- **No wrapper tags**: Do not include `<html>`, `<head>`, or `<body>` tags
+- **Include full wrapper tags**: Begin with <!DOCTYPE html> and wrap the content in <html>, <head>, and <body> as shown above for maximum email‑client compatibility
 - **Email-friendly styling**: Use inline CSS styles for colors, spacing, and typography that work across email clients
 - **Synthesize effectively**: When multiple episodes cover similar topics, combine them into coherent sections rather than listing each episode separately
 - **Cross-reference episodes**: Include specific episode references when mentioning key insights to help readers understand the source
