@@ -1,6 +1,21 @@
+// Set debug logging environment variable before any imports
+process.env.DEBUG_LOGGING = 'true';
+
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import { resetDb } from '../../../tests/supabaseMock.js';
+
+// Mock the debug logger
+vi.mock('../../debugLogger', () => ({
+  debugSubscriptionRefresh: vi.fn(),
+  debugDatabase: vi.fn(),
+  debugSystem: vi.fn(),
+  debugScheduler: vi.fn(),
+  debugSpotifyAPI: vi.fn(),
+  debugAuth: vi.fn(),
+  debugAdmin: vi.fn(),
+  debugLog: vi.fn()
+}));
 
 // Import the workflow functions
 import { 
@@ -11,6 +26,7 @@ import {
   PrepareUsersResult,
   _EditionWorkflowResult
 } from '../editionWorkflow.js';
+import { debugSubscriptionRefresh } from '../../debugLogger';
 
 // Helper function to generate unique IDs for testing
 function uniqueId(prefix: string) {
@@ -87,10 +103,6 @@ describe('editionWorkflow', () => {
 
   describe('logL10ModeSummary', () => {
     it('should not log for normal mode', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
-      
       const prepResult: PrepareUsersResult = {
         candidates: [],
         clearedEditionsCount: 0,
@@ -103,24 +115,16 @@ describe('editionWorkflow', () => {
       logL10ModeSummary(prepResult, validation);
       
       // The function always logs the summary, even in normal mode
-      expect(consoleSpy).toHaveBeenCalledWith('DEBUG: L10 Mode Summary', {
+      expect(debugSubscriptionRefresh).toHaveBeenCalledWith('L10 Mode Summary', {
         candidateCount: 0,
         clearedEditionsCount: 0,
         isValid: true,
         warnings: [],
         recommendations: []
       });
-      expect(warnSpy).not.toHaveBeenCalled();
-      expect(infoSpy).not.toHaveBeenCalled();
-      
-      consoleSpy.mockRestore();
-      warnSpy.mockRestore();
-      infoSpy.mockRestore();
     });
 
     it('should log summary for L10 mode', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
       const prepResult: PrepareUsersResult = {
         candidates: [
           { id: 'user1', email: 'user1@test.com', subscriptions: [{ id: 'sub1', show_id: 'show1', status: 'active' }] }
@@ -138,15 +142,13 @@ describe('editionWorkflow', () => {
       
       logL10ModeSummary(prepResult, validation);
       
-      expect(consoleSpy).toHaveBeenCalledWith('DEBUG: L10 Mode Summary', {
+      expect(debugSubscriptionRefresh).toHaveBeenCalledWith('L10 Mode Summary', {
         candidateCount: 1,
         clearedEditionsCount: 5,
         isValid: true,
         warnings: ['Test warning'],
         recommendations: ['Test recommendation']
       });
-      
-      consoleSpy.mockRestore();
     });
   });
 

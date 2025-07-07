@@ -657,35 +657,31 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
     ]);
 
     // Debug: Check test data before running the worker
-    const { data: debugUsers, error: debugUsersError } = await supabase
+    const { data: _debugUsers, error: _debugUsersError } = await supabase
       .from('users')
       .select('*')
       .in('id', testIds.userIds)
       .is('deleted_at', null);
-    console.log('DEBUG: Users before worker:', debugUsers, debugUsersError);
 
-    const { data: debugSubs, error: debugSubsError } = await supabase
+    const { data: _debugSubs, error: _debugSubsError } = await supabase
       .from('user_podcast_subscriptions')
       .select('*')
       .in('user_id', testIds.userIds)
       .eq('status', 'active')
       .is('deleted_at', null);
-    console.log('DEBUG: Subs before worker:', debugSubs, debugSubsError);
 
-    const { data: debugEpisodes, error: debugEpisodesError } = await supabase
+    const { data: _debugEpisodes, error: _debugEpisodesError } = await supabase
       .from('podcast_episodes')
       .select('*')
       .in('id', testIds.episodeIds)
       .is('deleted_at', null);
-    console.log('DEBUG: Episodes before worker:', debugEpisodes, debugEpisodesError);
 
-    const { data: debugNotes, error: debugNotesError } = await supabase
+    const { data: _debugNotes, error: _debugNotesError } = await supabase
       .from('episode_transcript_notes')
       .select('*')
       .in('id', testIds.noteIds)
       .eq('status', 'done')
       .is('deleted_at', null);
-    console.log('DEBUG: Notes before worker:', debugNotes, debugNotesError);
 
     // Run the edition generator job
     const startTime = Date.now();
@@ -693,12 +689,11 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
     const duration = Date.now() - startTime;
 
     // Debug: Check newsletter editions after running the worker
-    const { data: debugEditions, error: debugEditionsError } = await supabase
+    const { data: _debugEditions, error: _debugEditionsError } = await supabase
       .from('newsletter_editions')
       .select('*')
       .in('user_id', testIds.userIds)
       .is('deleted_at', null);
-    console.log('DEBUG: Editions after worker:', debugEditions, debugEditionsError);
 
     // Assert: Verify the job completed without throwing an error
     expect(typeof result).toBe('boolean');

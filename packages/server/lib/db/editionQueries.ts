@@ -7,6 +7,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../../../shared/src/types/supabase.js';
+import { debugDatabase } from '../debugLogger';
 
 // Type definition for episode notes with episode and show info
 export interface EpisodeNoteWithEpisode {
@@ -54,7 +55,7 @@ export interface UserWithSubscriptions {
 export async function queryUsersWithActiveSubscriptions(
   supabase: SupabaseClient<Database>
 ): Promise<UserWithSubscriptions[]> {
-  console.log('DEBUG: Starting user subscription query');
+  debugDatabase('Starting user subscription query');
 
   try {
     const { data: users, error: queryError } = await supabase
@@ -77,7 +78,7 @@ export async function queryUsersWithActiveSubscriptions(
       .is('user_podcast_subscriptions.deleted_at', null)
       .order('id', { ascending: true });
 
-    console.log('DEBUG: User subscription query completed', {
+    debugDatabase('User subscription query completed', {
       error: !!queryError,
       dataLength: users?.length || 0,
       errorMessage: queryError?.message || 'none'
@@ -88,7 +89,7 @@ export async function queryUsersWithActiveSubscriptions(
     }
 
     if (!users || users.length === 0) {
-      console.log('DEBUG: No users with active subscriptions found');
+      debugDatabase('No users with active subscriptions found');
       return [];
     }
 
@@ -180,7 +181,7 @@ export async function queryEpisodeNotesForUser(
   const now = nowOverride ?? Date.now();
   const startTime = now;
   
-  console.log('DEBUG: Starting episode notes query for user', {
+  debugDatabase('Starting episode notes query for user', {
     userId,
     lookbackHours,
     lookbackDate: new Date(now - lookbackHours * 60 * 60 * 1000).toISOString()
@@ -200,7 +201,7 @@ export async function queryEpisodeNotesForUser(
     }
 
     if (!userSubscriptions || userSubscriptions.length === 0) {
-      console.log('DEBUG: User has no active subscriptions');
+      debugDatabase('User has no active subscriptions');
       return [];
     }
 
@@ -236,7 +237,7 @@ export async function queryEpisodeNotesForUser(
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
-    console.log('DEBUG: Episode notes query completed', {
+    debugDatabase('Episode notes query completed', {
       error: !!notesError,
       dataLength: episodeNotes?.length || 0,
       errorMessage: notesError?.message || 'none',
@@ -249,13 +250,13 @@ export async function queryEpisodeNotesForUser(
     }
 
     if (!episodeNotes || episodeNotes.length === 0) {
-      console.log('DEBUG: No episode notes found for user in time window');
+      debugDatabase('No episode notes found for user in time window');
       return [];
     }
 
     const elapsedMs = Date.now() - startTime;
     
-    console.log('DEBUG: Episode notes query completed successfully', {
+    debugDatabase('Episode notes query completed successfully', {
       totalNotes: episodeNotes.length,
       elapsedMs
     });
@@ -347,7 +348,7 @@ export async function queryEpisodeNotesForUser(
 export async function queryLast10NewsletterEditions(
   supabase: SupabaseClient<Database>
 ): Promise<string[]> {
-  console.log('DEBUG: Starting L10 newsletter editions query');
+  debugDatabase('Starting L10 newsletter editions query');
 
   try {
     const { data: editions, error: queryError } = await supabase
@@ -356,7 +357,7 @@ export async function queryLast10NewsletterEditions(
       .order('created_at', { ascending: false })
       .limit(10);
 
-    console.log('DEBUG: L10 newsletter editions query completed', {
+    debugDatabase('L10 newsletter editions query completed', {
       error: !!queryError,
       dataLength: editions?.length || 0,
       errorMessage: queryError?.message || 'none'
@@ -367,13 +368,13 @@ export async function queryLast10NewsletterEditions(
     }
 
     if (!editions || editions.length === 0) {
-      console.log('DEBUG: No newsletter editions found for L10 mode');
+      debugDatabase('No newsletter editions found for L10 mode');
       return [];
     }
 
     const editionIds = editions.map(edition => edition.id);
     
-    console.log('DEBUG: L10 mode - found editions to overwrite', {
+    debugDatabase('L10 mode - found editions to overwrite', {
       count: editionIds.length,
       editionIds
     });

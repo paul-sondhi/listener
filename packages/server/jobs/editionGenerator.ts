@@ -136,7 +136,7 @@ export class NewsletterEditionWorker {
 /**
  * CLI entry point with graceful error handling and exit codes
  */
-async function main(): Promise<void> {
+async function _main(): Promise<void> {
   const worker = new NewsletterEditionWorker();
   
   // Set up signal handlers for graceful shutdown

@@ -11,6 +11,7 @@ import { EditionWorkerConfig } from '../../config/editionWorkerConfig.js';
 import { queryUsersWithActiveSubscriptions, queryLast10NewsletterEditions } from '../db/editionQueries.js';
 import { processUserForNewsletter, UserProcessingResult, aggregateUserProcessingResults } from './editionProcessor.js';
 import { _updateNewsletterEdition } from '../db/newsletter-editions.ts';
+import { debugSubscriptionRefresh } from '../debugLogger';
 
 /**
  * Result of preparing users for newsletter generation
@@ -101,7 +102,7 @@ export async function prepareUsersForNewsletters(
 ): Promise<PrepareUsersResult> {
   const startTime = Date.now();
   
-  console.log('DEBUG: Preparing users for newsletter generation', {
+  debugSubscriptionRefresh('Preparing users for newsletter generation', {
     lookbackHours: config.lookbackHours,
     last10Mode: config.last10Mode,
     mode: config.last10Mode ? 'L10_TESTING' : 'NORMAL'
@@ -111,7 +112,7 @@ export async function prepareUsersForNewsletters(
     // Step 1: Query users with active subscriptions
     const candidates = await queryUsersWithActiveSubscriptions(supabase);
 
-    console.log('DEBUG: Found users with active subscriptions', {
+    debugSubscriptionRefresh('Found users with active subscriptions', {
       candidateCount: candidates.length,
       mode: config.last10Mode ? 'L10' : 'normal'
     });
@@ -120,7 +121,7 @@ export async function prepareUsersForNewsletters(
 
     // Step 2: Handle L10 mode - clear existing content for last 10 newsletter editions
     if (config.last10Mode) {
-      console.log('DEBUG: L10 mode active - clearing content for last 10 newsletter editions');
+      debugSubscriptionRefresh('L10 mode active - clearing content for last 10 newsletter editions');
       
       const editionIds = await queryLast10NewsletterEditions(supabase);
       
@@ -129,14 +130,14 @@ export async function prepareUsersForNewsletters(
         const clearResult = await clearNewsletterEditionContent(supabase, editionIds);
         
         if (!clearResult.success) {
-          console.warn('DEBUG: Failed to clear some existing edition content in L10 mode', {
+          debugSubscriptionRefresh('Failed to clear some existing edition content in L10 mode', {
             error: clearResult.error,
             editionCount: editionIds.length
           });
           // Don't fail the entire operation - just log the warning
         } else {
           clearedEditionsCount = clearResult.clearedCount;
-          console.log('DEBUG: Successfully cleared content for L10 mode', {
+          debugSubscriptionRefresh('Successfully cleared content for L10 mode', {
             clearedCount: clearedEditionsCount,
             editionCount: editionIds.length
           });
@@ -146,7 +147,7 @@ export async function prepareUsersForNewsletters(
 
     const elapsedMs = Date.now() - startTime;
     
-    console.log('DEBUG: User preparation completed', {
+    debugSubscriptionRefresh('User preparation completed', {
       candidateCount: candidates.length,
       clearedEditionsCount,
       wasL10Mode: config.last10Mode,
@@ -268,7 +269,7 @@ export function logL10ModeSummary(
   prepResult: PrepareUsersResult,
   validation: { isValid: boolean; warnings: string[]; recommendations: string[] }
 ): void {
-  console.log('DEBUG: L10 Mode Summary', {
+  debugSubscriptionRefresh('L10 Mode Summary', {
     candidateCount: prepResult.candidates.length,
     clearedEditionsCount: prepResult.clearedEditionsCount,
     isValid: validation.isValid,
@@ -277,13 +278,13 @@ export function logL10ModeSummary(
   });
 
   if (validation.warnings.length > 0) {
-    console.warn('DEBUG: L10 Mode Warnings', {
+    debugSubscriptionRefresh('L10 Mode Warnings', {
       warnings: validation.warnings
     });
   }
 
   if (validation.recommendations.length > 0) {
-    console.info('DEBUG: L10 Mode Recommendations', {
+    debugSubscriptionRefresh('L10 Mode Recommendations', {
       recommendations: validation.recommendations
     });
   }
@@ -309,7 +310,7 @@ export async function executeEditionWorkflow(
 ): Promise<EditionWorkflowResult> {
   const startTime = Date.now();
   
-  console.log('DEBUG: Starting newsletter edition workflow', {
+  debugSubscriptionRefresh('Starting newsletter edition workflow', {
     lookbackHours: config.lookbackHours,
     last10Mode: config.last10Mode,
     mode: config.last10Mode ? 'L10_TESTING' : 'NORMAL'
@@ -325,7 +326,7 @@ export async function executeEditionWorkflow(
     }
 
     if (prepResult.candidates.length === 0) {
-      console.log('DEBUG: No users found for newsletter generation; exiting');
+      debugSubscriptionRefresh('No users found for newsletter generation; exiting');
       return {
         totalCandidates: 0,
         processedUsers: 0,
@@ -351,7 +352,7 @@ export async function executeEditionWorkflow(
         results.push(result);
         
         // Log progress for each user
-        console.log('DEBUG: Processed user', {
+        debugSubscriptionRefresh('Processed user', {
           userId: user.id,
           userEmail: user.email,
           status: result.status,
@@ -361,7 +362,7 @@ export async function executeEditionWorkflow(
         
       } catch (error) {
         // Handle unexpected errors for individual users
-        console.error('DEBUG: Unexpected error processing user', {
+        debugSubscriptionRefresh('Unexpected error processing user', {
           userId: user.id,
           userEmail: user.email,
           error: error instanceof Error ? error.message : 'Unknown error'
@@ -403,7 +404,7 @@ export async function executeEditionWorkflow(
       episodeStats: summaryStats.episodeStats
     };
 
-    console.log('DEBUG: Newsletter edition workflow completed', {
+    debugSubscriptionRefresh('Newsletter edition workflow completed', {
       ...workflowResult,
       success_rate: summaryStats.successRate.toFixed(1),
       avg_timing_ms: summaryStats.averageTiming,

@@ -14,6 +14,7 @@ import { sanitizeNewsletterContent } from './buildNewsletterEditionPrompt.js';
 import { insertNewsletterEdition } from '../db/newsletter-editions.ts';
 import { insertNewsletterEditionEpisodes } from '../db/newsletter-edition-episodes.ts';
 import { _NewsletterEdition } from '@listener/shared';
+import { debugSubscriptionRefresh } from '../debugLogger';
 
 /**
  * Result of processing a single user for newsletter generation
@@ -90,7 +91,7 @@ export async function processUserForNewsletter(
     }
   };
 
-  console.log('DEBUG: Processing user for newsletter', {
+  debugSubscriptionRefresh('Processing user for newsletter', {
     userId: user.id,
     userEmail: user.email,
     subscribedShowsCount: user.subscriptions.length,
@@ -111,7 +112,7 @@ export async function processUserForNewsletter(
       );
       timing.queryMs = Date.now() - queryStart;
       
-      console.log('DEBUG: Successfully queried episode notes', {
+      debugSubscriptionRefresh('Successfully queried episode notes', {
         userId: user.id,
         episodeNotesCount: episodeNotes.length,
         queryMs: timing.queryMs
@@ -122,7 +123,7 @@ export async function processUserForNewsletter(
       
       const errorMessage = `Failed to query episode notes: ${error instanceof Error ? error.message : 'Unknown error'}`;
       
-      console.error('DEBUG: Failed to query episode notes', {
+      debugSubscriptionRefresh('Failed to query episode notes', {
         userId: user.id,
         error: errorMessage,
         queryMs: timing.queryMs
@@ -138,7 +139,7 @@ export async function processUserForNewsletter(
 
     // Check if we have any episode notes to process
     if (episodeNotes.length === 0) {
-      console.log('DEBUG: No episode notes found for user', {
+      debugSubscriptionRefresh('No episode notes found for user', {
         userId: user.id,
         subscribedShowsCount: user.subscriptions.length,
         lookbackHours: config.lookbackHours
@@ -177,7 +178,7 @@ export async function processUserForNewsletter(
       // Use the sanitized content from the result
       newsletterContent = generationResult.sanitizedContent;
       
-      console.log('DEBUG: Successfully generated newsletter content', {
+      debugSubscriptionRefresh('Successfully generated newsletter content', {
         userId: user.id,
         contentLength: newsletterContent.length,
         model: generationResult.model,
@@ -189,7 +190,7 @@ export async function processUserForNewsletter(
       
       const errorMessage = `Newsletter generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
       
-      console.error('DEBUG: Failed to generate newsletter content', {
+      debugSubscriptionRefresh('Failed to generate newsletter content', {
         userId: user.id,
         episodeNotesCount: episodeNotes.length,
         error: errorMessage,
@@ -229,10 +230,10 @@ export async function processUserForNewsletter(
       });
       
       // DEBUG: Log the editionResult to diagnose test failures
-      console.log('DEBUG: editionResult', editionResult);
-      console.log('DEBUG: editionResult type', typeof editionResult);
-      console.log('DEBUG: editionResult keys', editionResult ? Object.keys(editionResult) : 'undefined');
-      console.log('DEBUG: editionResult.id', editionResult?.id);
+      debugSubscriptionRefresh('editionResult', { editionResult });
+      debugSubscriptionRefresh('editionResult type', { type: typeof editionResult });
+      debugSubscriptionRefresh('editionResult keys', { keys: editionResult ? Object.keys(editionResult) : 'undefined' });
+      debugSubscriptionRefresh('editionResult.id', { id: editionResult?.id });
 
       // Remove all fallback logic - let it fail if DB helpers don't work
       if (!editionResult) {
@@ -265,13 +266,13 @@ export async function processUserForNewsletter(
       episodeCount = episodeLinksResult.length;
 
       // Log for debugging
-      console.log('DEBUG: Setting additional fields for test assertions', {
+      debugSubscriptionRefresh('Setting additional fields for test assertions', {
         htmlContent,
         sanitizedContent,
         episodeCount
       });
 
-      console.log('DEBUG: Successfully inserted episode links', {
+      debugSubscriptionRefresh('Successfully inserted episode links', {
         userId: user.id,
         newsletterEditionId,
         episodeCount: episodeIds.length,
@@ -280,7 +281,7 @@ export async function processUserForNewsletter(
       
       timing.databaseMs = Date.now() - databaseStart;
       
-      console.log('DEBUG: Successfully saved newsletter to database', {
+      debugSubscriptionRefresh('Successfully saved newsletter to database', {
         userId: user.id,
         newsletterEditionId,
         episodeCount: episodeIds.length,
@@ -292,7 +293,7 @@ export async function processUserForNewsletter(
       
       const errorMessage = `Database save failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
       
-      console.error('DEBUG: Failed to save newsletter to database', {
+      debugSubscriptionRefresh('Failed to save newsletter to database', {
         userId: user.id,
         error: errorMessage,
         databaseMs: timing.databaseMs
@@ -309,7 +310,7 @@ export async function processUserForNewsletter(
     // Success! Return complete result
     const elapsedMs = Date.now() - startTime;
     
-    console.log('DEBUG: User processing completed successfully', {
+    debugSubscriptionRefresh('User processing completed successfully', {
       userId: user.id,
       totalElapsedMs: elapsedMs,
       timing,
@@ -333,7 +334,7 @@ export async function processUserForNewsletter(
     // Catch any unhandled exceptions
     const errorMessage = `Unexpected error processing user: ${error instanceof Error ? error.message : 'Unknown error'}`;
     
-    console.error('DEBUG: Unexpected error in user processing', {
+    debugSubscriptionRefresh('Unexpected error in user processing', {
       userId: user.id,
       error: errorMessage
     });

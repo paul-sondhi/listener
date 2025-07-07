@@ -46,7 +46,13 @@ vi.mock('./episodeSyncService.js', () => ({
 }));
 
 vi.mock('../lib/logger.js', () => ({
-  log: mockLog
+  log: mockLog,
+  Logger: vi.fn().mockImplementation(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  }))
 }));
 
 vi.mock('node-cron', () => ({
