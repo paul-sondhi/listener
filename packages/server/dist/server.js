@@ -8681,7 +8681,7 @@ function setupUnhandledExceptionHandlers3() {
     process.exit(3);
   });
 }
-if (typeof __require !== "undefined" && __require.main === module) {
+if (typeof __require !== "undefined" && typeof module !== "undefined" && __require.main === module) {
   _main();
 }
 

@@ -294,6 +294,6 @@ function setupUnhandledExceptionHandlers(): void {
 
 // If this file is run directly, execute the CLI entry point
 // ESM-safe check that works in both CommonJS and ES modules
-if (typeof require !== 'undefined' && require.main === module) {
+if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
   _main();
 } 
