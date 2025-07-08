@@ -143,13 +143,28 @@ describe('sendNewsletterQueries', () => {
     it('should update sent_at timestamp for existing edition', async () => {
       await createTestNewsletterEdition('edition-1', TEST_USER_ID, 'generated', null);
 
+      // Verify the row was inserted correctly
+      let { data: insertedEdition } = await supabase
+        .from('newsletter_editions')
+        .select('*')
+        .eq('id', 'edition-1')
+        .single();
+
       const sentAt = new Date().toISOString();
       const result = await updateNewsletterEditionSentAt(supabase, 'edition-1', sentAt);
 
       expect(result.id).toBe('edition-1');
-      // Note: The sent_at might not be updated in the test environment due to database constraints
-      // We'll just verify the function doesn't throw an error
       expect(result).toBeDefined();
+
+      // Fetch the edition from the database and check sent_at
+      const { data: updatedEdition, error } = await supabase
+        .from('newsletter_editions')
+        .select('*')
+        .eq('id', 'edition-1')
+        .single();
+      expect(error).toBeNull();
+      expect(updatedEdition).toBeDefined();
+      expect(updatedEdition.sent_at).not.toBeNull();
     });
 
     it('should use current timestamp when sentAt not provided', async () => {
@@ -167,6 +182,163 @@ describe('sendNewsletterQueries', () => {
       await expect(
         updateNewsletterEditionSentAt(supabase, 'non-existent-id')
       ).rejects.toThrow('No newsletter edition found with id: non-existent-id');
+    });
+  });
+
+  describe('integration test compatibility', () => {
+    it('should find editions created by integration test', async () => {
+      // Create editions the same way the integration test does
+      await supabase.from('newsletter_editions').insert({
+        id: 'integration-test-1',
+        user_id: '00000000-0000-0000-0000-000000000001',
+        edition_date: '2025-01-27',
+        status: 'generated',
+        user_email: 'test@example.com',
+        content: 'Integration test content',
+        model: 'gemini-pro',
+        error_message: null,
+        sent_at: null,
+        created_at: new Date().toISOString(),
+        deleted_at: null
+      });
+
+      await supabase.from('newsletter_editions').insert({
+        id: 'integration-test-2',
+        user_id: '00000000-0000-0000-0000-000000000001',
+        edition_date: '2025-01-27',
+        status: 'generated',
+        user_email: 'test@example.com',
+        content: 'Integration test content',
+        model: 'gemini-pro',
+        error_message: null,
+        sent_at: null,
+        created_at: new Date().toISOString(),
+        deleted_at: null
+      });
+
+      // Test the query function that the worker uses
+      const editions = await queryNewsletterEditionsForSending(supabase, 24);
+      
+      console.log('Found editions:', editions.map(e => ({ id: e.id, sent_at: e.sent_at, status: e.status })));
+      
+      expect(editions.length).toBeGreaterThan(0);
+      expect(editions.some(e => e.id === 'integration-test-1')).toBe(true);
+      expect(editions.some(e => e.id === 'integration-test-2')).toBe(true);
+    });
+
+    it('should find editions created by integration test using worker query', async () => {
+      // Create editions exactly like the integration test
+      await supabase.from('newsletter_editions').insert({
+        id: 'edition-1',
+        user_id: '00000000-0000-0000-0000-000000000001',
+        edition_date: '2025-01-27',
+        status: 'generated',
+        user_email: 'test@example.com',
+        content: 'Integration test content',
+        model: 'gemini-pro',
+        error_message: null,
+        sent_at: null,
+        created_at: new Date().toISOString(),
+        deleted_at: null
+      });
+
+      await supabase.from('newsletter_editions').insert({
+        id: 'edition-2',
+        user_id: '00000000-0000-0000-0000-000000000001',
+        edition_date: '2025-01-27',
+        status: 'generated',
+        user_email: 'test@example.com',
+        content: 'Integration test content',
+        model: 'gemini-pro',
+        error_message: null,
+        sent_at: null,
+        created_at: new Date().toISOString(),
+        deleted_at: null
+      });
+
+      // Test the query function that the worker uses
+      const editions = await queryNewsletterEditionsForSending(supabase, 24);
+      
+      console.log('Worker query found editions:', editions.map(e => ({ id: e.id, sent_at: e.sent_at, status: e.status })));
+      
+      expect(editions.length).toBeGreaterThan(0);
+      expect(editions.some(e => e.id === 'edition-1')).toBe(true);
+      expect(editions.some(e => e.id === 'edition-2')).toBe(true);
+    });
+
+    it('should verify worker and test use same database', async () => {
+      // Create editions exactly like the integration test
+      await supabase.from('newsletter_editions').insert({
+        id: 'worker-test-1',
+        user_id: '00000000-0000-0000-0000-000000000001',
+        edition_date: '2025-01-27',
+        status: 'generated',
+        user_email: 'test@example.com',
+        content: 'Integration test content',
+        model: 'gemini-pro',
+        error_message: null,
+        sent_at: null,
+        created_at: new Date().toISOString(),
+        deleted_at: null
+      });
+
+      // Test using the shared client that the worker uses
+      const { getSharedSupabaseClient } = await import('../sharedSupabaseClient.js');
+      const workerSupabase = getSharedSupabaseClient();
+      
+      const editions = await queryNewsletterEditionsForSending(workerSupabase, 24);
+      
+      console.log('Worker shared client found editions:', editions.map(e => ({ id: e.id, sent_at: e.sent_at, status: e.status })));
+      
+      expect(editions.length).toBeGreaterThan(0);
+      expect(editions.some(e => e.id === 'worker-test-1')).toBe(true);
+    });
+
+    it('should simulate worker flow: find editions and update sent_at', async () => {
+      // Create editions exactly like the integration test
+      await supabase.from('newsletter_editions').insert({
+        id: 'worker-sim-1',
+        user_id: '00000000-0000-0000-0000-000000000001',
+        edition_date: '2025-01-27',
+        status: 'generated',
+        user_email: 'test@example.com',
+        content: 'Integration test content',
+        model: 'gemini-pro',
+        error_message: null,
+        sent_at: null,
+        created_at: new Date().toISOString(),
+        deleted_at: null
+      });
+
+      // Simulate worker flow: find editions
+      const { getSharedSupabaseClient } = await import('../sharedSupabaseClient.js');
+      const workerSupabase = getSharedSupabaseClient();
+      
+      const editions = await queryNewsletterEditionsForSending(workerSupabase, 24);
+      
+      console.log('Worker simulation found editions:', editions.map(e => ({ id: e.id, sent_at: e.sent_at, status: e.status })));
+      
+      expect(editions.length).toBeGreaterThan(0);
+      expect(editions.some(e => e.id === 'worker-sim-1')).toBe(true);
+
+      // Simulate worker flow: update sent_at for each edition
+      for (const edition of editions) {
+        if (edition.id === 'worker-sim-1') {
+          const updatedEdition = await updateNewsletterEditionSentAt(workerSupabase, edition.id);
+          console.log('Worker simulation updated edition:', { id: updatedEdition.id, sent_at: updatedEdition.sent_at });
+          expect(updatedEdition.sent_at).not.toBeNull();
+        }
+      }
+
+      // Verify the update worked
+      const { data: finalEdition } = await workerSupabase
+        .from('newsletter_editions')
+        .select('*')
+        .eq('id', 'worker-sim-1')
+        .single();
+      
+      console.log('Final edition after worker simulation:', { id: finalEdition?.id, sent_at: finalEdition?.sent_at });
+      expect(finalEdition?.sent_at).not.toBeNull();
     });
   });
 }); 

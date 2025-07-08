@@ -156,27 +156,48 @@ describe('SendNewsletterWorker L10 Mode (integration)', () => {
     const mockClientInstanceDebug = emailClientModuleDebug.createEmailClient.mock.results[0]?.value;
     console.log('Mock sendEmail called times:', mockClientInstanceDebug?.sendEmail?.mock?.calls?.length || 0);
 
-    const sendEmailCalls = mockClientInstanceDebug?.sendEmail?.mock?.calls?.length || 0;
     // Debug throw removed - let the test continue
 
     // Original assertions
     expect(result.successfulSends).toBe(2, `Worker result: ${JSON.stringify(result)}, Mock sendEmail called: ${mockClientInstanceDebug?.sendEmail?.mock?.calls?.length || 0} times`);
     expect(result.errorCount).toBe(0);
 
-    // Check sent_at NOT updated
-    const { data: editions } = await supabase
+    // Task 5.3: Test sent_at handling in L10 mode
+    // Verify that sent_at is NOT updated in L10 mode, even on successful email sends
+    const { data: editionsAfter } = await supabase
       .from('newsletter_editions')
-      .select('id, sent_at')
-      .eq('user_id', TEST_USER_ID);
-    const unsentEditions = editions?.filter(e => e.sent_at === null) || [];
-    expect(unsentEditions.length).toBe(2); // edition-4, edition-5
+      .select('id, sent_at, status')
+      .eq('user_id', TEST_USER_ID)
+      .order('id');
 
-    // Assert that the mock createEmailClient was called
+    // Check that editions still have null sent_at (L10 mode should not update sent_at)
+    const edition4 = editionsAfter?.find(e => e.id === 'edition-4');
+    const edition5 = editionsAfter?.find(e => e.id === 'edition-5');
+
+    // Both editions should still have null sent_at (L10 mode preserves test data)
+    expect(edition4?.sent_at).toBeNull();
+    expect(edition5?.sent_at).toBeNull();
+
+    // Verify that the worker reports successful sends but doesn't update sent_at
+    expect(result.successfulSends).toBe(2); // edition-4 and edition-5 were "sent"
+    expect(result.errorCount).toBe(0);
+
+    // Verify that emails were actually sent (by checking mock calls)
     const emailClientModule = await import('../../lib/clients/emailClient.js');
     expect(emailClientModule.createEmailClient).toHaveBeenCalled();
 
     // Assert that sendEmail was called twice (once for each edition)
     const mockClientInstance = emailClientModule.createEmailClient.mock.results[0]?.value;
     expect(mockClientInstance.sendEmail).toHaveBeenCalledTimes(2);
+
+    // Verify that the emails were sent to the test receiver (not the actual user emails)
+    const sendEmailCalls = mockClientInstance.sendEmail.mock.calls;
+    expect(sendEmailCalls).toHaveLength(2);
+    
+    // Check that both emails were sent to the test receiver email
+    sendEmailCalls.forEach(call => {
+      const [params] = call;
+      expect(params.to).toBe('test+receiver@example.com');
+    });
   });
 }); 

@@ -51,6 +51,8 @@ import { createClient } from '@supabase/supabase-js';
 process.env.RESEND_API_KEY = 're_test_key_123';
 process.env.SEND_FROM_EMAIL = 'test@example.com';
 process.env.TEST_RECEIVER_EMAIL = 'test+receiver@example.com';
+process.env.SUPABASE_URL = 'http://localhost:54321';
+process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 
 import { updateNewsletterEditionSentAt } from '../../lib/db/sendNewsletterQueries.js';
 import * as emailClientModule from '../../lib/clients/emailClient.js';
@@ -103,6 +105,47 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     vi.restoreAllMocks();
   });
 
+  it('should run worker and return result even with no editions', async () => {
+    // Patch config to normal mode
+    mockConfigFunction = () => ({
+      enabled: true,
+      cronSchedule: '0 5 * * 1-5',
+      lookbackHours: 24,
+      last10Mode: false,
+      resendApiKey: 're_test_key_123',
+      sendFromEmail: 'test@example.com',
+      testReceiverEmail: 'test+receiver@example.com'
+    });
+
+    // Import worker after config mock
+    const { SendNewsletterWorker } = await import('../sendNewsletterWorker.js');
+    const worker = new SendNewsletterWorker();
+    
+    let result;
+    try {
+      result = await worker.run();
+      console.error('Worker result:', result);
+    } catch (error) {
+      console.error('Worker failed with error:', error);
+      throw error;
+    }
+
+    // Verify that the worker returns a result structure
+    expect(result).toHaveProperty('totalCandidates');
+    expect(result).toHaveProperty('processedEditions');
+    expect(result).toHaveProperty('successfulSends');
+    expect(result).toHaveProperty('errorCount');
+    expect(result).toHaveProperty('totalElapsedMs');
+    expect(result).toHaveProperty('averageProcessingTimeMs');
+    expect(result).toHaveProperty('successRate');
+
+    // With no editions, should have 0 candidates
+    expect(result.totalCandidates).toBe(0);
+    expect(result.processedEditions).toBe(0);
+    expect(result.successfulSends).toBe(0);
+    expect(result.errorCount).toBe(0);
+  });
+
   it('should update sent_at for all eligible editions in normal mode', async () => {
     await createTestEdition('edition-1');
     await createTestEdition('edition-2');
@@ -112,23 +155,15 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     // Wait for DB consistency
     await new Promise(res => setTimeout(res, 200));
 
-    // Log editions before
-    const { data: beforeEditions } = await supabase
-      .from('newsletter_editions')
-      .select('*')
-      .eq('user_id', TEST_USER_ID);
-    console.error('Before worker - all editions:', beforeEditions);
-
-    // Check what the query would find
-    const { data: queryTest } = await supabase
-      .from('newsletter_editions')
-      .select('*')
-      .eq('status', 'generated')
-      .is('sent_at', null)
-      .is('deleted_at', null)
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      .order('created_at', { ascending: true });
-    console.error('Query test - eligible editions:', queryTest);
+    // Reset email client mock to ensure it works in this test
+    vi.clearAllMocks();
+    mockCreateEmailClient.mockImplementation(() => ({
+      sendEmail: vi.fn().mockImplementation((params) => {
+        console.log('Mock sendEmail called with params:', params);
+        return Promise.resolve({ success: true, messageId: 'mock-message-id-123' });
+      }),
+      validateConfig: vi.fn().mockReturnValue(true)
+    }));
 
     // Patch config to normal mode
     mockConfigFunction = () => ({
@@ -141,21 +176,42 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
       testReceiverEmail: 'test+receiver@example.com'
     });
     console.log('DEBUG: Set mockConfig to:', mockConfigFunction());
+    
     // Import worker after config mock
     const { SendNewsletterWorker } = await import('../sendNewsletterWorker.js');
     const worker = new SendNewsletterWorker();
-    const result = await worker.run();
+    
+    let result;
+    try {
+      result = await worker.run();
+    } catch (error) {
+      console.error('Worker failed with error:', error);
+      throw error;
+    }
 
-    console.error('Worker result:', result);
-    console.error('Debug: Mock createEmailClient called:', mockCreateEmailClient.mock?.calls);
-    console.error('Debug: Mock createEmailClient call count:', mockCreateEmailClient.mock?.calls?.length);
+    // Wait for DB consistency after worker run
+    await new Promise(res => setTimeout(res, 500));
 
-    // Log editions after
-    const { data: afterEditions } = await supabase
-      .from('newsletter_editions')
-      .select('*')
-      .eq('user_id', TEST_USER_ID);
-    console.error('After worker - all editions:', afterEditions);
+    // Debug: Check what the worker actually processed
+    console.error('Worker result details:', {
+      totalCandidates: result.totalCandidates,
+      processedEditions: result.processedEditions,
+      successfulSends: result.successfulSends,
+      errorCount: result.errorCount,
+      noContentCount: result.noContentCount
+    });
+
+    // Debug: Check what editions the worker found
+    console.error('Worker found editions:', result.totalCandidates);
+    console.error('Worker processed editions:', result.processedEditions);
+    console.error('Worker successful sends:', result.successfulSends);
+
+    // Check if the worker found any editions
+    if (result.totalCandidates === 0) {
+      console.error('WORKER: No editions found! This is the problem.');
+    } else {
+      console.error('WORKER: Found editions, but sent_at not updated. This suggests email sending failed.');
+    }
 
     // For now, just check that the worker runs and returns the expected structure
     expect(result).toHaveProperty('totalCandidates');
@@ -172,8 +228,93 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     expect(typeof result.successfulSends).toBe('number');
     expect(typeof result.errorCount).toBe('number');
 
+    // Task 5.3: Test sent_at handling in normal mode
+    // Verify that sent_at is updated only on successful email sends
+    const { data: editionsAfter } = await supabase
+      .from('newsletter_editions')
+      .select('id, sent_at, status')
+      .eq('user_id', TEST_USER_ID)
+      .order('id');
+
+    // Check that editions that were successfully sent now have sent_at timestamps
+    const edition1 = editionsAfter?.find(e => e.id === 'edition-1');
+    const edition2 = editionsAfter?.find(e => e.id === 'edition-2');
+    const edition3 = editionsAfter?.find(e => e.id === 'edition-3');
+
+    // edition-1 and edition-2 should have sent_at updated (successful sends)
+    expect(edition1?.sent_at).not.toBeNull();
+    expect(edition2?.sent_at).not.toBeNull();
+    
+    // edition-3 should still have its original sent_at (was already sent)
+    expect(edition3?.sent_at).not.toBeNull();
+
+    // Verify that sent_at timestamps are recent (within last 5 seconds)
+    const now = new Date();
+    const fiveSecondsAgo = new Date(now.getTime() - 5000);
+    
+    expect(new Date(edition1!.sent_at!).getTime()).toBeGreaterThan(fiveSecondsAgo.getTime());
+    expect(new Date(edition2!.sent_at!).getTime()).toBeGreaterThan(fiveSecondsAgo.getTime());
+
+    // Verify that the worker reports the correct number of successful sends
+    expect(result.successfulSends).toBe(2); // edition-1 and edition-2
+    expect(result.errorCount).toBe(0);
+
     // TODO: Add email sending assertions in sub-task 5.4
     // - Verify that EmailClient.sendEmail was called with correct parameters
     // - Verify email parameters: from address, to address, subject line, HTML body, headers
+  });
+
+  it('should NOT update sent_at when email sending fails in normal mode', async () => {
+    await createTestEdition('edition-fail-1');
+    await createTestEdition('edition-fail-2');
+
+    // Wait for DB consistency
+    await new Promise(res => setTimeout(res, 200));
+
+    // Reset email client mock to simulate failure
+    vi.clearAllMocks();
+    mockCreateEmailClient.mockImplementation(() => ({
+      sendEmail: vi.fn().mockImplementation((params) => {
+        console.log('Mock sendEmail called with params (will fail):', params);
+        return Promise.resolve({ success: false, error: 'Mock email failure' });
+      }),
+      validateConfig: vi.fn().mockReturnValue(true)
+    }));
+
+    // Patch config to normal mode
+    mockConfigFunction = () => ({
+      enabled: true,
+      cronSchedule: '0 5 * * 1-5',
+      lookbackHours: 24,
+      last10Mode: false,
+      resendApiKey: 're_test_key_123',
+      sendFromEmail: 'test@example.com',
+      testReceiverEmail: 'test+receiver@example.com'
+    });
+
+    // Import worker after config mock
+    const { SendNewsletterWorker } = await import('../sendNewsletterWorker.js');
+    const worker = new SendNewsletterWorker();
+    const result = await worker.run();
+
+    // Task 5.3: Test sent_at handling when email sending fails
+    // Verify that sent_at is NOT updated when email sending fails
+    const { data: editionsAfter } = await supabase
+      .from('newsletter_editions')
+      .select('id, sent_at, status')
+      .eq('user_id', TEST_USER_ID)
+      .order('id');
+
+    // Check that editions still have null sent_at (failed sends should not update sent_at)
+    const editionFail1 = editionsAfter?.find(e => e.id === 'edition-fail-1');
+    const editionFail2 = editionsAfter?.find(e => e.id === 'edition-fail-2');
+
+    // Both editions should still have null sent_at (failed sends don't update sent_at)
+    expect(editionFail1?.sent_at).toBeNull();
+    expect(editionFail2?.sent_at).toBeNull();
+
+    // Verify that the worker reports failed sends
+    expect(result.successfulSends).toBe(0);
+    expect(result.errorCount).toBe(2); // Both editions failed to send
   });
 }); 

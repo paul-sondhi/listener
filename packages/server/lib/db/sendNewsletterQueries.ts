@@ -93,16 +93,25 @@ export async function updateNewsletterEditionSentAt(
   const timestamp = sentAt ?? new Date().toISOString();
   
   try {
-    const { data: edition, error: updateError } = await supabase
+    // Update the sent_at field
+    const { data: updateResult, error: updateError } = await supabase
       .from('newsletter_editions')
       .update({ sent_at: timestamp })
-      .eq('id', editionId)
-      .is('deleted_at', null)
-      .select()
-      .single();
-
+      .eq('id', editionId);
+    
     if (updateError) {
       throw new Error(`Failed to update newsletter edition sent_at: ${updateError.message}`);
+    }
+    
+    // Fetch the updated edition separately
+    const { data: edition, error: fetchError } = await supabase
+      .from('newsletter_editions')
+      .select('*')
+      .eq('id', editionId)
+      .single();
+    
+    if (fetchError) {
+      throw new Error(`Failed to fetch updated newsletter edition: ${fetchError.message}`);
     }
 
     if (!edition) {

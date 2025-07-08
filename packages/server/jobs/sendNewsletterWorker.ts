@@ -194,7 +194,9 @@ export class SendNewsletterWorker {
             });
             // Only update sent_at in normal mode
             if (!config.last10Mode) {
-              await updateNewsletterEditionSentAt(supabase, edition.id);
+              console.log('WORKER: About to update sent_at for edition', edition.id);
+              const updatedEdition = await updateNewsletterEditionSentAt(supabase, edition.id);
+              console.log('WORKER: updatedEdition after sent_at update:', JSON.stringify(updatedEdition));
             }
           } else {
             errorCount++;

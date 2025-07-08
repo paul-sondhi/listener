@@ -1,0 +1,53 @@
+
+> @listener/server@1.0.0 test:all
+> vitest run --run jobs/__tests__/sendNewsletterWorker.normal.integration.test.ts --reporter=verbose --disableConsoleIntercept
+
+ Vitest  "deps.external" is deprecated. If you rely on vite-node directly, use "server.deps.external" instead. Otherwise, consider using "deps.optimizer.ssr.exclude"
+
+ RUN  v3.2.0 /Users/paulsondhi/listener/packages/server
+
+🚀 Starting global test setup...
+🔍 Validating test environment...
+✅ Test environment validation passed
+🗄️  Initializing test database...
+✅ Test database initialized successfully
+🔧 Setting up global test resources...
+🎭 Mock servers configured
+🏭 Test data generators initialized
+🛠️  Global test utilities initialized
+✅ Global test resources setup completed
+📊 Setting up performance monitoring...
+✅ Performance monitoring initialized
+✅ Global test setup completed successfully
+ ✓ jobs/__tests__/sendNewsletterWorker.normal.integration.test.ts > SendNewsletterWorker Normal Mode (integration) > should run worker and return result even with no editions 26ms
+ × jobs/__tests__/sendNewsletterWorker.normal.integration.test.ts > SendNewsletterWorker Normal Mode (integration) > should update sent_at for all eligible editions in normal mode 752ms
+   → expected null not to be null
+ ✓ jobs/__tests__/sendNewsletterWorker.normal.integration.test.ts > SendNewsletterWorker Normal Mode (integration) > should NOT update sent_at when email sending fails in normal mode 207ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  jobs/__tests__/sendNewsletterWorker.normal.integration.test.ts > SendNewsletterWorker Normal Mode (integration) > should update sent_at for all eligible editions in normal mode
+AssertionError: expected null not to be null
+ ❯ jobs/__tests__/sendNewsletterWorker.normal.integration.test.ts:252:35
+    250| 
+    251|     // edition-1 and edition-2 should have sent_at updated (successful…
+    252|     expect(edition1?.sent_at).not.toBeNull();
+       |                                   ^
+    253|     expect(edition2?.sent_at).not.toBeNull();
+    254|     
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  16:00:49
+   Duration  1.16s (transform 86ms, setup 22ms, collect 28ms, tests 986ms, environment 0ms, prepare 26ms)
+
+npm error Lifecycle script `test:all` failed with error:
+npm error code 1
+npm error path /Users/paulsondhi/listener/packages/server
+npm error workspace @listener/server@1.0.0
+npm error location /Users/paulsondhi/listener/packages/server
+npm error command failed
+npm error command sh -c vitest run --run jobs/__tests__/sendNewsletterWorker.normal.integration.test.ts --reporter=verbose --disableConsoleIntercept
