@@ -1,5 +1,11 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -2292,6 +2298,31 @@ function createLogger(config = {}) {
 
 // services/subscriptionRefreshService.ts
 init_utils();
+
+// lib/audiobookFilter.ts
+import { readFileSync } from "fs";
+import { join } from "path";
+function loadAudiobookSkipList() {
+  try {
+    const configPath = join(process.cwd(), "config", "audiobook-skip-list.json");
+    const configData = readFileSync(configPath, "utf8");
+    const config = JSON.parse(configData);
+    return config.skipShowIds || [];
+  } catch (error) {
+    console.warn("Failed to load audiobook skip list:", error instanceof Error ? error.message : "Unknown error");
+    return [];
+  }
+}
+function shouldSkipAudiobook(showId) {
+  const skipList = loadAudiobookSkipList();
+  return skipList.includes(showId);
+}
+function getAudiobookSkipListCount() {
+  const skipList = loadAudiobookSkipList();
+  return skipList.length;
+}
+
+// services/subscriptionRefreshService.ts
 var supabaseAdmin5 = null;
 function getSupabaseAdmin5() {
   if (process.env.NODE_ENV === "test" && supabaseAdmin5 && !supabaseAdmin5.__persistDuringTest) {
@@ -2447,8 +2478,26 @@ async function fetchUserSpotifySubscriptionsWithRateLimit(spotifyAccessToken, us
 async function updateSubscriptionStatus(userId, currentPodcastUrls) {
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const showIds = [];
+  const skippedAudiobooks = [];
+  const skipListCount = getAudiobookSkipListCount();
+  if (skipListCount > 0) {
+    log.info("subscription_refresh", `Audiobook skip list contains ${skipListCount} shows`, {
+      user_id: userId,
+      skip_list_count: skipListCount
+    });
+  }
   for (const podcastUrl of currentPodcastUrls) {
     const showId = podcastUrl.split("/").pop();
+    if (showId && shouldSkipAudiobook(showId)) {
+      skippedAudiobooks.push(showId);
+      log.info("subscription_refresh", `Skipping audiobook show: ${showId}`, {
+        user_id: userId,
+        show_id: showId,
+        spotify_url: podcastUrl,
+        reason: "audiobook_in_skip_list"
+      });
+      continue;
+    }
     const spotifyUrl = podcastUrl;
     try {
       const existingShowRes = await safeAwait2(
@@ -2543,6 +2592,15 @@ async function updateSubscriptionStatus(userId, currentPodcastUrls) {
       throw new Error(`Failed to update inactive subscriptions: ${updateResult.error.message}`);
     }
     inactiveCount = inactiveIds.length;
+  }
+  if (skippedAudiobooks.length > 0) {
+    log.info("subscription_refresh", `Skipped ${skippedAudiobooks.length} audiobook(s) for user ${userId}`, {
+      user_id: userId,
+      skipped_count: skippedAudiobooks.length,
+      skipped_show_ids: skippedAudiobooks,
+      active_count: showIds.length,
+      inactive_count: inactiveCount
+    });
   }
   return {
     active_count: showIds.length,
@@ -4891,8 +4949,8 @@ var TranscriptWorker = class {
         }
         rawEpisodes = fallbackEpisodes;
       }
-      const episodeIds2 = rawEpisodes.map((ep) => ep.id);
-      const { data: existingTranscripts, error: transcriptError } = await this.supabase.from("transcripts").select("episode_id").in("episode_id", episodeIds2).is("deleted_at", null);
+      const episodeIds = rawEpisodes.map((ep) => ep.id);
+      const { data: existingTranscripts, error: transcriptError } = await this.supabase.from("transcripts").select("episode_id").in("episode_id", episodeIds).is("deleted_at", null);
       if (transcriptError) {
         throw new Error(`Failed to query existing transcripts: ${transcriptError.message}`);
       }
@@ -6161,7 +6219,7 @@ function countWords(text) {
 }
 
 // lib/utils/buildNewsletterEditionPrompt.ts
-import { readFileSync } from "fs";
+import { readFileSync as readFileSync2 } from "fs";
 import { resolve } from "path";
 import sanitizeHtml from "sanitize-html";
 async function buildNewsletterEditionPrompt(episodeNotesOrParams, userEmail, editionDate) {
@@ -6301,7 +6359,7 @@ async function loadPromptTemplate(templatePath) {
   });
   try {
     const fullPath = resolve(path4);
-    const template = readFileSync(fullPath, "utf-8").trim();
+    const template = readFileSync2(fullPath, "utf-8").trim();
     if (!template) {
       throw new Error(`Prompt template file is empty: ${fullPath}`);
     }
@@ -6343,8 +6401,8 @@ ${notes.trim()}`).join("\n\n---\n\n");
   prompt = prompt.replace(/\[EPISODE_NOTES_CONTENT\]/g, episodeNotesContent);
   return prompt.trim();
 }
-function sanitizeNewsletterContent(htmlContent2) {
-  const sanitized = sanitizeHtml(htmlContent2, {
+function sanitizeNewsletterContent(htmlContent) {
+  const sanitized = sanitizeHtml(htmlContent, {
     // Allow safe HTML elements for newsletter formatting
     allowedTags: [
       "h1",
@@ -6670,25 +6728,25 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, p
         JSON.stringify(responseData)
       );
     }
-    const htmlContent2 = candidates[0]?.content?.parts?.[0]?.text;
-    if (!htmlContent2) {
+    const htmlContent = candidates[0]?.content?.parts?.[0]?.text;
+    if (!htmlContent) {
       throw new GeminiAPIError(
         "No HTML content found in Gemini API response for newsletter generation",
         200,
         JSON.stringify(responseData)
       );
     }
-    const sanitizedContent2 = sanitizeNewsletterContent(htmlContent2);
+    const sanitizedContent = sanitizeNewsletterContent(htmlContent);
     debugLog("Successfully generated newsletter edition", {
       model,
-      htmlContentLength: htmlContent2.length,
-      sanitizedContentLength: sanitizedContent2.length,
+      htmlContentLength: htmlContent.length,
+      sanitizedContentLength: sanitizedContent.length,
       episodeCount: promptResult.episodeCount,
       elapsedMs: Date.now() - startTime
     });
     return {
-      htmlContent: htmlContent2.trim(),
-      sanitizedContent: sanitizedContent2.trim(),
+      htmlContent: htmlContent.trim(),
+      sanitizedContent: sanitizedContent.trim(),
       model,
       episodeCount: promptResult.episodeCount,
       success: true
@@ -7065,7 +7123,7 @@ function extractErrorType(errorMessage) {
 }
 
 // config/notesWorkerConfig.ts
-import { readFileSync as readFileSync2 } from "fs";
+import { readFileSync as readFileSync3 } from "fs";
 import { resolve as resolve2 } from "path";
 function getNotesWorkerConfig() {
   const enabled = process.env.NOTES_WORKER_ENABLED !== "false";
@@ -7089,7 +7147,7 @@ function getNotesWorkerConfig() {
   let promptTemplate;
   try {
     const fullPromptPath = resolve2(promptPath);
-    promptTemplate = readFileSync2(fullPromptPath, "utf-8").trim();
+    promptTemplate = readFileSync3(fullPromptPath, "utf-8").trim();
     if (!promptTemplate) {
       throw new Error(`Prompt template file is empty: ${fullPromptPath}`);
     }
@@ -7279,9 +7337,29 @@ if (process.env.NOTES_WORKER_CLI === "true" && import.meta.url === `file://${pro
   });
 }
 
+// lib/debugLogger.ts
+var debugLogger = new Logger({
+  minLevel: process.env.NODE_ENV === "test" ? "warn" : "debug"
+});
+function debugLog2(context, message, metadata) {
+  if (process.env.NODE_ENV === "test") {
+    const debugEnabled = process.env.LOG_LEVEL === "debug" || process.env.DEBUG_LOGGING === "true";
+    if (!debugEnabled) {
+      return;
+    }
+  }
+  debugLogger.debug(context, message, { metadata });
+}
+function debugDatabase(message, metadata) {
+  debugLog2("database", message, metadata);
+}
+function debugSubscriptionRefresh(message, metadata) {
+  debugLog2("subscription_refresh", message, metadata);
+}
+
 // lib/db/editionQueries.ts
 async function queryUsersWithActiveSubscriptions(supabase4) {
-  console.log("DEBUG: Starting user subscription query");
+  debugDatabase("Starting user subscription query");
   try {
     const { data: users, error: queryError } = await supabase4.from("users").select(`
         id,
@@ -7297,7 +7375,7 @@ async function queryUsersWithActiveSubscriptions(supabase4) {
           )
         )
       `).eq("user_podcast_subscriptions.status", "active").is("user_podcast_subscriptions.deleted_at", null).order("id", { ascending: true });
-    console.log("DEBUG: User subscription query completed", {
+    debugDatabase("User subscription query completed", {
       error: !!queryError,
       dataLength: users?.length || 0,
       errorMessage: queryError?.message || "none"
@@ -7306,7 +7384,7 @@ async function queryUsersWithActiveSubscriptions(supabase4) {
       throw new Error(`Failed to query users with subscriptions: ${queryError.message}`);
     }
     if (!users || users.length === 0) {
-      console.log("DEBUG: No users with active subscriptions found");
+      debugDatabase("No users with active subscriptions found");
       return [];
     }
     return users.map((user) => {
@@ -7373,7 +7451,7 @@ async function queryUsersWithActiveSubscriptions(supabase4) {
 async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOverride) {
   const now = nowOverride ?? Date.now();
   const startTime = now;
-  console.log("DEBUG: Starting episode notes query for user", {
+  debugDatabase("Starting episode notes query for user", {
     userId,
     lookbackHours,
     lookbackDate: new Date(now - lookbackHours * 60 * 60 * 1e3).toISOString()
@@ -7384,7 +7462,7 @@ async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOve
       throw new Error(`Failed to query user subscriptions: ${subscriptionError.message}`);
     }
     if (!userSubscriptions || userSubscriptions.length === 0) {
-      console.log("DEBUG: User has no active subscriptions");
+      debugDatabase("User has no active subscriptions");
       return [];
     }
     const subscribedShowIds = userSubscriptions.map((sub) => sub.show_id);
@@ -7408,7 +7486,7 @@ async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOve
           )
         )
       `).in("podcast_episodes.show_id", subscribedShowIds).gte("created_at", cutoffTime).eq("status", "done").is("deleted_at", null).order("created_at", { ascending: false });
-    console.log("DEBUG: Episode notes query completed", {
+    debugDatabase("Episode notes query completed", {
       error: !!notesError,
       dataLength: episodeNotes?.length || 0,
       errorMessage: notesError?.message || "none",
@@ -7419,11 +7497,11 @@ async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOve
       throw new Error(`Failed to query episode notes: ${notesError.message}`);
     }
     if (!episodeNotes || episodeNotes.length === 0) {
-      console.log("DEBUG: No episode notes found for user in time window");
+      debugDatabase("No episode notes found for user in time window");
       return [];
     }
     const elapsedMs = Date.now() - startTime;
-    console.log("DEBUG: Episode notes query completed successfully", {
+    debugDatabase("Episode notes query completed successfully", {
       totalNotes: episodeNotes.length,
       elapsedMs
     });
@@ -7497,10 +7575,10 @@ async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOve
   }
 }
 async function queryLast10NewsletterEditions(supabase4) {
-  console.log("DEBUG: Starting L10 newsletter editions query");
+  debugDatabase("Starting L10 newsletter editions query");
   try {
     const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("id").order("created_at", { ascending: false }).limit(10);
-    console.log("DEBUG: L10 newsletter editions query completed", {
+    debugDatabase("L10 newsletter editions query completed", {
       error: !!queryError,
       dataLength: editions?.length || 0,
       errorMessage: queryError?.message || "none"
@@ -7509,11 +7587,11 @@ async function queryLast10NewsletterEditions(supabase4) {
       throw new Error(`Failed to query last 10 newsletter editions: ${queryError.message}`);
     }
     if (!editions || editions.length === 0) {
-      console.log("DEBUG: No newsletter editions found for L10 mode");
+      debugDatabase("No newsletter editions found for L10 mode");
       return [];
     }
     const editionIds = editions.map((edition) => edition.id);
-    console.log("DEBUG: L10 mode - found editions to overwrite", {
+    debugDatabase("L10 mode - found editions to overwrite", {
       count: editionIds.length,
       editionIds
     });
@@ -7642,7 +7720,7 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
       averageWordCount: 0
     }
   };
-  console.log("DEBUG: Processing user for newsletter", {
+  debugSubscriptionRefresh("Processing user for newsletter", {
     userId: user.id,
     userEmail: user.email,
     subscribedShowsCount: user.subscriptions.length,
@@ -7659,7 +7737,7 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
         nowOverride
       );
       timing.queryMs = Date.now() - queryStart;
-      console.log("DEBUG: Successfully queried episode notes", {
+      debugSubscriptionRefresh("Successfully queried episode notes", {
         userId: user.id,
         episodeNotesCount: episodeNotes.length,
         queryMs: timing.queryMs
@@ -7667,7 +7745,7 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
     } catch (error) {
       timing.queryMs = Date.now() - queryStart;
       const errorMessage = `Failed to query episode notes: ${error instanceof Error ? error.message : "Unknown error"}`;
-      console.error("DEBUG: Failed to query episode notes", {
+      debugSubscriptionRefresh("Failed to query episode notes", {
         userId: user.id,
         error: errorMessage,
         queryMs: timing.queryMs
@@ -7680,7 +7758,7 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
       };
     }
     if (episodeNotes.length === 0) {
-      console.log("DEBUG: No episode notes found for user", {
+      debugSubscriptionRefresh("No episode notes found for user", {
         userId: user.id,
         subscribedShowsCount: user.subscriptions.length,
         lookbackHours: config.lookbackHours
@@ -7708,7 +7786,7 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
         throw new Error(generationResult.error || "Newsletter generation failed");
       }
       newsletterContent = generationResult.sanitizedContent;
-      console.log("DEBUG: Successfully generated newsletter content", {
+      debugSubscriptionRefresh("Successfully generated newsletter content", {
         userId: user.id,
         contentLength: newsletterContent.length,
         model: generationResult.model,
@@ -7717,7 +7795,7 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
     } catch (error) {
       timing.generationMs = Date.now() - generationStart;
       const errorMessage = `Newsletter generation failed: ${error instanceof Error ? error.message : "Unknown error"}`;
-      console.error("DEBUG: Failed to generate newsletter content", {
+      debugSubscriptionRefresh("Failed to generate newsletter content", {
         userId: user.id,
         episodeNotesCount: episodeNotes.length,
         error: errorMessage,
@@ -7731,6 +7809,11 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
       };
     }
     const databaseStart = Date.now();
+    let newsletterEditionId;
+    let episodeIds = [];
+    let htmlContent = "";
+    let sanitizedContent = "";
+    let episodeCount = 0;
     try {
       const editionDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
       const editionResult = await insertNewsletterEdition({
@@ -7741,47 +7824,47 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
         model: generationResult.model,
         error_message: null
       });
-      console.log("DEBUG: editionResult", editionResult);
-      console.log("DEBUG: editionResult type", typeof editionResult);
-      console.log("DEBUG: editionResult keys", editionResult ? Object.keys(editionResult) : "undefined");
-      console.log("DEBUG: editionResult.id", editionResult?.id);
+      debugSubscriptionRefresh("editionResult", { editionResult });
+      debugSubscriptionRefresh("editionResult type", { type: typeof editionResult });
+      debugSubscriptionRefresh("editionResult keys", { keys: editionResult ? Object.keys(editionResult) : "undefined" });
+      debugSubscriptionRefresh("editionResult.id", { id: editionResult?.id });
       if (!editionResult) {
         throw new Error(`Database save failed: insertNewsletterEdition returned undefined`);
       }
-      const newsletterEditionId2 = editionResult.id;
-      const episodeIds2 = episodeNotes.map((note) => note.episode_id);
+      newsletterEditionId = editionResult.id;
+      episodeIds = episodeNotes.map((note) => note.episode_id);
       const episodeLinksResult = await insertNewsletterEditionEpisodes({
-        newsletter_edition_id: newsletterEditionId2,
-        episode_ids: episodeIds2
+        newsletter_edition_id: newsletterEditionId,
+        episode_ids: episodeIds
       });
       if (!episodeLinksResult) {
         throw new Error(`Database save failed: insertNewsletterEditionEpisodes returned undefined`);
       }
-      const htmlContent2 = newsletterContent;
-      const sanitizedContent2 = sanitizeNewsletterContent(newsletterContent);
-      const episodeCount2 = episodeLinksResult.length;
-      console.log("DEBUG: Setting additional fields for test assertions", {
-        htmlContent: htmlContent2,
-        sanitizedContent: sanitizedContent2,
-        episodeCount: episodeCount2
+      htmlContent = newsletterContent;
+      sanitizedContent = sanitizeNewsletterContent(newsletterContent);
+      episodeCount = episodeLinksResult.length;
+      debugSubscriptionRefresh("Setting additional fields for test assertions", {
+        htmlContent,
+        sanitizedContent,
+        episodeCount
       });
-      console.log("DEBUG: Successfully inserted episode links", {
+      debugSubscriptionRefresh("Successfully inserted episode links", {
         userId: user.id,
-        newsletterEditionId: newsletterEditionId2,
-        episodeCount: episodeIds2.length,
+        newsletterEditionId,
+        episodeCount: episodeIds.length,
         linksCount: episodeLinksResult.length
       });
       timing.databaseMs = Date.now() - databaseStart;
-      console.log("DEBUG: Successfully saved newsletter to database", {
+      debugSubscriptionRefresh("Successfully saved newsletter to database", {
         userId: user.id,
-        newsletterEditionId: newsletterEditionId2,
-        episodeCount: episodeIds2.length,
+        newsletterEditionId,
+        episodeCount: episodeIds.length,
         databaseMs: timing.databaseMs
       });
     } catch (error) {
       timing.databaseMs = Date.now() - databaseStart;
       const errorMessage = `Database save failed: ${error instanceof Error ? error.message : "Unknown error"}`;
-      console.error("DEBUG: Failed to save newsletter to database", {
+      debugSubscriptionRefresh("Failed to save newsletter to database", {
         userId: user.id,
         error: errorMessage,
         databaseMs: timing.databaseMs
@@ -7794,7 +7877,7 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
       };
     }
     const elapsedMs = Date.now() - startTime;
-    console.log("DEBUG: User processing completed successfully", {
+    debugSubscriptionRefresh("User processing completed successfully", {
       userId: user.id,
       totalElapsedMs: elapsedMs,
       timing,
@@ -7814,7 +7897,7 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
     };
   } catch (error) {
     const errorMessage = `Unexpected error processing user: ${error instanceof Error ? error.message : "Unknown error"}`;
-    console.error("DEBUG: Unexpected error in user processing", {
+    debugSubscriptionRefresh("Unexpected error in user processing", {
       userId: user.id,
       error: errorMessage
     });
@@ -7903,31 +7986,31 @@ function extractErrorType2(errorMessage) {
 // lib/utils/editionWorkflow.ts
 async function prepareUsersForNewsletters(supabase4, config) {
   const startTime = Date.now();
-  console.log("DEBUG: Preparing users for newsletter generation", {
+  debugSubscriptionRefresh("Preparing users for newsletter generation", {
     lookbackHours: config.lookbackHours,
     last10Mode: config.last10Mode,
     mode: config.last10Mode ? "L10_TESTING" : "NORMAL"
   });
   try {
     const candidates = await queryUsersWithActiveSubscriptions(supabase4);
-    console.log("DEBUG: Found users with active subscriptions", {
+    debugSubscriptionRefresh("Found users with active subscriptions", {
       candidateCount: candidates.length,
       mode: config.last10Mode ? "L10" : "normal"
     });
     let clearedEditionsCount = 0;
     if (config.last10Mode) {
-      console.log("DEBUG: L10 mode active - clearing content for last 10 newsletter editions");
+      debugSubscriptionRefresh("L10 mode active - clearing content for last 10 newsletter editions");
       const editionIds = await queryLast10NewsletterEditions(supabase4);
       if (editionIds.length > 0) {
         const clearResult = await clearNewsletterEditionContent(supabase4, editionIds);
         if (!clearResult.success) {
-          console.warn("DEBUG: Failed to clear some existing edition content in L10 mode", {
+          debugSubscriptionRefresh("Failed to clear some existing edition content in L10 mode", {
             error: clearResult.error,
             editionCount: editionIds.length
           });
         } else {
           clearedEditionsCount = clearResult.clearedCount;
-          console.log("DEBUG: Successfully cleared content for L10 mode", {
+          debugSubscriptionRefresh("Successfully cleared content for L10 mode", {
             clearedCount: clearedEditionsCount,
             editionCount: editionIds.length
           });
@@ -7935,7 +8018,7 @@ async function prepareUsersForNewsletters(supabase4, config) {
       }
     }
     const elapsedMs = Date.now() - startTime;
-    console.log("DEBUG: User preparation completed", {
+    debugSubscriptionRefresh("User preparation completed", {
       candidateCount: candidates.length,
       clearedEditionsCount,
       wasL10Mode: config.last10Mode,
@@ -8004,7 +8087,7 @@ function validateL10Mode2(candidates, config) {
   };
 }
 function logL10ModeSummary2(prepResult, validation) {
-  console.log("DEBUG: L10 Mode Summary", {
+  debugSubscriptionRefresh("L10 Mode Summary", {
     candidateCount: prepResult.candidates.length,
     clearedEditionsCount: prepResult.clearedEditionsCount,
     isValid: validation.isValid,
@@ -8012,19 +8095,19 @@ function logL10ModeSummary2(prepResult, validation) {
     recommendations: validation.recommendations
   });
   if (validation.warnings.length > 0) {
-    console.warn("DEBUG: L10 Mode Warnings", {
+    debugSubscriptionRefresh("L10 Mode Warnings", {
       warnings: validation.warnings
     });
   }
   if (validation.recommendations.length > 0) {
-    console.info("DEBUG: L10 Mode Recommendations", {
+    debugSubscriptionRefresh("L10 Mode Recommendations", {
       recommendations: validation.recommendations
     });
   }
 }
 async function executeEditionWorkflow(supabase4, config, nowOverride) {
   const startTime = Date.now();
-  console.log("DEBUG: Starting newsletter edition workflow", {
+  debugSubscriptionRefresh("Starting newsletter edition workflow", {
     lookbackHours: config.lookbackHours,
     last10Mode: config.last10Mode,
     mode: config.last10Mode ? "L10_TESTING" : "NORMAL"
@@ -8036,7 +8119,7 @@ async function executeEditionWorkflow(supabase4, config, nowOverride) {
       logL10ModeSummary2(prepResult, validation);
     }
     if (prepResult.candidates.length === 0) {
-      console.log("DEBUG: No users found for newsletter generation; exiting");
+      debugSubscriptionRefresh("No users found for newsletter generation; exiting");
       return {
         totalCandidates: 0,
         processedUsers: 0,
@@ -8057,7 +8140,7 @@ async function executeEditionWorkflow(supabase4, config, nowOverride) {
       try {
         const result = await processUserForNewsletter(supabase4, user, config, nowOverride);
         results.push(result);
-        console.log("DEBUG: Processed user", {
+        debugSubscriptionRefresh("Processed user", {
           userId: user.id,
           userEmail: user.email,
           status: result.status,
@@ -8065,7 +8148,7 @@ async function executeEditionWorkflow(supabase4, config, nowOverride) {
           episodeNotesCount: result.metadata.episodeNotesCount
         });
       } catch (error) {
-        console.error("DEBUG: Unexpected error processing user", {
+        debugSubscriptionRefresh("Unexpected error processing user", {
           userId: user.id,
           userEmail: user.email,
           error: error instanceof Error ? error.message : "Unknown error"
@@ -8102,7 +8185,7 @@ async function executeEditionWorkflow(supabase4, config, nowOverride) {
       contentStats: summaryStats.contentStats,
       episodeStats: summaryStats.episodeStats
     };
-    console.log("DEBUG: Newsletter edition workflow completed", {
+    debugSubscriptionRefresh("Newsletter edition workflow completed", {
       ...workflowResult,
       success_rate: summaryStats.successRate.toFixed(1),
       avg_timing_ms: summaryStats.averageTiming,
@@ -8118,7 +8201,7 @@ async function executeEditionWorkflow(supabase4, config, nowOverride) {
 }
 
 // config/editionWorkerConfig.ts
-import { readFileSync as readFileSync3 } from "fs";
+import { readFileSync as readFileSync4 } from "fs";
 import { resolve as resolve3 } from "path";
 function getEditionWorkerConfig() {
   const enabled = process.env.EDITION_WORKER_ENABLED !== "false";
@@ -8138,7 +8221,7 @@ function getEditionWorkerConfig() {
   let promptTemplate;
   try {
     const fullPromptPath = resolve3(promptPath);
-    promptTemplate = readFileSync3(fullPromptPath, "utf-8").trim();
+    promptTemplate = readFileSync4(fullPromptPath, "utf-8").trim();
     if (!promptTemplate) {
       throw new Error(`Prompt template file is empty: ${fullPromptPath}`);
     }
@@ -8243,38 +8326,6 @@ var NewsletterEditionWorker = class {
     }
   }
 };
-async function main() {
-  const worker = new NewsletterEditionWorker();
-  setupSignalHandlers2(worker);
-  setupUnhandledExceptionHandlers2();
-  try {
-    console.log("\u{1F680} Starting Newsletter Edition Generator Worker...");
-    const result = await worker.run();
-    console.log("\u2705 Newsletter Edition Worker completed successfully", {
-      totalUsers: result.totalCandidates,
-      processedUsers: result.processedUsers,
-      successfulNewsletters: result.successfulNewsletters,
-      errorCount: result.errorCount,
-      noContentCount: result.noContentCount,
-      successRate: `${result.successRate.toFixed(1)}%`,
-      totalTime: `${(result.totalElapsedMs / 1e3).toFixed(1)}s`
-    });
-    process.exit(0);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("\u274C Newsletter Edition Worker failed:", errorMessage);
-    if (error instanceof Error && error.stack) {
-      console.error("Stack trace:", error.stack);
-    }
-    let exitCode = 3;
-    if (errorMessage.includes("configuration") || errorMessage.includes("environment") || errorMessage.includes("prompt")) {
-      exitCode = 1;
-    } else if (errorMessage.includes("database") || errorMessage.includes("connection") || errorMessage.includes("supabase")) {
-      exitCode = 2;
-    }
-    process.exit(exitCode);
-  }
-}
 function setupSignalHandlers2(worker) {
   const gracefulShutdown = (signal) => {
     console.log(`
@@ -8302,11 +8353,336 @@ function setupUnhandledExceptionHandlers2() {
     process.exit(3);
   });
 }
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
-    console.error("\u274C Fatal error in main:", error);
+if (process.env.EDITION_WORKER_CLI === "true" && import.meta.url === `file://${process.argv[1]}`) {
+  const worker = new NewsletterEditionWorker();
+  setupSignalHandlers2(worker);
+  setupUnhandledExceptionHandlers2();
+  worker.run().then(() => process.exit(0)).catch((error) => {
+    console.error("\u274C Fatal error in edition worker CLI:", error instanceof Error ? error.message : error);
     process.exit(3);
   });
+}
+
+// config/sendNewsletterWorkerConfig.ts
+function getSendNewsletterWorkerConfig() {
+  const enabled = process.env.SEND_WORKER_ENABLED !== "false";
+  const cronSchedule = process.env.SEND_WORKER_CRON || "0 5 * * 1-5";
+  if (!isValidCronExpression2(cronSchedule)) {
+    throw new Error(`Invalid SEND_WORKER_CRON: "${cronSchedule}". Must be a valid cron expression.`);
+  }
+  const lookbackHours = parseInt(process.env.SEND_LOOKBACK || "24", 10);
+  if (isNaN(lookbackHours) || lookbackHours < 1 || lookbackHours > 168) {
+    throw new Error(`Invalid SEND_LOOKBACK: "${process.env.SEND_LOOKBACK}". Must be a number between 1 and 168 (hours).`);
+  }
+  const last10Mode = process.env.SEND_WORKER_L10 === "true";
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (!resendApiKey || resendApiKey.trim().length === 0) {
+    throw new Error("RESEND_API_KEY environment variable is required but not set.");
+  }
+  if (!resendApiKey.startsWith("re_")) {
+    console.warn('Warning: RESEND_API_KEY does not start with "re_" - this may not be a valid Resend API key.');
+  }
+  const sendFromEmail = process.env.SEND_FROM_EMAIL;
+  if (!sendFromEmail || sendFromEmail.trim().length === 0) {
+    throw new Error("SEND_FROM_EMAIL environment variable is required but not set.");
+  }
+  const trimmedSendFromEmail = sendFromEmail.trim();
+  if (!isValidEmail(trimmedSendFromEmail)) {
+    throw new Error(`Invalid SEND_FROM_EMAIL: "${sendFromEmail}". Must be a valid email address.`);
+  }
+  const testReceiverEmail = process.env.TEST_RECEIVER_EMAIL;
+  if (!testReceiverEmail || testReceiverEmail.trim().length === 0) {
+    throw new Error("TEST_RECEIVER_EMAIL environment variable is required but not set.");
+  }
+  const trimmedTestReceiverEmail = testReceiverEmail.trim();
+  if (!isValidEmail(trimmedTestReceiverEmail)) {
+    throw new Error(`Invalid TEST_RECEIVER_EMAIL: "${testReceiverEmail}". Must be a valid email address.`);
+  }
+  return {
+    enabled,
+    cronSchedule,
+    lookbackHours,
+    last10Mode,
+    resendApiKey: resendApiKey.trim(),
+    sendFromEmail: trimmedSendFromEmail,
+    testReceiverEmail: trimmedTestReceiverEmail
+  };
+}
+function isValidCronExpression2(cronExpression) {
+  const parts = cronExpression.trim().split(/\s+/);
+  if (parts.length !== 5) {
+    return false;
+  }
+  return parts.every((part, index) => {
+    if (part === "*") return true;
+    switch (index) {
+      case 0:
+        return /^(\*|([0-5]?\d)(-[0-5]?\d)?(,[0-5]?\d(-[0-5]?\d)?)*|(\*\/\d+))$/.test(part);
+      case 1:
+        return /^(\*|(1?\d|2[0-3])(-?(1?\d|2[0-3]))?(,(1?\d|2[0-3])(-?(1?\d|2[0-3]))?)*|(\*\/\d+))$/.test(part);
+      case 2:
+        return /^(\*|([1-9]|[12]\d|3[01])(-?([1-9]|[12]\d|3[01]))?(,([1-9]|[12]\d|3[01])(-?([1-9]|[12]\d|3[01]))?)*|(\*\/\d+))$/.test(part);
+      case 3:
+        return /^(\*|([1-9]|1[0-2])(-?([1-9]|1[0-2]))?(,([1-9]|1[0-2])(-?([1-9]|1[0-2]))?)*|(\*\/\d+))$/.test(part);
+      case 4:
+        return /^(\*|[0-7](-?[0-7])?(,[0-7](-?[0-7])?)*|(\*\/\d+))$/.test(part);
+      default:
+        return false;
+    }
+  });
+}
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+function validateDependencies3(config) {
+  if (!config.resendApiKey) {
+    throw new Error("RESEND_API_KEY is required but not configured.");
+  }
+  if (!config.sendFromEmail) {
+    throw new Error("SEND_FROM_EMAIL is required but not configured.");
+  }
+  if (!config.testReceiverEmail) {
+    throw new Error("TEST_RECEIVER_EMAIL is required but not configured.");
+  }
+  if (!isValidEmail(config.sendFromEmail)) {
+    throw new Error(`SEND_FROM_EMAIL is not a valid email address: ${config.sendFromEmail}`);
+  }
+  if (!isValidEmail(config.testReceiverEmail)) {
+    throw new Error(`TEST_RECEIVER_EMAIL is not a valid email address: ${config.testReceiverEmail}`);
+  }
+  if (!isValidCronExpression2(config.cronSchedule)) {
+    throw new Error(`Invalid cron schedule: ${config.cronSchedule}`);
+  }
+}
+
+// lib/db/sendNewsletterQueries.ts
+async function queryNewsletterEditionsForSending(supabase4, lookbackHours = 24, nowOverride) {
+  const now = nowOverride ?? Date.now();
+  const lookbackDate = new Date(now - lookbackHours * 60 * 60 * 1e3).toISOString();
+  debugDatabase("Starting newsletter editions query for sending", {
+    lookbackHours,
+    lookbackDate,
+    mode: "NORMAL"
+  });
+  try {
+    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("*").eq("status", "generated").is("sent_at", null).is("deleted_at", null).gte("created_at", lookbackDate).order("created_at", { ascending: true });
+    if (queryError) {
+      throw new Error(`Failed to query newsletter editions for sending: ${queryError.message}`);
+    }
+    return editions || [];
+  } catch (error) {
+    console.error("ERROR: Failed to query newsletter editions for sending:", error);
+    throw error;
+  }
+}
+async function queryLast10NewsletterEditionsForSending(supabase4) {
+  debugDatabase("Starting L10 newsletter editions query for sending");
+  try {
+    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("*").eq("status", "generated").is("deleted_at", null).order("created_at", { ascending: false }).limit(10);
+    if (queryError) {
+      throw new Error(`Failed to query last 10 newsletter editions for sending: ${queryError.message}`);
+    }
+    return (editions || []).reverse();
+  } catch (error) {
+    console.error("ERROR: Failed to query last 10 newsletter editions for sending:", error);
+    throw error;
+  }
+}
+async function updateNewsletterEditionSentAt(supabase4, editionId, sentAt) {
+  const timestamp = sentAt ?? (/* @__PURE__ */ new Date()).toISOString();
+  try {
+    const { data: edition, error: updateError } = await supabase4.from("newsletter_editions").update({ sent_at: timestamp }).eq("id", editionId).is("deleted_at", null).select().single();
+    if (updateError) {
+      throw new Error(`Failed to update newsletter edition sent_at: ${updateError.message}`);
+    }
+    if (!edition) {
+      throw new Error(`No newsletter edition found with id: ${editionId}`);
+    }
+    return edition;
+  } catch (error) {
+    console.error("ERROR: Failed to update newsletter edition sent_at:", error);
+    throw error;
+  }
+}
+
+// jobs/sendNewsletterWorker.ts
+var SendNewsletterWorker = class {
+  constructor() {
+    // Store partial results for graceful shutdown
+    this.partialResults = [];
+    this.logger = createLogger();
+    this.startTime = Date.now();
+  }
+  /**
+   * Main entry point for the send newsletter worker
+   * @returns Promise<SendWorkerSummary> Summary of processing results
+   */
+  async run() {
+    const jobId = `send-${Date.now()}`;
+    const config = getSendNewsletterWorkerConfig();
+    validateDependencies3(config);
+    this.logger.info("system", "Send Newsletter Worker starting", {
+      metadata: {
+        job_id: jobId,
+        lookback_hours: config.lookbackHours,
+        last10_mode: config.last10Mode,
+        cron_schedule: config.cronSchedule,
+        send_from_email: config.sendFromEmail,
+        test_receiver_email: config.testReceiverEmail
+      }
+    });
+    const startTime = Date.now();
+    const supabase4 = getSharedSupabaseClient();
+    try {
+      let editions;
+      if (config.last10Mode) {
+        this.logger.info("system", "Using L10 mode - querying last 10 newsletter editions", {
+          metadata: { job_id: jobId }
+        });
+        editions = await queryLast10NewsletterEditionsForSending(supabase4);
+      } else {
+        this.logger.info("system", "Using normal mode - querying editions within lookback window", {
+          metadata: {
+            job_id: jobId,
+            lookback_hours: config.lookbackHours
+          }
+        });
+        editions = await queryNewsletterEditionsForSending(supabase4, config.lookbackHours);
+      }
+      this.logger.info("system", "Found newsletter editions for sending", {
+        metadata: {
+          job_id: jobId,
+          total_editions: editions.length,
+          mode: config.last10Mode ? "L10" : "NORMAL"
+        }
+      });
+      let successfulSends = 0;
+      let errorCount = 0;
+      const processingTimes = [];
+      for (const edition of editions) {
+        const editionStartTime = Date.now();
+        try {
+          await updateNewsletterEditionSentAt(supabase4, edition.id);
+          successfulSends++;
+          this.logger.info("system", "Successfully processed newsletter edition", {
+            metadata: {
+              job_id: jobId,
+              edition_id: edition.id,
+              user_email: edition.user_email,
+              processing_time_ms: Date.now() - editionStartTime
+            }
+          });
+        } catch (error) {
+          errorCount++;
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          this.logger.error("system", "Failed to process newsletter edition", {
+            metadata: {
+              job_id: jobId,
+              edition_id: edition.id,
+              user_email: edition.user_email,
+              error: errorMessage,
+              processing_time_ms: Date.now() - editionStartTime
+            }
+          });
+        }
+        processingTimes.push(Date.now() - editionStartTime);
+      }
+      const totalElapsedMs = Date.now() - startTime;
+      const averageProcessingTimeMs = processingTimes.length > 0 ? processingTimes.reduce((sum, time) => sum + time, 0) / processingTimes.length : 0;
+      const successRate = editions.length > 0 ? successfulSends / editions.length * 100 : 0;
+      const summary = {
+        totalCandidates: editions.length,
+        processedEditions: editions.length,
+        successfulSends,
+        errorCount,
+        noContentCount: 0,
+        // Not applicable for send worker
+        totalElapsedMs,
+        averageProcessingTimeMs,
+        successRate
+      };
+      this.logger.info("system", "Send Newsletter Worker completed", {
+        metadata: {
+          job_id: jobId,
+          ...summary,
+          success_rate: summary.successRate.toFixed(1)
+        }
+      });
+      return summary;
+    } catch (error) {
+      const elapsedMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      this.logger.error("system", "Send Newsletter Worker failed", {
+        metadata: {
+          job_id: jobId,
+          error: errorMessage,
+          elapsed_ms: elapsedMs,
+          stack_trace: error instanceof Error ? error.stack : void 0
+        }
+      });
+      throw error;
+    }
+  }
+};
+async function _main() {
+  const worker = new SendNewsletterWorker();
+  setupSignalHandlers3(worker);
+  setupUnhandledExceptionHandlers3();
+  try {
+    console.log("\u{1F680} Starting Send Newsletter Worker...");
+    const result = await worker.run();
+    console.log("\u2705 Send Newsletter Worker completed successfully", {
+      totalEditions: result.totalCandidates,
+      processedEditions: result.processedEditions,
+      successfulSends: result.successfulSends,
+      errorCount: result.errorCount,
+      noContentCount: result.noContentCount,
+      successRate: `${result.successRate.toFixed(1)}%`,
+      totalTime: `${(result.totalElapsedMs / 1e3).toFixed(1)}s`
+    });
+    process.exit(0);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("\u274C Send Newsletter Worker failed:", errorMessage);
+    if (error instanceof Error && error.stack) {
+      console.error("Stack trace:", error.stack);
+    }
+    let exitCode = 3;
+    if (errorMessage.includes("configuration") || errorMessage.includes("environment")) {
+      exitCode = 1;
+    } else if (errorMessage.includes("database") || errorMessage.includes("connection") || errorMessage.includes("email")) {
+      exitCode = 2;
+    }
+    process.exit(exitCode);
+  }
+}
+function setupSignalHandlers3(worker) {
+  const gracefulShutdown = (signal) => {
+    console.log(`
+\u{1F6D1} Received ${signal}, shutting down gracefully...`);
+    if (worker["partialResults"] && worker["partialResults"].length > 0) {
+      console.log(`\u{1F4CA} Partial results: ${worker["partialResults"].length} editions processed`);
+    }
+    setTimeout(() => {
+      process.exit(0);
+    }, 500);
+  };
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+}
+function setupUnhandledExceptionHandlers3() {
+  process.on("unhandledRejection", (reason) => {
+    console.error("Unhandled Promise rejection:", reason);
+    process.exit(3);
+  });
+  process.on("uncaughtException", (err) => {
+    console.error("Uncaught Exception:", err);
+    process.exit(3);
+  });
+}
+if (typeof __require !== "undefined" && __require.main === module) {
+  _main();
 }
 
 // services/backgroundJobs.ts
@@ -8836,6 +9212,103 @@ async function editionGeneratorJob() {
     }
   }
 }
+async function sendNewsletterJob() {
+  const startTime = Date.now();
+  const jobName = "send_newsletter";
+  const jobId = `send-${(/* @__PURE__ */ new Date()).toISOString()}`;
+  let recordsProcessed = 0;
+  log.info("scheduler", `Starting ${jobName} job`, {
+    job_id: jobId,
+    component: "background_jobs"
+  });
+  try {
+    const worker = new SendNewsletterWorker();
+    const result = await worker.run();
+    const elapsedMs = Date.now() - startTime;
+    recordsProcessed = result.processedEditions;
+    log.info("scheduler", `Send newsletter processed ${result.processedEditions} editions`, {
+      job_id: jobId,
+      total_candidates: result.totalCandidates,
+      processed_editions: result.processedEditions,
+      successful_sends: result.successfulSends,
+      error_count: result.errorCount,
+      no_content_count: result.noContentCount,
+      success_rate: result.successRate.toFixed(1),
+      duration_ms: elapsedMs,
+      avg_processing_time_ms: result.averageProcessingTimeMs
+    });
+    if (result.errorCount > 0) {
+      log.warn("scheduler", "Send newsletter completed with errors", {
+        job_id: jobId,
+        error_count: result.errorCount,
+        no_content_count: result.noContentCount,
+        success_rate: result.successRate.toFixed(1)
+      });
+    }
+    const execution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: result.successRate >= 50,
+      // Consider successful if at least 50% success rate
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs,
+      ...result.errorCount > 0 && {
+        error: `${result.errorCount} editions failed to send`
+      }
+    };
+    logJobExecution(execution);
+    emitJobMetric(jobName, result.successRate >= 50, recordsProcessed, elapsedMs);
+    if (result.successRate >= 50) {
+      log.info("scheduler", `Send newsletter completed successfully`, {
+        job_id: jobId,
+        component: "background_jobs",
+        duration_ms: elapsedMs,
+        editions_processed: recordsProcessed,
+        newsletters_sent: result.successfulSends,
+        success_rate: result.successRate.toFixed(1)
+      });
+    } else {
+      log.error("scheduler", `Send newsletter completed with issues`, {
+        job_id: jobId,
+        component: "background_jobs",
+        duration_ms: elapsedMs,
+        editions_processed: recordsProcessed,
+        error_count: result.errorCount,
+        success_rate: result.successRate.toFixed(1)
+      });
+    }
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const err = error;
+    log.error("scheduler", `Send newsletter job failed with exception`, {
+      job_id: jobId,
+      component: "background_jobs",
+      duration_ms: elapsedMs,
+      editions_processed: recordsProcessed,
+      error: err.message,
+      stack_trace: err?.stack,
+      job_name: jobName
+    });
+    const execution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: false,
+      error: errorMessage,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs
+    };
+    logJobExecution(execution);
+    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
+    if (process.env.NODE_ENV !== "test") {
+      throw error;
+    } else {
+      console.warn("SEND_NEWSLETTER_JOB: Swallowed exception during tests:", error);
+    }
+  }
+}
 function initializeBackgroundJobs() {
   console.log("BACKGROUND_JOBS: Initializing scheduled jobs");
   if (process.env.NODE_ENV === "test") {
@@ -8913,6 +9386,20 @@ function initializeBackgroundJobs() {
   } else {
     console.log("  - Edition worker: DISABLED");
   }
+  const sendNewsletterEnabled = process.env.SEND_WORKER_ENABLED !== "false";
+  const sendNewsletterCron = process.env.SEND_WORKER_CRON || "0 5 * * 1-5";
+  if (sendNewsletterEnabled) {
+    cron.schedule(sendNewsletterCron, async () => {
+      console.log("BACKGROUND_JOBS: Starting scheduled send newsletter job");
+      await sendNewsletterJob();
+    }, {
+      scheduled: true,
+      timezone: cronTimezone
+    });
+    console.log(`  - Newsletter send: ${sendNewsletterCron} ${cronTimezone}`);
+  } else {
+    console.log("  - Newsletter send: DISABLED");
+  }
   console.log("BACKGROUND_JOBS: Background jobs scheduled successfully");
 }
 async function runJob(jobName) {
@@ -8925,6 +9412,8 @@ async function runJob(jobName) {
     case "transcript":
     case "notes_worker":
     case "edition_generator":
+    case "send_newsletter":
+    case "newsletter_send":
       break;
     default:
       console.error(`BACKGROUND_JOBS: Unknown job name: ${jobName}`);
@@ -8948,6 +9437,10 @@ async function runJob(jobName) {
         break;
       case "edition_generator":
         await editionGeneratorJob();
+        break;
+      case "send_newsletter":
+      case "newsletter_send":
+        await sendNewsletterJob();
         break;
     }
     return true;
@@ -9176,6 +9669,7 @@ var routes_default = router6;
 
 // server.ts
 init_encryptedTokenHelpers();
+console.log("MAIN SERVER ENTRYPOINT: packages/server/server.ts loaded");
 var __filename = fileURLToPath(import.meta.url);
 var __dirname2 = path3.dirname(__filename);
 var envLocalPath = path3.join(__dirname2, "../../.env.local");
