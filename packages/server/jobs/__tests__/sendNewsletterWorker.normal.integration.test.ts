@@ -54,11 +54,11 @@ process.env.TEST_RECEIVER_EMAIL = 'test+receiver@example.com';
 process.env.SUPABASE_URL = 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 
-import { updateNewsletterEditionSentAt } from '../../lib/db/sendNewsletterQueries.js';
+import { updateNewsletterEditionSentAt as _updateNewsletterEditionSentAt } from '../../lib/db/sendNewsletterQueries.js';
 import * as emailClientModule from '../../lib/clients/emailClient.js';
 
 // Get reference to mocked createEmailClient
-const mockCreateEmailClient = emailClientModule.createEmailClient as any;
+const _mockCreateEmailClient = emailClientModule.createEmailClient as any;
 
 const supabaseUrl = process.env.SUPABASE_URL || 'http://localhost:54321';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
@@ -68,8 +68,8 @@ const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
 const TEST_EMAIL = 'test@example.com';
 
 // Mock setup for Resend SDK and EmailClient
-let mockEmailClient: any;
-let mockResend: any;
+let _mockEmailClient: any;
+let _mockResend: any;
 
 async function createTestEdition(id: string, sentAt: string | null = null, content?: string) {
   await supabase.from('newsletter_editions').insert({
@@ -157,7 +157,7 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
 
     // Reset email client mock to ensure it works in this test
     vi.clearAllMocks();
-    mockCreateEmailClient.mockImplementation(() => ({
+    _mockCreateEmailClient.mockImplementation(() => ({
       sendEmail: vi.fn().mockImplementation((params) => {
         console.log('Mock sendEmail called with params:', params);
         return Promise.resolve({ success: true, messageId: 'mock-message-id-123' });
@@ -261,10 +261,10 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
 
     // Task 5.4: Verify email parameters
     // Verify that EmailClient.sendEmail was called with correct parameters
-    expect(mockCreateEmailClient).toHaveBeenCalled();
+    expect(_mockCreateEmailClient).toHaveBeenCalled();
     
     // Get the mock client instance to check sendEmail calls
-    const mockClientInstance = mockCreateEmailClient.mock.results[0]?.value;
+    const mockClientInstance = _mockCreateEmailClient.mock.results[0]?.value;
     expect(mockClientInstance.sendEmail).toHaveBeenCalledTimes(2);
 
     // Verify email parameters for both calls
@@ -307,7 +307,7 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
 
     // Reset email client mock to simulate failure
     vi.clearAllMocks();
-    mockCreateEmailClient.mockImplementation(() => ({
+    _mockCreateEmailClient.mockImplementation(() => ({
       sendEmail: vi.fn().mockImplementation((params) => {
         console.log('Mock sendEmail called with params (will fail):', params);
         return Promise.resolve({ success: false, error: 'Mock email failure' });
@@ -353,10 +353,10 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
 
     // Task 5.4: Verify email parameters even for failed sends
     // Verify that EmailClient.sendEmail was called with correct parameters
-    expect(mockCreateEmailClient).toHaveBeenCalled();
+    expect(_mockCreateEmailClient).toHaveBeenCalled();
     
     // Get the mock client instance to check sendEmail calls
-    const mockClientInstance = mockCreateEmailClient.mock.results[0]?.value;
+    const mockClientInstance = _mockCreateEmailClient.mock.results[0]?.value;
     expect(mockClientInstance.sendEmail).toHaveBeenCalledTimes(2);
 
     // Verify email parameters for both calls (even though they failed)
@@ -406,7 +406,7 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
 
     // Reset email client mock
     vi.clearAllMocks();
-    mockCreateEmailClient.mockImplementation(() => ({
+    _mockCreateEmailClient.mockImplementation(() => ({
       sendEmail: vi.fn().mockImplementation((params) => {
         console.log('Mock sendEmail called with params:', params);
         return Promise.resolve({ success: true, messageId: 'mock-message-id-123' });
@@ -435,10 +435,10 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     expect(result.errorCount).toBe(0);
 
     // Verify that EmailClient.sendEmail was called
-    expect(mockCreateEmailClient).toHaveBeenCalled();
+    expect(_mockCreateEmailClient).toHaveBeenCalled();
     
     // Get the mock client instance to check sendEmail calls
-    const mockClientInstance = mockCreateEmailClient.mock.results[0]?.value;
+    const mockClientInstance = _mockCreateEmailClient.mock.results[0]?.value;
     expect(mockClientInstance.sendEmail).toHaveBeenCalledTimes(1);
 
     // Verify email parameters with placeholder injection

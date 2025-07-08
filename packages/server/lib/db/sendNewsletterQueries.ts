@@ -94,7 +94,7 @@ export async function updateNewsletterEditionSentAt(
   
   try {
     // Update the sent_at field
-    const { data: updateResult, error: updateError } = await supabase
+    const { data: _updateResult, error: updateError } = await supabase
       .from('newsletter_editions')
       .update({ sent_at: timestamp })
       .eq('id', editionId);

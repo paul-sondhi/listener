@@ -144,7 +144,7 @@ describe('sendNewsletterQueries', () => {
       await createTestNewsletterEdition('edition-1', TEST_USER_ID, 'generated', null);
 
       // Verify the row was inserted correctly
-      let { data: insertedEdition } = await supabase
+      const { data: _insertedEdition } = await supabase
         .from('newsletter_editions')
         .select('*')
         .eq('id', 'edition-1')
@@ -282,16 +282,38 @@ describe('sendNewsletterQueries', () => {
         deleted_at: null
       });
 
-      // Test using the shared client that the worker uses
-      const { getSharedSupabaseClient } = await import('../sharedSupabaseClient.js');
-      const workerSupabase = getSharedSupabaseClient();
+      // Set up environment variables for the shared client
+      const originalSupabaseUrl = process.env.SUPABASE_URL;
+      const originalSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       
-      const editions = await queryNewsletterEditionsForSending(workerSupabase, 24);
-      
-      console.log('Worker shared client found editions:', editions.map(e => ({ id: e.id, sent_at: e.sent_at, status: e.status })));
-      
-      expect(editions.length).toBeGreaterThan(0);
-      expect(editions.some(e => e.id === 'worker-test-1')).toBe(true);
+      try {
+        // Use the same test database configuration
+        process.env.SUPABASE_URL = supabaseUrl;
+        process.env.SUPABASE_SERVICE_ROLE_KEY = supabaseKey;
+        
+        // Test using the shared client that the worker uses
+        const { getSharedSupabaseClient } = await import('../sharedSupabaseClient.js');
+        const workerSupabase = getSharedSupabaseClient();
+        
+        const editions = await queryNewsletterEditionsForSending(workerSupabase, 24);
+        
+        console.log('Worker shared client found editions:', editions.map(e => ({ id: e.id, sent_at: e.sent_at, status: e.status })));
+        
+        expect(editions.length).toBeGreaterThan(0);
+        expect(editions.some(e => e.id === 'worker-test-1')).toBe(true);
+      } finally {
+        // Restore original environment variables
+        if (originalSupabaseUrl) {
+          process.env.SUPABASE_URL = originalSupabaseUrl;
+        } else {
+          delete process.env.SUPABASE_URL;
+        }
+        if (originalSupabaseKey) {
+          process.env.SUPABASE_SERVICE_ROLE_KEY = originalSupabaseKey;
+        } else {
+          delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+        }
+      }
     });
 
     it('should simulate worker flow: find editions and update sent_at', async () => {
@@ -310,35 +332,57 @@ describe('sendNewsletterQueries', () => {
         deleted_at: null
       });
 
-      // Simulate worker flow: find editions
-      const { getSharedSupabaseClient } = await import('../sharedSupabaseClient.js');
-      const workerSupabase = getSharedSupabaseClient();
+      // Set up environment variables for the shared client
+      const originalSupabaseUrl = process.env.SUPABASE_URL;
+      const originalSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       
-      const editions = await queryNewsletterEditionsForSending(workerSupabase, 24);
-      
-      console.log('Worker simulation found editions:', editions.map(e => ({ id: e.id, sent_at: e.sent_at, status: e.status })));
-      
-      expect(editions.length).toBeGreaterThan(0);
-      expect(editions.some(e => e.id === 'worker-sim-1')).toBe(true);
+      try {
+        // Use the same test database configuration
+        process.env.SUPABASE_URL = supabaseUrl;
+        process.env.SUPABASE_SERVICE_ROLE_KEY = supabaseKey;
+        
+        // Simulate worker flow: find editions
+        const { getSharedSupabaseClient } = await import('../sharedSupabaseClient.js');
+        const workerSupabase = getSharedSupabaseClient();
+        
+        const editions = await queryNewsletterEditionsForSending(workerSupabase, 24);
+        
+        console.log('Worker simulation found editions:', editions.map(e => ({ id: e.id, sent_at: e.sent_at, status: e.status })));
+        
+        expect(editions.length).toBeGreaterThan(0);
+        expect(editions.some(e => e.id === 'worker-sim-1')).toBe(true);
 
-      // Simulate worker flow: update sent_at for each edition
-      for (const edition of editions) {
-        if (edition.id === 'worker-sim-1') {
-          const updatedEdition = await updateNewsletterEditionSentAt(workerSupabase, edition.id);
-          console.log('Worker simulation updated edition:', { id: updatedEdition.id, sent_at: updatedEdition.sent_at });
-          expect(updatedEdition.sent_at).not.toBeNull();
+        // Simulate worker flow: update sent_at for each edition
+        for (const edition of editions) {
+          if (edition.id === 'worker-sim-1') {
+            const updatedEdition = await updateNewsletterEditionSentAt(workerSupabase, edition.id);
+            console.log('Worker simulation updated edition:', { id: updatedEdition.id, sent_at: updatedEdition.sent_at });
+            expect(updatedEdition.sent_at).not.toBeNull();
+          }
+        }
+
+        // Verify the update worked
+        const { data: finalEdition } = await workerSupabase
+          .from('newsletter_editions')
+          .select('*')
+          .eq('id', 'worker-sim-1')
+          .single();
+        
+        console.log('Final edition after worker simulation:', { id: finalEdition?.id, sent_at: finalEdition?.sent_at });
+        expect(finalEdition?.sent_at).not.toBeNull();
+      } finally {
+        // Restore original environment variables
+        if (originalSupabaseUrl) {
+          process.env.SUPABASE_URL = originalSupabaseUrl;
+        } else {
+          delete process.env.SUPABASE_URL;
+        }
+        if (originalSupabaseKey) {
+          process.env.SUPABASE_SERVICE_ROLE_KEY = originalSupabaseKey;
+        } else {
+          delete process.env.SUPABASE_SERVICE_ROLE_KEY;
         }
       }
-
-      // Verify the update worked
-      const { data: finalEdition } = await workerSupabase
-        .from('newsletter_editions')
-        .select('*')
-        .eq('id', 'worker-sim-1')
-        .single();
-      
-      console.log('Final edition after worker simulation:', { id: finalEdition?.id, sent_at: finalEdition?.sent_at });
-      expect(finalEdition?.sent_at).not.toBeNull();
     });
   });
 }); 

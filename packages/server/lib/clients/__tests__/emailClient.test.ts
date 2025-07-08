@@ -24,7 +24,7 @@ vi.mock('../../logger.js');
 
 // Import mocked modules and EmailClient after mocks are set up
 import * as logger from '../../logger.js';
-import { EmailClient, createEmailClient, type SendEmailParams, type SendEmailResult } from '../emailClient.js';
+import { EmailClient, createEmailClient, type SendEmailParams, type _SendEmailResult } from '../emailClient.js';
 
 // Mock logger
 const mockLogger = {

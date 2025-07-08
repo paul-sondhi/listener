@@ -52,11 +52,11 @@ process.env.RESEND_API_KEY = 're_test_key_123';
 process.env.SEND_FROM_EMAIL = 'test@example.com';
 process.env.TEST_RECEIVER_EMAIL = 'test+receiver@example.com';
 
-import { updateNewsletterEditionSentAt } from '../../lib/db/sendNewsletterQueries.js';
+import { updateNewsletterEditionSentAt as _updateNewsletterEditionSentAt } from '../../lib/db/sendNewsletterQueries.js';
 import * as emailClientModule from '../../lib/clients/emailClient.js';
 
 // Get reference to mocked createEmailClient
-const mockCreateEmailClient = emailClientModule.createEmailClient as any;
+const _mockCreateEmailClient = emailClientModule.createEmailClient as any;
 
 const supabaseUrl = process.env.SUPABASE_URL || 'http://localhost:54321';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
@@ -66,8 +66,8 @@ const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
 const TEST_EMAIL = 'test@example.com';
 
 // Mock setup for Resend SDK and EmailClient
-let mockEmailClient: any;
-let mockResend: any;
+let _mockEmailClient: any;
+let _mockResend: any;
 
 async function createTestEdition(id: string, sentAt: string | null = null) {
   await supabase.from('newsletter_editions').insert({
