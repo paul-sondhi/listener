@@ -71,14 +71,14 @@ const TEST_EMAIL = 'test@example.com';
 let mockEmailClient: any;
 let mockResend: any;
 
-async function createTestEdition(id: string, sentAt: string | null = null) {
+async function createTestEdition(id: string, sentAt: string | null = null, content?: string) {
   await supabase.from('newsletter_editions').insert({
     id,
     user_id: TEST_USER_ID,
     edition_date: '2025-01-27',
     status: 'generated',
     user_email: TEST_EMAIL,
-    content: 'Integration test content',
+    content: content || 'Integration test content',
     model: 'gemini-pro',
     error_message: null,
     sent_at: sentAt,
@@ -259,9 +259,43 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     expect(result.successfulSends).toBe(2); // edition-1 and edition-2
     expect(result.errorCount).toBe(0);
 
-    // TODO: Add email sending assertions in sub-task 5.4
-    // - Verify that EmailClient.sendEmail was called with correct parameters
-    // - Verify email parameters: from address, to address, subject line, HTML body, headers
+    // Task 5.4: Verify email parameters
+    // Verify that EmailClient.sendEmail was called with correct parameters
+    expect(mockCreateEmailClient).toHaveBeenCalled();
+    
+    // Get the mock client instance to check sendEmail calls
+    const mockClientInstance = mockCreateEmailClient.mock.results[0]?.value;
+    expect(mockClientInstance.sendEmail).toHaveBeenCalledTimes(2);
+
+    // Verify email parameters for both calls
+    const sendEmailCalls = mockClientInstance.sendEmail.mock.calls;
+    expect(sendEmailCalls).toHaveLength(2);
+    
+    // Check first email (edition-1)
+    const firstCall = sendEmailCalls[0];
+    const [firstParams] = firstCall;
+    console.log('First email params:', JSON.stringify(firstParams, null, 2));
+    expect(firstParams.to).toBe('test@example.com');
+    expect(firstParams.subject).toMatch(/^Listener Recap: .+$/);
+    expect(firstParams.html).toContain('Integration test content');
+    // Note: Placeholders are not being injected, so we'll check for the original content
+    // expect(firstParams.html).toContain('[USER_EMAIL]');
+    // expect(firstParams.html).toContain('[EDITION_DATE]');
+    // expect(firstParams.html).toContain('[EPISODE_COUNT]');
+    // expect(firstParams.html).toContain('[FOOTER_TEXT]');
+    
+    // Check second email (edition-2)
+    const secondCall = sendEmailCalls[1];
+    const [secondParams] = secondCall;
+    console.log('Second email params:', JSON.stringify(secondParams, null, 2));
+    expect(secondParams.to).toBe('test@example.com');
+    expect(secondParams.subject).toMatch(/^Listener Recap: .+$/);
+    expect(secondParams.html).toContain('Integration test content');
+    // Note: Placeholders are not being injected, so we'll check for the original content
+    // expect(secondParams.html).toContain('[USER_EMAIL]');
+    // expect(secondParams.html).toContain('[EDITION_DATE]');
+    // expect(secondParams.html).toContain('[EPISODE_COUNT]');
+    // expect(secondParams.html).toContain('[FOOTER_TEXT]');
   });
 
   it('should NOT update sent_at when email sending fails in normal mode', async () => {
@@ -316,5 +350,116 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     // Verify that the worker reports failed sends
     expect(result.successfulSends).toBe(0);
     expect(result.errorCount).toBe(2); // Both editions failed to send
+
+    // Task 5.4: Verify email parameters even for failed sends
+    // Verify that EmailClient.sendEmail was called with correct parameters
+    expect(mockCreateEmailClient).toHaveBeenCalled();
+    
+    // Get the mock client instance to check sendEmail calls
+    const mockClientInstance = mockCreateEmailClient.mock.results[0]?.value;
+    expect(mockClientInstance.sendEmail).toHaveBeenCalledTimes(2);
+
+    // Verify email parameters for both calls (even though they failed)
+    const sendEmailCalls = mockClientInstance.sendEmail.mock.calls;
+    expect(sendEmailCalls).toHaveLength(2);
+    
+    // Check first email (edition-fail-1)
+    const firstCall = sendEmailCalls[0];
+    const [firstParams] = firstCall;
+    console.log('First failed email params:', JSON.stringify(firstParams, null, 2));
+    expect(firstParams.to).toBe('test@example.com');
+    expect(firstParams.subject).toMatch(/^Listener Recap: .+$/);
+    expect(firstParams.html).toContain('Integration test content');
+    // Note: Placeholders are not being injected, so we'll check for the original content
+    // expect(firstParams.html).toContain('[USER_EMAIL]');
+    // expect(firstParams.html).toContain('[EDITION_DATE]');
+    // expect(firstParams.html).toContain('[EPISODE_COUNT]');
+    // expect(firstParams.html).toContain('[FOOTER_TEXT]');
+    
+    // Check second email (edition-fail-2)
+    const secondCall = sendEmailCalls[1];
+    const [secondParams] = secondCall;
+    console.log('Second failed email params:', JSON.stringify(secondParams, null, 2));
+    expect(secondParams.to).toBe('test@example.com');
+    expect(secondParams.subject).toMatch(/^Listener Recap: .+$/);
+    expect(secondParams.html).toContain('Integration test content');
+    // Note: Placeholders are not being injected, so we'll check for the original content
+    // expect(secondParams.html).toContain('[USER_EMAIL]');
+    // expect(secondParams.html).toContain('[EDITION_DATE]');
+    // expect(secondParams.html).toContain('[EDITION_DATE]');
+    // expect(secondParams.html).toContain('[EPISODE_COUNT]');
+    //     expect(secondParams.html).toContain('[FOOTER_TEXT]');
   });
-}); 
+
+  it('should inject placeholders correctly when content contains placeholders', async () => {
+    // Create test edition with placeholders in content
+    const contentWithPlaceholders = `
+      <h1>Your Daily Listener Recap</h1>
+      <p>Hello [USER_EMAIL],</p>
+      <p>Here's your recap for [EDITION_DATE] with [EPISODE_COUNT] episodes.</p>
+      <div>[FOOTER_TEXT]</div>
+    `;
+    await createTestEdition('edition-placeholders', null, contentWithPlaceholders);
+
+    // Wait for DB consistency
+    await new Promise(res => setTimeout(res, 200));
+
+    // Reset email client mock
+    vi.clearAllMocks();
+    mockCreateEmailClient.mockImplementation(() => ({
+      sendEmail: vi.fn().mockImplementation((params) => {
+        console.log('Mock sendEmail called with params:', params);
+        return Promise.resolve({ success: true, messageId: 'mock-message-id-123' });
+      }),
+      validateConfig: vi.fn().mockReturnValue(true)
+    }));
+
+    // Patch config to normal mode
+    mockConfigFunction = () => ({
+      enabled: true,
+      cronSchedule: '0 5 * * 1-5',
+      lookbackHours: 24,
+      last10Mode: false,
+      resendApiKey: 're_test_key_123',
+      sendFromEmail: 'test@example.com',
+      testReceiverEmail: 'test+receiver@example.com'
+    });
+
+    // Import worker after config mock
+    const { SendNewsletterWorker } = await import('../sendNewsletterWorker.js');
+    const worker = new SendNewsletterWorker();
+    const result = await worker.run();
+
+    // Verify that the worker processed the edition
+    expect(result.successfulSends).toBe(1);
+    expect(result.errorCount).toBe(0);
+
+    // Verify that EmailClient.sendEmail was called
+    expect(mockCreateEmailClient).toHaveBeenCalled();
+    
+    // Get the mock client instance to check sendEmail calls
+    const mockClientInstance = mockCreateEmailClient.mock.results[0]?.value;
+    expect(mockClientInstance.sendEmail).toHaveBeenCalledTimes(1);
+
+    // Verify email parameters with placeholder injection
+    const sendEmailCalls = mockClientInstance.sendEmail.mock.calls;
+    const [params] = sendEmailCalls[0];
+    
+    console.log('Email params with placeholders:', JSON.stringify(params, null, 2));
+    
+    expect(params.to).toBe('test@example.com');
+    expect(params.subject).toMatch(/^Listener Recap: .+$/);
+    
+    // Verify that placeholders were replaced
+    expect(params.html).toContain('test@example.com'); // [USER_EMAIL] replaced
+    expect(params.html).toContain('2025-01-27'); // [EDITION_DATE] replaced
+    expect(params.html).toContain('N/A'); // [EPISODE_COUNT] replaced
+    expect(params.html).toContain('You are receiving this email as part of your Listener subscription'); // [FOOTER_TEXT] replaced
+    
+    // Verify that original placeholders are NOT in the content
+    expect(params.html).not.toContain('[USER_EMAIL]');
+    expect(params.html).not.toContain('[EDITION_DATE]');
+    expect(params.html).not.toContain('[EPISODE_COUNT]');
+    expect(params.html).not.toContain('[FOOTER_TEXT]');
+  });
+});  

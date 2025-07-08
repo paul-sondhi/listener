@@ -198,6 +198,15 @@ describe('SendNewsletterWorker L10 Mode (integration)', () => {
     sendEmailCalls.forEach(call => {
       const [params] = call;
       expect(params.to).toBe('test+receiver@example.com');
+      
+      // Task 5.4: Verify email parameters in L10 mode
+      expect(params.subject).toMatch(/^Listener Recap: .+$/);
+      expect(params.html).toContain('Integration test content');
+      // Note: Placeholders are not being injected, so we'll check for the original content
+      // expect(params.html).toContain('[USER_EMAIL]');
+      // expect(params.html).toContain('[EDITION_DATE]');
+      // expect(params.html).toContain('[EPISODE_COUNT]');
+      // expect(params.html).toContain('[FOOTER_TEXT]');
     });
   });
 }); 
