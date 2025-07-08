@@ -65,6 +65,11 @@ A podcast transcription service that integrates with Spotify.
    TADDY_API_KEY=your_taddy_api_key
    GEMINI_API_KEY=your_gemini_api_key      # For episode notes generation
    
+   # Email Service (Resend)
+   RESEND_API_KEY=your_resend_api_key      # For sending newsletter emails
+   SEND_FROM_EMAIL=your_sender_email       # Email address to send from
+   TEST_RECEIVER_EMAIL=test@example.com    # Test email for L10 mode
+   
    # Security
    JWT_SECRET=your_jwt_secret
    TOKEN_ENC_KEY=your_32_char_encryption_key
@@ -79,6 +84,12 @@ A podcast transcription service that integrates with Spotify.
    TRANSCRIPT_ADVISORY_LOCK=true         # Prevent overlapping runs
    # Re-check toggle (strict boolean): "true" => re-submit last 10, "false" => normal mode
    TRANSCRIPT_WORKER_L10D=false          # Pause worker entirely with TRANSCRIPT_WORKER_ENABLED=false
+   
+   # Newsletter Worker (Optional - defaults provided)
+   SEND_WORKER_ENABLED=true              # Enable nightly newsletter sending
+   SEND_WORKER_CRON=0 5 * * 1-5          # Run at 5 AM Mon-Fri
+   SEND_LOOKBACK=24                      # Hours to look back for editions
+   SEND_WORKER_L10=false                 # Testing mode (send to test email)
    ```
 
 3. **Verify setup:**
@@ -341,11 +352,18 @@ import { runJob } from './services/backgroundJobs.js';
 await runJob('transcript_worker');
 "
 
+# Manually trigger newsletter worker
+cd packages/server
+npx tsx -e "
+import { runJob } from './services/backgroundJobs.js';
+await runJob('send_newsletter');
+"
+
 # Check what jobs are available
 cd packages/server
 npx tsx -e "
 import { runJob } from './services/backgroundJobs.js';
-console.log('Available jobs: episode_sync, daily_subscription_refresh, transcript_worker');
+console.log('Available jobs: episode_sync, daily_subscription_refresh, transcript_worker, send_newsletter');
 "
 ```
 
@@ -419,6 +437,46 @@ try {
 5. **Cost Tracking & Provenance** (metadata storage)
 
 **Testing**: Comprehensive unit tests with 7 test cases covering happy path and edge cases.
+
+### Send Newsletter Worker
+
+The `SendNewsletterWorker` sends daily email newsletters to users containing synthesized content from their podcast episodes. It processes newsletter editions and sends them via email using the Resend API.
+
+**Location**: `packages/server/jobs/sendNewsletterWorker.ts`
+
+**Features**:
+- **Sequential Email Sending**: Processes editions one at a time for reliability
+- **Normal Mode**: Sends to real users and updates `sent_at` timestamp
+- **L10 Test Mode**: Sends to test email without updating `sent_at` for testing
+- **Subject Line Generation**: Creates formatted subjects like "Listener Recap: July 8, 2025"
+- **Placeholder Injection**: Injects user email, date, episode count, and footer text
+- **Error Handling**: Skips editions with empty content and logs warnings
+- **Structured Logging**: Comprehensive logging with job IDs and metadata
+
+**Environment Configuration**:
+```bash
+# Email Service (Required)
+RESEND_API_KEY=your_resend_api_key      # Resend API key
+SEND_FROM_EMAIL=your_sender_email       # Email address to send from
+TEST_RECEIVER_EMAIL=test@example.com    # Test email for L10 mode
+
+# Worker Configuration (Optional - defaults provided)
+SEND_WORKER_ENABLED=true                # Enable nightly newsletter sending
+SEND_WORKER_CRON=0 5 * * 1-5           # Run at 5 AM Mon-Fri
+SEND_LOOKBACK=24                        # Hours to look back for editions
+SEND_WORKER_L10=false                   # Testing mode (send to test email)
+```
+
+**Usage**:
+```bash
+# Normal mode - send to real users
+npx tsx jobs/sendNewsletterWorker.ts
+
+# Testing mode - send last 10 editions to test email
+SEND_WORKER_L10=true npx tsx jobs/sendNewsletterWorker.ts
+```
+
+**Testing**: Comprehensive integration tests covering normal mode, L10 mode, email parameter verification, and error handling scenarios.
 
 ### Newsletter Editions Helper
 
