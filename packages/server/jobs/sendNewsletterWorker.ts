@@ -31,8 +31,13 @@
 
 import { createLogger, Logger } from '../lib/logger.js';
 import { getSendNewsletterWorkerConfig, validateDependencies } from '../config/sendNewsletterWorkerConfig.js';
-// import { getSharedSupabaseClient } from '../lib/db/sharedSupabaseClient.js';
-// import { sendNewsletterWorkflow } from '../lib/utils/sendNewsletterWorkflow.js';
+import { getSharedSupabaseClient } from '../lib/db/sharedSupabaseClient.js';
+import { 
+  queryNewsletterEditionsForSending,
+  queryLast10NewsletterEditionsForSending,
+  updateNewsletterEditionSentAt,
+  type NewsletterEditionWithUser
+} from '../lib/db/sendNewsletterQueries.js';
 import '../lib/debugFilter.js';
 
 // Define interfaces for type safety
@@ -86,25 +91,93 @@ export class SendNewsletterWorker {
     });
 
     const startTime = Date.now();
-    // const supabase = getSharedSupabaseClient();
+    const supabase = getSharedSupabaseClient();
 
     try {
-      // 2. Execute the complete workflow (placeholder for now)
-      // const workflowResult = await sendNewsletterWorkflow(supabase, config);
+      // 2. Query newsletter editions that need to be sent
+      let editions: NewsletterEditionWithUser[];
+      
+      if (config.last10Mode) {
+        this.logger.info('system', 'Using L10 mode - querying last 10 newsletter editions', {
+          metadata: { job_id: jobId }
+        });
+        editions = await queryLast10NewsletterEditionsForSending(supabase);
+      } else {
+        this.logger.info('system', 'Using normal mode - querying editions within lookback window', {
+          metadata: { 
+            job_id: jobId,
+            lookback_hours: config.lookbackHours
+          }
+        });
+        editions = await queryNewsletterEditionsForSending(supabase, config.lookbackHours);
+      }
 
-      // 3. Create summary (placeholder for now)
+      this.logger.info('system', 'Found newsletter editions for sending', {
+        metadata: {
+          job_id: jobId,
+          total_editions: editions.length,
+          mode: config.last10Mode ? 'L10' : 'NORMAL'
+        }
+      });
+
+      // 3. Process each edition (placeholder for email sending logic)
+      let successfulSends = 0;
+      let errorCount = 0;
+      const processingTimes: number[] = [];
+
+      for (const edition of editions) {
+        const editionStartTime = Date.now();
+        
+        try {
+          // TODO: Implement actual email sending logic here
+          // For now, just update the sent_at timestamp
+          await updateNewsletterEditionSentAt(supabase, edition.id);
+          
+          successfulSends++;
+          this.logger.info('system', 'Successfully processed newsletter edition', {
+            metadata: {
+              job_id: jobId,
+              edition_id: edition.id,
+              user_email: edition.user_email,
+              processing_time_ms: Date.now() - editionStartTime
+            }
+          });
+        } catch (error) {
+          errorCount++;
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error('system', 'Failed to process newsletter edition', {
+            metadata: {
+              job_id: jobId,
+              edition_id: edition.id,
+              user_email: edition.user_email,
+              error: errorMessage,
+              processing_time_ms: Date.now() - editionStartTime
+            }
+          });
+        }
+
+        processingTimes.push(Date.now() - editionStartTime);
+      }
+
+      // 4. Create summary
+      const totalElapsedMs = Date.now() - startTime;
+      const averageProcessingTimeMs = processingTimes.length > 0 
+        ? processingTimes.reduce((sum, time) => sum + time, 0) / processingTimes.length 
+        : 0;
+      const successRate = editions.length > 0 ? (successfulSends / editions.length) * 100 : 0;
+
       const summary: SendWorkerSummary = {
-        totalCandidates: 0,
-        processedEditions: 0,
-        successfulSends: 0,
-        errorCount: 0,
-        noContentCount: 0,
-        totalElapsedMs: Date.now() - startTime,
-        averageProcessingTimeMs: 0,
-        successRate: 0
+        totalCandidates: editions.length,
+        processedEditions: editions.length,
+        successfulSends,
+        errorCount,
+        noContentCount: 0, // Not applicable for send worker
+        totalElapsedMs,
+        averageProcessingTimeMs,
+        successRate
       };
 
-      // 4. Final summary log
+      // 5. Final summary log
       this.logger.info('system', 'Send Newsletter Worker completed', {
         metadata: {
           job_id: jobId,
