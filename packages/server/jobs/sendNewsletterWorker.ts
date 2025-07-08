@@ -39,6 +39,9 @@ import {
   type NewsletterEditionWithUser
 } from '../lib/db/sendNewsletterQueries.js';
 import '../lib/debugFilter.js';
+import { createEmailClient } from '../lib/clients/emailClient.js';
+import { buildSubject } from '../lib/utils/subjectBuilder.js';
+import { injectEditionPlaceholders } from '../lib/utils/injectEditionPlaceholders.js';
 
 // Define interfaces for type safety
 interface SendWorkerSummary {
@@ -78,6 +81,9 @@ export class SendNewsletterWorker {
     // 1. Load configuration
     const config = getSendNewsletterWorkerConfig();
     validateDependencies(config);
+
+    // Initialize EmailClient
+    const emailClient = createEmailClient(config.resendApiKey, config.sendFromEmail);
 
     this.logger.info('system', 'Send Newsletter Worker starting', {
       metadata: {
@@ -123,25 +129,72 @@ export class SendNewsletterWorker {
       // 3. Process each edition (placeholder for email sending logic)
       let successfulSends = 0;
       let errorCount = 0;
+      let noContentCount = 0;
       const processingTimes: number[] = [];
 
       for (const edition of editions) {
         const editionStartTime = Date.now();
-        
         try {
-          // TODO: Implement actual email sending logic here
-          // For now, just update the sent_at timestamp
-          await updateNewsletterEditionSentAt(supabase, edition.id);
-          
-          successfulSends++;
-          this.logger.info('system', 'Successfully processed newsletter edition', {
-            metadata: {
-              job_id: jobId,
-              edition_id: edition.id,
-              user_email: edition.user_email,
-              processing_time_ms: Date.now() - editionStartTime
+          // Skip if content is empty or null
+          if (!edition.content || edition.content.trim().length === 0) {
+            noContentCount++;
+            this.logger.warn('email', 'Skipping edition with empty or null content', {
+              metadata: {
+                job_id: jobId,
+                edition_id: edition.id,
+                user_email: edition.user_email
+              }
+            });
+            continue;
+          }
+
+          // Build subject line
+          const subject = buildSubject(edition.edition_date);
+
+          // Prepare placeholder replacements
+          const replacements = {
+            USER_EMAIL: edition.user_email,
+            EDITION_DATE: edition.edition_date,
+            EPISODE_COUNT: 'N/A', // TODO: Replace with actual episode count if available
+            FOOTER_TEXT: 'You are receiving this email as part of your Listener subscription. (Unsubscribe link coming soon.)'
+          };
+
+          // Inject placeholders into HTML
+          const html = injectEditionPlaceholders(edition.content, replacements);
+
+          // Determine recipient
+          const to = config.last10Mode ? config.testReceiverEmail : edition.user_email;
+
+          // Send email
+          const sendResult = await emailClient.sendEmail({ to, subject, html }, jobId);
+
+          if (sendResult.success) {
+            successfulSends++;
+            this.logger.info('email', 'Email sent successfully', {
+              metadata: {
+                job_id: jobId,
+                edition_id: edition.id,
+                to_email: to,
+                subject: subject,
+                message_id: sendResult.messageId
+              }
+            });
+            // Only update sent_at in normal mode
+            if (!config.last10Mode) {
+              await updateNewsletterEditionSentAt(supabase, edition.id);
             }
-          });
+          } else {
+            errorCount++;
+            this.logger.error('email', 'Failed to send email', {
+              metadata: {
+                job_id: jobId,
+                edition_id: edition.id,
+                to_email: to,
+                subject: subject,
+                error: sendResult.error
+              }
+            });
+          }
         } catch (error) {
           errorCount++;
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -155,7 +208,6 @@ export class SendNewsletterWorker {
             }
           });
         }
-
         processingTimes.push(Date.now() - editionStartTime);
       }
 
@@ -171,7 +223,7 @@ export class SendNewsletterWorker {
         processedEditions: editions.length,
         successfulSends,
         errorCount,
-        noContentCount: 0, // Not applicable for send worker
+        noContentCount,
         totalElapsedMs,
         averageProcessingTimeMs,
         successRate
