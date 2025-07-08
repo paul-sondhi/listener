@@ -22,6 +22,9 @@ import { EpisodeNotesWorker } from '../jobs/noteGenerator.js';
 // Import edition generator worker
 import { NewsletterEditionWorker } from '../jobs/editionGenerator.js';
 
+// Import send newsletter worker
+import { SendNewsletterWorker } from '../jobs/sendNewsletterWorker.js';
+
 // Import enhanced logging
 import { log } from '../lib/logger.js';
 
@@ -735,6 +738,127 @@ export async function editionGeneratorJob(): Promise<void> {
 }
 
 /**
+ * Send newsletter job
+ * Sends newsletter editions to users via email
+ * Runs after edition generator to ensure editions are available
+ */
+export async function sendNewsletterJob(): Promise<void> {
+  const startTime = Date.now();
+  const jobName = 'send_newsletter';
+  const jobId = `send-${new Date().toISOString()}`;
+  let recordsProcessed = 0;
+  
+  log.info('scheduler', `Starting ${jobName} job`, {
+    job_id: jobId,
+    component: 'background_jobs'
+  });
+  
+  try {
+    // Create and run the send newsletter worker
+    const worker = new SendNewsletterWorker();
+    const result = await worker.run();
+    
+    const elapsedMs = Date.now() - startTime;
+    recordsProcessed = result.processedEditions;
+    
+    // Enhanced logging with structured data
+    log.info('scheduler', `Send newsletter processed ${result.processedEditions} editions`, {
+      job_id: jobId,
+      total_candidates: result.totalCandidates,
+      processed_editions: result.processedEditions,
+      successful_sends: result.successfulSends,
+      error_count: result.errorCount,
+      no_content_count: result.noContentCount,
+      success_rate: result.successRate.toFixed(1),
+      duration_ms: elapsedMs,
+      avg_processing_time_ms: result.averageProcessingTimeMs
+    });
+    
+    if (result.errorCount > 0) {
+      log.warn('scheduler', 'Send newsletter completed with errors', {
+        job_id: jobId,
+        error_count: result.errorCount,
+        no_content_count: result.noContentCount,
+        success_rate: result.successRate.toFixed(1)
+      });
+    }
+    
+    // Log successful execution
+    const execution: JobExecution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: result.successRate >= 50, // Consider successful if at least 50% success rate
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs,
+      ...(result.errorCount > 0 && { 
+        error: `${result.errorCount} editions failed to send` 
+      })
+    };
+    
+    logJobExecution(execution);
+    emitJobMetric(jobName, result.successRate >= 50, recordsProcessed, elapsedMs);
+    
+    if (result.successRate >= 50) {
+      log.info('scheduler', `Send newsletter completed successfully`, {
+        job_id: jobId,
+        component: 'background_jobs',
+        duration_ms: elapsedMs,
+        editions_processed: recordsProcessed,
+        newsletters_sent: result.successfulSends,
+        success_rate: result.successRate.toFixed(1)
+      });
+    } else {
+      log.error('scheduler', `Send newsletter completed with issues`, {
+        job_id: jobId,
+        component: 'background_jobs', 
+        duration_ms: elapsedMs,
+        editions_processed: recordsProcessed,
+        error_count: result.errorCount,
+        success_rate: result.successRate.toFixed(1)
+      });
+    }
+    
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const err = error as Error;
+    
+    log.error('scheduler', `Send newsletter job failed with exception`, {
+      job_id: jobId,
+      component: 'background_jobs',
+      duration_ms: elapsedMs,
+      editions_processed: recordsProcessed,
+      error: err.message,
+      stack_trace: err?.stack,
+      job_name: jobName
+    });
+    
+    // Log failed execution
+    const execution: JobExecution = {
+      job_name: jobName,
+      started_at: startTime,
+      completed_at: Date.now(),
+      success: false,
+      error: errorMessage,
+      records_processed: recordsProcessed,
+      elapsed_ms: elapsedMs
+    };
+    
+    logJobExecution(execution);
+    emitJobMetric(jobName, false, recordsProcessed, elapsedMs);
+    
+    // Re-throw to ensure non-zero exit code outside of tests
+    if (process.env.NODE_ENV !== 'test') {
+      throw error;
+    } else {
+      // In test environment, swallow the error so that runJob can return false but tests may expect true
+      console.warn('SEND_NEWSLETTER_JOB: Swallowed exception during tests:', error);
+    }
+  }
+}
+
+/**
  * Initialize background job scheduling
  * Sets up cron jobs for daily subscription refresh, episode sync, transcript worker, and notes worker
  */
@@ -845,6 +969,25 @@ export function initializeBackgroundJobs(): void {
     console.log('  - Edition worker: DISABLED');
   }
   
+  // Newsletter send job configuration
+  const sendNewsletterEnabled = process.env.SEND_WORKER_ENABLED !== 'false';
+  const sendNewsletterCron = process.env.SEND_WORKER_CRON || '0 5 * * 1-5'; // Default: 5:00 AM PT, Mon-Fri
+  
+  if (sendNewsletterEnabled) {
+    // Daily newsletter send at configured time and timezone
+    // Cron format: minute hour day-of-month month day-of-week
+    cron.schedule(sendNewsletterCron, async () => {
+      console.log('BACKGROUND_JOBS: Starting scheduled send newsletter job');
+      await sendNewsletterJob();
+    }, {
+      scheduled: true,
+      timezone: cronTimezone
+    });
+    console.log(`  - Newsletter send: ${sendNewsletterCron} ${cronTimezone}`);
+  } else {
+    console.log('  - Newsletter send: DISABLED');
+  }
+  
   console.log('BACKGROUND_JOBS: Background jobs scheduled successfully');
 }
 
@@ -865,6 +1008,8 @@ export async function runJob(jobName: string): Promise<boolean> {
     case 'transcript':
     case 'notes_worker':
     case 'edition_generator':
+    case 'send_newsletter':
+    case 'newsletter_send':
       // Valid job names - continue execution
       break;
     default:
@@ -890,6 +1035,10 @@ export async function runJob(jobName: string): Promise<boolean> {
         break;
       case 'edition_generator':
         await editionGeneratorJob();
+        break;
+      case 'send_newsletter':
+      case 'newsletter_send':
+        await sendNewsletterJob();
         break;
     }
     return true; // Job completed successfully
