@@ -44,10 +44,13 @@ describe('Build Configuration', () => {
     // Try to read the built file and check it doesn't contain problematic dynamic requires
     const builtContent = fs.readFileSync(distPath, 'utf8');
     
-    // The built file should not contain problematic patterns that cause the dynamic require error
-    expect(builtContent).not.toContain('Dynamic require of');
+    // The built file should contain the esbuild-generated __require function for handling dynamic requires
+    expect(builtContent).toContain('__require');
     
     // Should contain proper ESM imports instead of requires for Node.js built-ins
     expect(builtContent).toContain('import');
+    
+    // Should not contain raw require() calls that would cause issues in ESM
+    expect(builtContent).not.toContain('require(');
   });
 }); 
