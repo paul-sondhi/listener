@@ -7,8 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   queryNewsletterEditionsForSending,
   queryLast10NewsletterEditionsForSending,
-  updateNewsletterEditionSentAt,
-  type NewsletterEditionWithUser
+  updateNewsletterEditionSentAt
 } from '../sendNewsletterQueries.js';
 
 // Use environment variables for local Supabase connection

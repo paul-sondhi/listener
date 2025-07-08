@@ -42,17 +42,17 @@ const defaultConfig: SendNewsletterWorkerConfig = {
   testReceiverEmail: 'paulsondhi1@gmail.com'
 };
 
-// Mock workflow result (placeholder for now)
-const mockWorkflowResult = {
-  totalCandidates: 5,
-  processedEditions: 4,
-  successfulSends: 3,
-  errorCount: 1,
-  noContentCount: 0,
-  totalElapsedMs: 5000,
-  averageProcessingTimeMs: 1250,
-  successRate: 75.0
-};
+// Mock workflow result (placeholder for now) - commented out until needed
+// const mockWorkflowResult = {
+//   totalCandidates: 5,
+//   processedEditions: 4,
+//   successfulSends: 3,
+//   errorCount: 1,
+//   noContentCount: 0,
+//   totalElapsedMs: 5000,
+//   averageProcessingTimeMs: 1250,
+//   successRate: 75.0
+// };
 
 describe('SendNewsletterWorker', () => {
   let worker: SendNewsletterWorker;

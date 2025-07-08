@@ -62,7 +62,7 @@ describe('SendNewsletterWorker (integration)', () => {
     await new Promise(res => setTimeout(res, 200));
 
     // Log editions before
-    let { data: beforeEditions } = await supabase
+    const { data: beforeEditions } = await supabase
       .from('newsletter_editions')
       .select('*')
       .eq('user_id', TEST_USER_ID);
@@ -96,7 +96,7 @@ describe('SendNewsletterWorker (integration)', () => {
     console.error('Worker result:', result);
 
     // Log editions after
-    let { data: afterEditions } = await supabase
+    const { data: afterEditions } = await supabase
       .from('newsletter_editions')
       .select('*')
       .eq('user_id', TEST_USER_ID);
