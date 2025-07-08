@@ -80,6 +80,7 @@ export class SendNewsletterWorker {
 
     // 1. Load configuration
     const config = getSendNewsletterWorkerConfig();
+    console.log(`Worker starting with config: ${JSON.stringify(config)}`);
     validateDependencies(config);
 
     // Initialize EmailClient
@@ -118,6 +119,15 @@ export class SendNewsletterWorker {
         editions = await queryNewsletterEditionsForSending(supabase, config.lookbackHours);
       }
 
+      // Fail-fast debug: print how many editions were found and their IDs
+      if (!editions || editions.length === 0) {
+        this.logger.warn('system', 'No editions found for processing', {
+          metadata: { job_id: jobId, last10Mode: config.last10Mode }
+        });
+      } else {
+        this.logger.info('system', `Worker debug: found ${editions.length} editions. IDs: ${editions.map(e => e.id).join(', ')}`);
+      }
+
       this.logger.info('system', 'Found newsletter editions for sending', {
         metadata: {
           job_id: jobId,
@@ -134,17 +144,18 @@ export class SendNewsletterWorker {
 
       for (const edition of editions) {
         const editionStartTime = Date.now();
+        
         try {
           // Skip if content is empty or null
           if (!edition.content || edition.content.trim().length === 0) {
-            noContentCount++;
-            this.logger.warn('email', 'Skipping edition with empty or null content', {
-              metadata: {
+            this.logger.warn('email', 'Skipping edition with empty content', {
+              metadata: { 
                 job_id: jobId,
                 edition_id: edition.id,
                 user_email: edition.user_email
               }
             });
+            noContentCount++;
             continue;
           }
 
@@ -166,6 +177,8 @@ export class SendNewsletterWorker {
           const to = config.last10Mode ? config.testReceiverEmail : edition.user_email;
 
           // Send email
+          console.log(`About to send email for edition ${edition.id} to ${to}`);
+          
           const sendResult = await emailClient.sendEmail({ to, subject, html }, jobId);
 
           if (sendResult.success) {

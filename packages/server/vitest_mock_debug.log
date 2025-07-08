@@ -1,0 +1,26 @@
+ Vitest  "deps.external" is deprecated. If you rely on vite-node directly, use "server.deps.external" instead. Otherwise, consider using "deps.optimizer.ssr.exclude"
+
+ RUN  v3.2.0 /Users/paulsondhi/listener/packages/server
+
+🚀 Starting global test setup...
+🔍 Validating test environment...
+✅ Test environment validation passed
+🗄️  Initializing test database...
+✅ Test database initialized successfully
+🔧 Setting up global test resources...
+🎭 Mock servers configured
+🏭 Test data generators initialized
+🛠️  Global test utilities initialized
+✅ Global test resources setup completed
+📊 Setting up performance monitoring...
+✅ Performance monitoring initialized
+✅ Global test setup completed successfully
+ ✓ jobs/__tests__/sendNewsletterWorker.integration.test.ts > SendNewsletterWorker (integration) > should update sent_at for all eligible editions in normal mode 262ms
+ ✓ jobs/__tests__/sendNewsletterWorker.integration.test.ts > SendNewsletterWorker (integration) > should NOT update sent_at in L10 mode 3ms
+ ✓ jobs/__tests__/sendNewsletterWorker.integration.test.ts > SendNewsletterWorker (integration) > should handle errors gracefully 1ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  13:18:01
+   Duration  467ms (transform 86ms, setup 20ms, collect 56ms, tests 266ms, environment 0ms, prepare 28ms)
+

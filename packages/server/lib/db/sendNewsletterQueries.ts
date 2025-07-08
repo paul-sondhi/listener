@@ -67,6 +67,7 @@ export async function queryLast10NewsletterEditionsForSending(
       .from('newsletter_editions')
       .select('*')
       .eq('status', 'generated')
+      .is('sent_at', null)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(10);

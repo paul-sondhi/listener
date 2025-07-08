@@ -1,0 +1,48 @@
+ Vitest  "deps.external" is deprecated. If you rely on vite-node directly, use "server.deps.external" instead. Otherwise, consider using "deps.optimizer.ssr.exclude"
+
+ RUN  v3.2.0 /Users/paulsondhi/listener/packages/server
+
+🚀 Starting global test setup...
+🔍 Validating test environment...
+✅ Test environment validation passed
+🗄️  Initializing test database...
+✅ Test database initialized successfully
+🔧 Setting up global test resources...
+🎭 Mock servers configured
+🏭 Test data generators initialized
+🛠️  Global test utilities initialized
+✅ Global test resources setup completed
+📊 Setting up performance monitoring...
+✅ Performance monitoring initialized
+✅ Global test setup completed successfully
+ ✓ jobs/__tests__/sendNewsletterWorker.integration.test.ts > SendNewsletterWorker (integration) > should update sent_at for all eligible editions in normal mode 221ms
+ × jobs/__tests__/sendNewsletterWorker.integration.test.ts > SendNewsletterWorker (integration) > should NOT update sent_at in L10 mode 219ms
+   → expected +0 to be 2 // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  jobs/__tests__/sendNewsletterWorker.integration.test.ts > SendNewsletterWorker (integration) > should NOT update sent_at in L10 mode
+AssertionError: expected +0 to be 2 // Object.is equality
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 2[39m
+[31m+ 0[39m
+
+ ❯ jobs/__tests__/sendNewsletterWorker.integration.test.ts:210:36
+    208| 
+    209|     // Original assertions
+    210|     expect(result.successfulSends).toBe(2);
+       |                                    ^
+    211|     expect(result.errorCount).toBe(0);
+    212| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  13:31:22
+   Duration  611ms (transform 79ms, setup 20ms, collect 50ms, tests 441ms, environment 0ms, prepare 22ms)
+
