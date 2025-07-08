@@ -55,6 +55,8 @@ Generate clean HTML content suitable for email newsletters. Use this structure:
 
 <h3 style="color: #34495e; margin-top: 25px; margin-bottom: 15px;">What to Listen to Next</h3>
 <p style="line-height: 1.6; margin-bottom: 20px;">[Recommendations for which episodes to prioritize based on reader interests, with brief reasoning for each recommendation]</p>
+<!-- Footer placeholder for email compliance and future unsubscribe link -->
+<p style="font-size:12px;color:#888888;margin-top:30px;">[FOOTER_TEXT]</p>
 ```
 
 ## Guidelines
