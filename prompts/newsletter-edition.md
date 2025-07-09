@@ -10,6 +10,7 @@ Analyze the provided episode notes and generate a newsletter edition that:
 - Create a compelling introduction that sets the tone for the newsletter
 - Highlight the most interesting or surprising insights across all episodes
 - Give readers a sense of what they'll discover in the newsletter
+- Make sure you reference the podcast name and episode title when you are discussing the content
 
 ### 2. Organizes Content by Theme or Show
 - Group related episodes and insights together by topic, show, or theme

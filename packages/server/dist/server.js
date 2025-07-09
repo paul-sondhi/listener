@@ -8479,7 +8479,7 @@ async function queryNewsletterEditionsForSending(supabase4, lookbackHours = 24, 
 async function queryLast10NewsletterEditionsForSending(supabase4) {
   debugDatabase("Starting L10 newsletter editions query for sending");
   try {
-    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("*").eq("status", "generated").is("deleted_at", null).order("created_at", { ascending: false }).limit(10);
+    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("*").eq("status", "generated").is("sent_at", null).is("deleted_at", null).order("created_at", { ascending: false }).limit(10);
     if (queryError) {
       throw new Error(`Failed to query last 10 newsletter editions for sending: ${queryError.message}`);
     }
@@ -8492,9 +8492,13 @@ async function queryLast10NewsletterEditionsForSending(supabase4) {
 async function updateNewsletterEditionSentAt(supabase4, editionId, sentAt) {
   const timestamp = sentAt ?? (/* @__PURE__ */ new Date()).toISOString();
   try {
-    const { data: edition, error: updateError } = await supabase4.from("newsletter_editions").update({ sent_at: timestamp }).eq("id", editionId).is("deleted_at", null).select().single();
+    const { data: _updateResult, error: updateError } = await supabase4.from("newsletter_editions").update({ sent_at: timestamp }).eq("id", editionId);
     if (updateError) {
       throw new Error(`Failed to update newsletter edition sent_at: ${updateError.message}`);
+    }
+    const { data: edition, error: fetchError } = await supabase4.from("newsletter_editions").select("*").eq("id", editionId).single();
+    if (fetchError) {
+      throw new Error(`Failed to fetch updated newsletter edition: ${fetchError.message}`);
     }
     if (!edition) {
       throw new Error(`No newsletter edition found with id: ${editionId}`);
@@ -8504,6 +8508,146 @@ async function updateNewsletterEditionSentAt(supabase4, editionId, sentAt) {
     console.error("ERROR: Failed to update newsletter edition sent_at:", error);
     throw error;
   }
+}
+
+// lib/clients/emailClient.ts
+import { Resend } from "resend";
+var EmailClient = class {
+  constructor(apiKey, fromEmail, resendInstance) {
+    this.resend = resendInstance || new Resend(apiKey);
+    this.logger = createLogger();
+    this.fromEmail = fromEmail;
+  }
+  /**
+   * Send an email using Resend API
+   * @param params Email parameters (to, subject, html, optional text)
+   * @param jobId Job ID for traceability (added as X-Job-Id header)
+   * @returns Promise<SendEmailResult> Result of the email send operation
+   */
+  async sendEmail(params, jobId) {
+    const { to, subject, html, text } = params;
+    this.logger.info("email", "Sending email via Resend", {
+      metadata: {
+        job_id: jobId,
+        to_email: to,
+        subject,
+        has_html: !!html,
+        has_text: !!text,
+        from_email: this.fromEmail
+      }
+    });
+    try {
+      const result = await this.resend.emails.send({
+        from: this.fromEmail,
+        to: [to],
+        subject,
+        html,
+        text,
+        // Optional plain text alternative
+        headers: {
+          "X-Job-Id": jobId
+        }
+      });
+      if (result.error) {
+        const errorMessage = `Resend API error: ${result.error.message}`;
+        this.logger.error("email", "Failed to send email via Resend", {
+          metadata: {
+            job_id: jobId,
+            to_email: to,
+            subject,
+            error: errorMessage,
+            resend_error_code: result.error.statusCode
+          }
+        });
+        return {
+          success: false,
+          error: errorMessage
+        };
+      }
+      this.logger.info("email", "Email sent successfully via Resend", {
+        metadata: {
+          job_id: jobId,
+          to_email: to,
+          subject,
+          message_id: result.data?.id,
+          resend_message_id: result.data?.id
+        }
+      });
+      return {
+        success: true,
+        messageId: result.data?.id
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorStack = error instanceof Error ? error.stack : void 0;
+      this.logger.error("email", "Unexpected error sending email via Resend", {
+        metadata: {
+          job_id: jobId,
+          to_email: to,
+          subject,
+          error: errorMessage,
+          stack_trace: errorStack
+        }
+      });
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+  }
+  /**
+   * Validate email client configuration
+   * @returns boolean True if configuration is valid
+   */
+  validateConfig() {
+    if (!this.fromEmail || this.fromEmail.trim().length === 0) {
+      this.logger.error("email", "Invalid from email configuration", {
+        metadata: {
+          from_email: this.fromEmail
+        }
+      });
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(this.fromEmail)) {
+      this.logger.error("email", "Invalid from email format", {
+        metadata: {
+          from_email: this.fromEmail
+        }
+      });
+      return false;
+    }
+    return true;
+  }
+};
+function createEmailClient(apiKey, fromEmail, resendInstance) {
+  return new EmailClient(apiKey, fromEmail, resendInstance);
+}
+
+// lib/utils/subjectBuilder.ts
+function buildSubject(editionDate) {
+  const dateObj = typeof editionDate === "string" ? new Date(editionDate) : editionDate;
+  if (isNaN(dateObj.getTime())) {
+    return "Listener Recap: Invalid Date";
+  }
+  const options = {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC"
+    // Use UTC to avoid timezone issues
+  };
+  const formattedDate = dateObj.toLocaleDateString("en-US", options);
+  return `Listener Recap: ${formattedDate}`;
+}
+
+// lib/utils/injectEditionPlaceholders.ts
+function injectEditionPlaceholders(html, replacements) {
+  let result = html;
+  for (const [key, value] of Object.entries(replacements)) {
+    result = result.replaceAll(`[${key}]`, String(value));
+  }
+  return result;
 }
 
 // jobs/sendNewsletterWorker.ts
@@ -8521,7 +8665,9 @@ var SendNewsletterWorker = class {
   async run() {
     const jobId = `send-${Date.now()}`;
     const config = getSendNewsletterWorkerConfig();
+    console.log(`Worker starting with config: ${JSON.stringify(config)}`);
     validateDependencies3(config);
+    const emailClient = createEmailClient(config.resendApiKey, config.sendFromEmail);
     this.logger.info("system", "Send Newsletter Worker starting", {
       metadata: {
         job_id: jobId,
@@ -8550,6 +8696,13 @@ var SendNewsletterWorker = class {
         });
         editions = await queryNewsletterEditionsForSending(supabase4, config.lookbackHours);
       }
+      if (!editions || editions.length === 0) {
+        this.logger.warn("system", "No editions found for processing", {
+          metadata: { job_id: jobId, last10Mode: config.last10Mode }
+        });
+      } else {
+        this.logger.info("system", `Worker debug: found ${editions.length} editions. IDs: ${editions.map((e) => e.id).join(", ")}`);
+      }
       this.logger.info("system", "Found newsletter editions for sending", {
         metadata: {
           job_id: jobId,
@@ -8559,20 +8712,62 @@ var SendNewsletterWorker = class {
       });
       let successfulSends = 0;
       let errorCount = 0;
+      let noContentCount = 0;
       const processingTimes = [];
       for (const edition of editions) {
         const editionStartTime = Date.now();
         try {
-          await updateNewsletterEditionSentAt(supabase4, edition.id);
-          successfulSends++;
-          this.logger.info("system", "Successfully processed newsletter edition", {
-            metadata: {
-              job_id: jobId,
-              edition_id: edition.id,
-              user_email: edition.user_email,
-              processing_time_ms: Date.now() - editionStartTime
+          if (!edition.content || edition.content.trim().length === 0) {
+            this.logger.warn("email", "Skipping edition with empty content", {
+              metadata: {
+                job_id: jobId,
+                edition_id: edition.id,
+                user_email: edition.user_email
+              }
+            });
+            noContentCount++;
+            continue;
+          }
+          const subject = buildSubject(edition.edition_date);
+          const replacements = {
+            USER_EMAIL: edition.user_email,
+            EDITION_DATE: edition.edition_date,
+            EPISODE_COUNT: "N/A",
+            // TODO: Replace with actual episode count if available
+            FOOTER_TEXT: "You are receiving this email as part of your Listener subscription. (Unsubscribe link coming soon.)"
+          };
+          const html = injectEditionPlaceholders(edition.content, replacements);
+          const to = config.last10Mode ? config.testReceiverEmail : edition.user_email;
+          console.log(`About to send email for edition ${edition.id} to ${to}`);
+          const sendResult = await emailClient.sendEmail({ to, subject, html }, jobId);
+          if (sendResult.success) {
+            successfulSends++;
+            this.logger.info("email", "Email sent successfully", {
+              metadata: {
+                job_id: jobId,
+                edition_id: edition.id,
+                to_email: to,
+                subject,
+                message_id: sendResult.messageId
+              }
+            });
+            if (!config.last10Mode) {
+              console.log("WORKER: About to update sent_at for edition", edition.id);
+              const updatedEdition = await updateNewsletterEditionSentAt(supabase4, edition.id);
+              console.log("WORKER: updatedEdition after sent_at update:", JSON.stringify(updatedEdition));
             }
-          });
+          } else {
+            errorCount++;
+            this.logger.error("email", "Failed to send email", {
+              metadata: {
+                job_id: jobId,
+                edition_id: edition.id,
+                to_email: to,
+                subject,
+                error: sendResult.error
+              }
+            });
+          }
         } catch (error) {
           errorCount++;
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -8596,8 +8791,7 @@ var SendNewsletterWorker = class {
         processedEditions: editions.length,
         successfulSends,
         errorCount,
-        noContentCount: 0,
-        // Not applicable for send worker
+        noContentCount,
         totalElapsedMs,
         averageProcessingTimeMs,
         successRate

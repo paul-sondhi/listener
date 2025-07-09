@@ -31,6 +31,9 @@ Analyze the provided podcast transcript and generate comprehensive episode notes
 
 Structure your response using clear, well-organized bullet points grouped by the categories above. Use this exact format:
 
+**Podcast Name and Episode Title**
+- [Podcast Name]: [Episode Title]
+
 **Main Topics Discussed:**
 - [Topic 1]: Brief description
 - [Topic 2]: Brief description
