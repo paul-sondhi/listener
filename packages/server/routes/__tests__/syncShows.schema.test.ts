@@ -12,6 +12,15 @@ import { createClient } from '@supabase/supabase-js'
 import syncShowsRouter from '../syncShows.js'
 import * as encryptedTokenHelpers from '../../lib/encryptedTokenHelpers.js'
 
+// Mock the utils functions to prevent real network calls
+vi.mock('../../lib/utils.js', () => ({
+  getTitleSlug: vi.fn().mockResolvedValue({
+    name: 'Test Podcast',
+    description: 'A test podcast'
+  }),
+  getFeedUrl: vi.fn().mockResolvedValue('https://feeds.example.com/test-podcast.xml')
+}))
+
 // Set up environment variables for testing
 process.env.SUPABASE_URL = 'http://127.0.0.1:54321'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
