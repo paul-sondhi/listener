@@ -16,7 +16,8 @@ import * as encryptedTokenHelpers from '../../lib/encryptedTokenHelpers.js'
 vi.mock('../../lib/utils.js', () => ({
   getTitleSlug: vi.fn().mockResolvedValue({
     name: 'Test Podcast',
-    description: 'A test podcast'
+    description: 'A test podcast',
+    publisher: 'Test Publisher'
   }),
   getFeedUrl: vi.fn().mockResolvedValue('https://feeds.example.com/test-podcast.xml')
 }))

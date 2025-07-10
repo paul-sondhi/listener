@@ -13,6 +13,7 @@ interface SpotifyShow {
   id: string;
   name: string;
   description: string;
+  publisher: string;
   [key: string]: unknown;
 }
 
@@ -22,6 +23,8 @@ interface PodcastIndexFeed {
   title: string;
   url: string;
   description: string;
+  author: string;
+  ownerName: string;
   [key: string]: unknown;
 }
 
@@ -88,12 +91,12 @@ function getAuthHeaders(): AuthHeaders {
 }
 
 /**
- * Get enhanced metadata from a Spotify show URL including name and description
+ * Get enhanced metadata from a Spotify show URL including name, description, and publisher
  * @param {string} spotifyUrl - The Spotify show URL
- * @returns {Promise<{ name: string, description: string }>} The show name and description
+ * @returns {Promise<{ name: string, description: string, publisher: string }>} The show name, description, and publisher
  * @throws {Error} If the URL is invalid or the show cannot be fetched
  */
-async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, description: string }> {
+async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, description: string, publisher: string }> {
     // Use Spotify Web API to fetch the show name and description
     const cleanUrl: string = spotifyUrl.split('?')[0]!;
     const { pathname } = new URL(cleanUrl);
@@ -116,7 +119,7 @@ async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, descrip
     }
     
     const showData: SpotifyShow = await apiRes.json() as SpotifyShow;
-    const { name, description } = showData;
+    const { name, description, publisher } = showData;
     
     if (!name) {
       throw new Error('No show name returned from Spotify API');
@@ -132,22 +135,27 @@ async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, descrip
     // Use description if available, otherwise use empty string as fallback
     const normalizedDescription = description || '';
     
+    // Basic normalization for publisher: trim whitespace and handle missing publisher
+    const normalizedPublisher = publisher?.trim() || '';
+    
     return {
       name: normalizedName,
-      description: normalizedDescription
+      description: normalizedDescription,
+      publisher: normalizedPublisher
     };
 }
 
 /**
- * Get the RSS feed URL for a podcast using enhanced matching with title and description
- * @param {string | { name: string, description: string }} metadata - The podcast metadata (name and description) or just the slug
+ * Get the RSS feed URL for a podcast using enhanced matching with title, description, and publisher
+ * @param {string | { name: string, description: string, publisher?: string }} metadata - The podcast metadata (name, description, and publisher) or just the slug
  * @returns {Promise<string | null>} The RSS feed URL or null if not found
  * @throws {Error} If the search fails
  */
-async function getFeedUrl(metadata: string | { name: string, description: string }): Promise<string | null> {
+async function getFeedUrl(metadata: string | { name: string, description: string, publisher?: string }): Promise<string | null> {
     // Handle both legacy string input and new metadata object
     const searchTerm = typeof metadata === 'string' ? metadata : metadata.name;
     const description = typeof metadata === 'string' ? '' : metadata.description;
+    const publisher = typeof metadata === 'string' ? '' : (metadata.publisher || '');
     
     // Fetch feed URL for a given search term, using PodcastIndex with iTunes fallback
     const authHeaders: AuthHeaders = getAuthHeaders();
@@ -171,22 +179,35 @@ async function getFeedUrl(metadata: string | { name: string, description: string
     let feedUrl: string | null = null;
     
     if (feeds && feeds.length > 0) {
-      // Enhanced matching: Use 50-50 weighting between title and description similarity
+      // Enhanced matching: Use weighted scoring (40% title, 40% description, 20% publisher)
       let bestMatch: PodcastIndexFeed | null = null;
       let bestScore = 0;
       
+      // Get configurable weights from environment variables with defaults
+      const titleWeight = parseFloat(process.env.RSS_MATCH_TITLE_WEIGHT || '0.4');
+      const descriptionWeight = parseFloat(process.env.RSS_MATCH_DESCRIPTION_WEIGHT || '0.4');
+      const publisherWeight = parseFloat(process.env.RSS_MATCH_PUBLISHER_WEIGHT || '0.2');
+      
       for (const feed of feeds) {
-        // Calculate title similarity (50% weight)
+        // Calculate title similarity (40% weight by default)
         const titleSimilarity = jaccardSimilarity(feed.title.toLowerCase(), searchTerm);
         
-        // Calculate description similarity (50% weight) if description is available
+        // Calculate description similarity (40% weight by default) if description is available
         let descriptionSimilarity = 0;
         if (description && feed.description) {
           descriptionSimilarity = jaccardSimilarity(feed.description.toLowerCase(), description.toLowerCase());
         }
         
-        // Combined score with 50-50 weighting
-        const combinedScore = (titleSimilarity * 0.5) + (descriptionSimilarity * 0.5);
+        // Calculate publisher similarity (20% weight by default) if publisher is available
+        let publisherSimilarity = 0;
+        if (publisher && feed.author) {
+          publisherSimilarity = jaccardSimilarity(feed.author.toLowerCase(), publisher.toLowerCase());
+        }
+        
+        // Combined score with configurable weighting
+        const combinedScore = (titleSimilarity * titleWeight) + 
+                             (descriptionSimilarity * descriptionWeight) + 
+                             (publisherSimilarity * publisherWeight);
         
         // Update best match if this score is higher
         if (combinedScore > bestScore) {
@@ -195,8 +216,11 @@ async function getFeedUrl(metadata: string | { name: string, description: string
         }
       }
       
-      // Use best match if it meets the 0.8 threshold
-      if (bestMatch && bestScore >= 0.8) {
+      // Get configurable threshold from environment variable with default
+      const threshold = parseFloat(process.env.RSS_MATCH_THRESHOLD || '0.8');
+      
+      // Use best match if it meets the threshold
+      if (bestMatch && bestScore >= threshold) {
         feedUrl = bestMatch.url;
       } else if (feeds[0]) {
         // Fallback to first result if no high-confidence match

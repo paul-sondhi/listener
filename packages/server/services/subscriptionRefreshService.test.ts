@@ -268,12 +268,14 @@ describe('refreshUserSubscriptions', () => {
       const showId = spotifyUrl.split('/').pop() || 'unknown';
       return {
         name: `show-${showId}`,
-        description: 'Test podcast description'
+        description: 'Test podcast description',
+        publisher: 'Test Publisher'
       };
     });
     
-    vi.mocked(getFeedUrl).mockImplementation(async (slug: string) => {
+    vi.mocked(getFeedUrl).mockImplementation(async (metadata: string | { name: string, description: string, publisher?: string }) => {
       // Return a mock RSS feed URL for most shows
+      const slug = typeof metadata === 'string' ? metadata : metadata.name;
       return `https://feeds.example.com/${slug}.rss`;
     });
 
@@ -637,12 +639,13 @@ describe('refreshUserSubscriptions', () => {
   it('should handle Spotify API pagination correctly', async () => {
     // Arrange: Mock the utils functions to avoid external API calls in tests
     vi.mocked(getTitleSlug).mockImplementation(async (spotifyUrl: string) => {
-      if (spotifyUrl.includes('show1')) return { name: 'test-show-1', description: 'Test show 1 description' };
-      if (spotifyUrl.includes('show2')) return { name: 'test-show-2', description: 'Test show 2 description' };
-      return { name: 'test-show', description: 'Test show description' };
+      if (spotifyUrl.includes('show1')) return { name: 'test-show-1', description: 'Test show 1 description', publisher: 'Test Publisher 1' };
+      if (spotifyUrl.includes('show2')) return { name: 'test-show-2', description: 'Test show 2 description', publisher: 'Test Publisher 2' };
+      return { name: 'test-show', description: 'Test show description', publisher: 'Test Publisher' };
     });
     
-    vi.mocked(getFeedUrl).mockImplementation(async (slug: string) => {
+    vi.mocked(getFeedUrl).mockImplementation(async (metadata: string | { name: string, description: string, publisher?: string }) => {
+      const slug = typeof metadata === 'string' ? metadata : metadata.name;
       if (slug === 'test-show-1') return 'https://feeds.example.com/show1.rss';
       if (slug === 'test-show-2') return 'https://feeds.example.com/show2.rss';
       return null; // Fallback to Spotify URL
@@ -1327,7 +1330,8 @@ describe('Manual RSS Override Safeguard', () => {
           // Arrange: Mock getTitleSlug and getFeedUrl
       mockGetTitleSlug.mockResolvedValue({
         name: 'test show title',
-        description: 'Test podcast description'
+        description: 'Test podcast description',
+        publisher: 'Test Publisher'
       });
     mockGetFeedUrl.mockResolvedValue(null); // No RSS feed found
     
@@ -1391,7 +1395,8 @@ describe('Manual RSS Override Safeguard', () => {
           // Arrange: Mock getTitleSlug and getFeedUrl returning different feed
       mockGetTitleSlug.mockResolvedValue({
         name: 'test show title',
-        description: 'Test podcast description'
+        description: 'Test podcast description',
+        publisher: 'Test Publisher'
       });
     mockGetFeedUrl.mockResolvedValue(discoveredRssUrl); // Returns different RSS feed
     
@@ -1454,7 +1459,8 @@ describe('Manual RSS Override Safeguard', () => {
           // Arrange: Mock getTitleSlug and getFeedUrl returning real feed
       mockGetTitleSlug.mockResolvedValue({
         name: 'test show title',
-        description: 'Test podcast description'
+        description: 'Test podcast description',
+        publisher: 'Test Publisher'
       });
     mockGetFeedUrl.mockResolvedValue(discoveredRssUrl); // Returns real RSS feed
     

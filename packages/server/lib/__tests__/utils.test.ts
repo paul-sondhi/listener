@@ -12,6 +12,7 @@ interface MockSpotifyShow {
   id: string
   name: string
   description?: string
+  publisher?: string
 }
 
 interface MockPodcastIndexFeed {
@@ -19,6 +20,8 @@ interface MockPodcastIndexFeed {
   title: string
   url: string
   description?: string
+  author?: string
+  ownerName?: string
 }
 
 interface MockPodcastIndexResponse {
@@ -55,7 +58,7 @@ vi.mock('../spotify.js', () => ({
 
 // System Under Test functions will be imported dynamically
 let getAuthHeaders: () => { 'X-Auth-Key': string; 'X-Auth-Date': string; 'Authorization': string }
-let getTitleSlug: (url: string) => Promise<{ name: string, description: string }>
+let getTitleSlug: (url: string) => Promise<{ name: string, description: string, publisher: string }>
 let getFeedUrl: (slug: string) => Promise<string | null>
 let jaccardSimilarity: (a: string, b: string) => number
 
@@ -167,7 +170,8 @@ describe('Utility Functions', () => {
         ok: true,
         json: async () => ({ 
           name: 'My Awesome Show | Podcasts',
-          description: 'This is a great podcast about technology'
+          description: 'This is a great podcast about technology',
+          publisher: 'The New York Times'
         } as MockSpotifyShow),
       }
       mockFetch.mockResolvedValueOnce(mockResponse)
@@ -184,7 +188,8 @@ describe('Utility Functions', () => {
       )
       expect(result).toEqual({
         name: 'my awesome show',
-        description: 'This is a great podcast about technology'
+        description: 'This is a great podcast about technology',
+        publisher: 'The New York Times'
       })
     })
 
@@ -195,7 +200,8 @@ describe('Utility Functions', () => {
         ok: true,
         json: async () => ({ 
           name: '🎉 My Show Title 😊 | Some Other Text',
-          description: 'A fun podcast about life'
+          description: 'A fun podcast about life',
+          publisher: 'Fun Media Co'
         } as MockSpotifyShow),
       }
       mockFetch.mockResolvedValueOnce(mockResponse)
@@ -206,7 +212,8 @@ describe('Utility Functions', () => {
       // Assert
       expect(result).toEqual({
         name: 'my show title',
-        description: 'A fun podcast about life'
+        description: 'A fun podcast about life',
+        publisher: 'Fun Media Co'
       })
     })
 
@@ -238,6 +245,7 @@ describe('Utility Functions', () => {
         json: async () => ({ 
           name: 'Show Without Description',
           // No description field
+          publisher: 'Test Publisher'
         } as MockSpotifyShow),
       }
       mockFetch.mockResolvedValueOnce(mockResponse)
@@ -248,7 +256,8 @@ describe('Utility Functions', () => {
       // Assert
       expect(result).toEqual({
         name: 'show without description',
-        description: ''
+        description: '',
+        publisher: 'Test Publisher'
       })
     })
 
@@ -445,7 +454,8 @@ describe('Utility Functions', () => {
       // Arrange
       const metadata = {
         name: 'the daily',
-        description: 'This is how the news should sound. The Daily from The New York Times.'
+        description: 'This is how the news should sound. The Daily from The New York Times.',
+        publisher: 'The New York Times'
       }
       const mockPodcastIndexResponse: MockFetchResponse = {
         ok: true,
@@ -454,12 +464,14 @@ describe('Utility Functions', () => {
             { 
               title: 'The Daily', 
               url: 'https://feeds.podtrac.com/zKq6WZZLTlbM',
-              description: 'The Daily from The New York Times'
+              description: 'The Daily from The New York Times',
+              author: 'The New York Times'
             },
             { 
               title: 'The Daily', 
               url: 'https://feeds.simplecast.com/Xf9Hoa6w',
-              description: 'A different podcast about daily news'
+              description: 'A different podcast about daily news',
+              author: 'Different Publisher'
             }
           ],
         } as MockPodcastIndexResponse),
@@ -587,6 +599,42 @@ describe('Utility Functions', () => {
 
       // Assert: Should fallback to first result since no match meets 0.8 threshold
       expect(feedUrl).toBe('https://feeds.example.com/different.rss')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
+
+    test('should use publisher weighting in enhanced matching', async () => {
+      // Arrange: Test case where publisher match makes the difference
+      const metadata = {
+        name: 'morning show',
+        description: 'Daily news and updates',
+        publisher: 'NPR'
+      }
+      const mockPodcastIndexResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({
+          feeds: [
+            { 
+              title: 'Morning Show', 
+              url: 'https://feeds.example.com/generic-morning',
+              description: 'Generic morning show content',
+              author: 'Generic Media'
+            },
+            { 
+              title: 'Morning Show', 
+              url: 'https://feeds.npr.org/morning-show',
+              description: 'Daily news and updates',
+              author: 'NPR'
+            }
+          ],
+        } as MockPodcastIndexResponse),
+      }
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+
+      // Act
+      const feedUrl = await getFeedUrl(metadata)
+
+      // Assert: Should pick the NPR feed because of publisher match boosting the score
+      expect(feedUrl).toBe('https://feeds.npr.org/morning-show')
       expect(mockFetch).toHaveBeenCalledTimes(1)
     })
   })
