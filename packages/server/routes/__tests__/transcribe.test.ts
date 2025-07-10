@@ -146,7 +146,9 @@ beforeEach(() => {
   vi.spyOn(utilsLib, 'getTitleSlug').mockResolvedValue({
     name: 'test-podcast',
     description: 'Test podcast description',
-    publisher: 'Test Publisher'
+    publisher: 'Test Publisher',
+    spotifyShowId: 'test-show-id',
+    accessToken: 'test-access-token'
   })
   vi.spyOn(utilsLib, 'getFeedUrl').mockResolvedValue('http://example.com/feed.xml')
 

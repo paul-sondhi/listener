@@ -189,7 +189,9 @@ describe('Utility Functions', () => {
       expect(result).toEqual({
         name: 'my awesome show',
         description: 'This is a great podcast about technology',
-        publisher: 'The New York Times'
+        publisher: 'The New York Times',
+        spotifyShowId: '12345ABC',
+        accessToken: 'fake_spotify_token'
       })
     })
 
@@ -213,7 +215,9 @@ describe('Utility Functions', () => {
       expect(result).toEqual({
         name: 'my show title',
         description: 'A fun podcast about life',
-        publisher: 'Fun Media Co'
+        publisher: 'Fun Media Co',
+        spotifyShowId: '67890DEF',
+        accessToken: 'fake_spotify_token'
       })
     })
 
@@ -257,7 +261,9 @@ describe('Utility Functions', () => {
       expect(result).toEqual({
         name: 'show without description',
         description: '',
-        publisher: 'Test Publisher'
+        publisher: 'Test Publisher',
+        spotifyShowId: 'noDescriptionShow',
+        accessToken: 'fake_spotify_token'
       })
     })
 
@@ -294,7 +300,8 @@ describe('Utility Functions', () => {
     })
 
     const testSlug = 'my test podcast'
-    const podcastIndexApiUrl = `https://api.podcastindex.org/api/1.0/search/byterm?q=${encodeURIComponent(testSlug)}`
+    const podcastIndexBytitleUrl = `https://api.podcastindex.org/api/1.0/search/bytitle?q=${encodeURIComponent(testSlug)}`
+    const podcastIndexBytermUrl = `https://api.podcastindex.org/api/1.0/search/byterm?q=${encodeURIComponent(testSlug)}`
     const itunesApiUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(testSlug)}&media=podcast&limit=1`
 
     test('should return feed URL from PodcastIndex if a good match is found', async () => {
@@ -313,7 +320,7 @@ describe('Utility Functions', () => {
       // Assert
       expect(feedUrl).toBe('https://podcastindex.com/feed')
       expect(mockFetch).toHaveBeenCalledTimes(1)
-      expect(mockFetch).toHaveBeenCalledWith(podcastIndexApiUrl, expect.objectContaining({
+      expect(mockFetch).toHaveBeenCalledWith(podcastIndexBytitleUrl, expect.objectContaining({
         headers: expect.objectContaining({
           'X-Auth-Key': 'test_podcast_key',
           'User-Agent': 'Test User Agent',
@@ -344,7 +351,11 @@ describe('Utility Functions', () => {
 
     test('should fallback to iTunes if PodcastIndex returns no feeds', async () => {
       // Arrange
-      const mockPodcastIndexResponse: MockFetchResponse = {
+      const mockPodcastIndexBytitleResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({ feeds: [], status: 'ok', count: 0 } as unknown as MockPodcastIndexResponse),
+      }
+      const mockPodcastIndexBytermResponse: MockFetchResponse = {
         ok: true,
         json: async () => ({ feeds: [], status: 'ok', count: 0 } as unknown as MockPodcastIndexResponse),
       }
@@ -355,7 +366,8 @@ describe('Utility Functions', () => {
           results: [{ feedUrl: 'https://itunes.com/feed' }],
         } as MockiTunesResponse),
       }
-      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexBytitleResponse)
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexBytermResponse)
       mockFetch.mockResolvedValueOnce(mockiTunesResponse)
 
       // Act
@@ -363,9 +375,10 @@ describe('Utility Functions', () => {
 
       // Assert
       expect(feedUrl).toBe('https://itunes.com/feed')
-      expect(mockFetch).toHaveBeenCalledTimes(2)
-      expect(mockFetch).toHaveBeenNthCalledWith(1, podcastIndexApiUrl, expect.any(Object))
-      expect(mockFetch).toHaveBeenNthCalledWith(2, itunesApiUrl)
+      expect(mockFetch).toHaveBeenCalledTimes(3)
+      expect(mockFetch).toHaveBeenNthCalledWith(1, podcastIndexBytitleUrl, expect.any(Object))
+      expect(mockFetch).toHaveBeenNthCalledWith(2, podcastIndexBytermUrl, expect.any(Object))
+      expect(mockFetch).toHaveBeenNthCalledWith(3, itunesApiUrl)
     })
 
     test('should throw error from PodcastIndex if it fails and not call iTunes', async () => {
@@ -385,7 +398,11 @@ describe('Utility Functions', () => {
 
     test('should return null if PodcastIndex has no feeds and iTunes has no results', async () => {
       // Arrange
-      const mockPodcastIndexResponse: MockFetchResponse = {
+      const mockPodcastIndexBytitleResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({ feeds: [], status: 'ok', count: 0 } as unknown as MockPodcastIndexResponse),
+      }
+      const mockPodcastIndexBytermResponse: MockFetchResponse = {
         ok: true,
         json: async () => ({ feeds: [], status: 'ok', count: 0 } as unknown as MockPodcastIndexResponse),
       }
@@ -393,7 +410,8 @@ describe('Utility Functions', () => {
         ok: true,
         json: async () => ({ resultCount: 0, results: [] } as MockiTunesResponse),
       }
-      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexBytitleResponse)
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexBytermResponse)
       mockFetch.mockResolvedValueOnce(mockiTunesResponse)
 
       // Act
@@ -401,12 +419,16 @@ describe('Utility Functions', () => {
 
       // Assert
       expect(feedUrl).toBeNull()
-      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenCalledTimes(3)
     })
 
     test('should return null if PodcastIndex has no feeds and iTunes API call fails', async () => {
       // Arrange
-      const mockPodcastIndexResponse: MockFetchResponse = {
+      const mockPodcastIndexBytitleResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({ feeds: [], status: 'ok', count: 0 } as unknown as MockPodcastIndexResponse),
+      }
+      const mockPodcastIndexBytermResponse: MockFetchResponse = {
         ok: true,
         json: async () => ({ feeds: [], status: 'ok', count: 0 } as unknown as MockPodcastIndexResponse),
       }
@@ -414,8 +436,10 @@ describe('Utility Functions', () => {
         ok: false,
         status: 500,
         json: async () => ({}),
+        text: async () => 'iTunes API Error',
       }
-      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexBytitleResponse)
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexBytermResponse)
       mockFetch.mockResolvedValueOnce(mockiTunesFailedResponse)
 
       // Act
@@ -423,12 +447,16 @@ describe('Utility Functions', () => {
 
       // Assert
       expect(feedUrl).toBeNull()
-      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenCalledTimes(3)
     })
 
     test('should handle PodcastIndex returning malformed data (no feeds array) and fallback to iTunes', async () => {
       // Arrange
-      const mockPodcastIndexResponse: MockFetchResponse = {
+      const mockPodcastIndexBytitleResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({ status: 'ok' }), // Missing feeds array
+      }
+      const mockPodcastIndexBytermResponse: MockFetchResponse = {
         ok: true,
         json: async () => ({ status: 'ok' }), // Missing feeds array
       }
@@ -439,7 +467,8 @@ describe('Utility Functions', () => {
           results: [{ feedUrl: 'https://itunes.com/feed' }],
         } as MockiTunesResponse),
       }
-      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexBytitleResponse)
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexBytermResponse)
       mockFetch.mockResolvedValueOnce(mockiTunesResponse)
 
       // Act
@@ -447,7 +476,7 @@ describe('Utility Functions', () => {
 
       // Assert
       expect(feedUrl).toBe('https://itunes.com/feed')
-      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenCalledTimes(3)
     })
 
     test('should use enhanced matching with metadata object input', async () => {

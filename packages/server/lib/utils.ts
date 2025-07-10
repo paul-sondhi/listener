@@ -108,18 +108,18 @@ function getAuthHeaders(): AuthHeaders {
 }
 
 /**
- * Get enhanced metadata from a Spotify show URL including name, description, and publisher
+ * Get enhanced metadata from a Spotify show URL including name, description, publisher, spotifyShowId, and accessToken
  * @param {string} spotifyUrl - The Spotify show URL
- * @returns {Promise<{ name: string, description: string, publisher: string }>} The show name, description, and publisher
+ * @returns {Promise<{ name: string, description: string, publisher: string, spotifyShowId: string, accessToken: string }>} The show metadata with episode probe support
  * @throws {Error} If the URL is invalid or the show cannot be fetched
  */
-async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, description: string, publisher: string }> {
+async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, description: string, publisher: string, spotifyShowId: string, accessToken: string }> {
     // Use Spotify Web API to fetch the show name and description
     const cleanUrl: string = spotifyUrl.split('?')[0]!;
     const { pathname } = new URL(cleanUrl);
     const [, type, id] = pathname.split('/');
     
-    if (type !== 'show') {
+    if (type !== 'show' || !id) {
       throw new Error('getTitleSlug: URL is not a Spotify show link');
     }
     
@@ -158,7 +158,9 @@ async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, descrip
     return {
       name: normalizedName,
       description: normalizedDescription,
-      publisher: normalizedPublisher
+      publisher: normalizedPublisher,
+      spotifyShowId: id,
+      accessToken: token
     };
 }
 
@@ -178,9 +180,13 @@ async function getFeedUrl(metadata: string | { name: string, description: string
     
     // Fetch feed URL for a given search term, using PodcastIndex with iTunes fallback
     const authHeaders: AuthHeaders = getAuthHeaders();
-    const searchUrl: string = `https://api.podcastindex.org/api/1.0/search/byterm?q=${encodeURIComponent(searchTerm)}`;
     
-    const searchRes: globalThis.Response = await fetch(searchUrl, {
+    // Try /search/bytitle first for more precise results
+    let searchUrl: string = `https://api.podcastindex.org/api/1.0/search/bytitle?q=${encodeURIComponent(searchTerm)}`;
+    
+    debugLog('[getFeedUrl] Trying bytitle search first', { searchTerm, searchUrl });
+    
+    let searchRes: globalThis.Response = await fetch(searchUrl, {
       headers: {
         ...authHeaders,
         'User-Agent': process.env.USER_AGENT || 'Listener-App/1.0'
@@ -193,8 +199,33 @@ async function getFeedUrl(metadata: string | { name: string, description: string
       throw new Error(`PodcastIndex search failed with status ${searchRes.status}`);
     }
     
-    const searchData: PodcastIndexSearchResponse = await searchRes.json() as PodcastIndexSearchResponse;
-    const { feeds } = searchData;
+    let searchData: PodcastIndexSearchResponse = await searchRes.json() as PodcastIndexSearchResponse;
+    let { feeds } = searchData;
+    
+    // If bytitle returns no results, fallback to byterm search
+    if (!feeds || feeds.length === 0) {
+      debugLog('[getFeedUrl] No bytitle results, falling back to byterm search', { searchTerm });
+      
+      searchUrl = `https://api.podcastindex.org/api/1.0/search/byterm?q=${encodeURIComponent(searchTerm)}`;
+      
+      searchRes = await fetch(searchUrl, {
+        headers: {
+          ...authHeaders,
+          'User-Agent': process.env.USER_AGENT || 'Listener-App/1.0'
+        }
+      });
+      
+      if (!searchRes.ok) {
+        const errorText: string = await searchRes.text().catch(() => 'Could not read response');
+        console.error('PodcastIndex API Error Response:', errorText);
+        throw new Error(`PodcastIndex search failed with status ${searchRes.status}`);
+      }
+      
+      searchData = await searchRes.json() as PodcastIndexSearchResponse;
+      feeds = searchData.feeds;
+    }
+    
+    debugLog('[getFeedUrl] PodcastIndex search completed', { searchTerm, feedCount: feeds?.length || 0, searchType: feeds?.length ? 'bytitle' : 'byterm' });
     let feedUrl: string | null = null;
     
     if (feeds && feeds.length > 0) {

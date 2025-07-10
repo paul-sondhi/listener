@@ -17,7 +17,9 @@ vi.mock('../../lib/utils.js', () => ({
   getTitleSlug: vi.fn().mockResolvedValue({
     name: 'Test Podcast',
     description: 'A test podcast',
-    publisher: 'Test Publisher'
+    publisher: 'Test Publisher',
+    spotifyShowId: 'test-show-id',
+    accessToken: 'test-access-token'
   }),
   getFeedUrl: vi.fn().mockResolvedValue('https://feeds.example.com/test-podcast.xml')
 }))

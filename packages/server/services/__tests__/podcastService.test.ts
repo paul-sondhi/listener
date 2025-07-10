@@ -77,7 +77,9 @@ describe('PodcastService', () => {
       mockGetTitleSlug.mockResolvedValue({
         name: 'test-slug',
         description: 'Test podcast description',
-        publisher: 'Test Publisher'
+        publisher: 'Test Publisher',
+        spotifyShowId: 'test-show-id',
+        accessToken: 'test-access-token'
       })
 
       // Act
