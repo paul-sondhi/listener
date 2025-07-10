@@ -514,5 +514,80 @@ describe('Utility Functions', () => {
       expect(feedUrl).toBe('https://podcastindex.com/feed')
       expect(mockFetch).toHaveBeenCalledTimes(1)
     })
+
+    test('should correctly match "The Daily" with enhanced metadata matching', async () => {
+      // Arrange: Real "The Daily" metadata from Spotify
+      const theDailyMetadata = {
+        name: 'The Daily',
+        description: 'This is how the news should sound. The Daily brings you the biggest stories of our time, told by the best journalists in the world.'
+      }
+      
+      // Arrange: Real PodcastIndex response with multiple "The Daily" feeds
+      const mockPodcastIndexResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({
+          feeds: [
+            { 
+              title: 'The Daily', 
+              url: 'https://feeds.podtrac.com/zKq6WZZLTlbM',
+              description: 'The Daily from The New York Times'
+            },
+            { 
+              title: 'The Daily', 
+              url: 'https://feeds.simplecast.com/Xf9Hoa6w',
+              description: 'A different podcast about daily news'
+            },
+            { 
+              title: 'The Daily Show', 
+              url: 'https://feeds.comedycentral.com/daily-show',
+              description: 'Comedy Central\'s The Daily Show'
+            }
+          ],
+        } as MockPodcastIndexResponse),
+      }
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+
+      // Act
+      const feedUrl = await getFeedUrl(theDailyMetadata)
+
+      // Assert: Should pick the NYT feed because it has the best combined title + description match
+      expect(feedUrl).toBe('https://feeds.podtrac.com/zKq6WZZLTlbM')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
+
+    test('should fallback to first result when no high-confidence match found', async () => {
+      // Arrange: Metadata for a podcast that doesn't have a clear match
+      const metadata = {
+        name: 'obscure podcast name',
+        description: 'A very specific description that won\'t match any feeds well'
+      }
+      
+      // Arrange: PodcastIndex response with low-similarity feeds
+      const mockPodcastIndexResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({
+          feeds: [
+            { 
+              title: 'completely different podcast', 
+              url: 'https://feeds.example.com/different.rss',
+              description: 'This has nothing to do with the search'
+            },
+            { 
+              title: 'another unrelated podcast', 
+              url: 'https://feeds.example.com/unrelated.rss',
+              description: 'Also completely unrelated'
+            }
+          ],
+        } as MockPodcastIndexResponse),
+      }
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+
+      // Act
+      const feedUrl = await getFeedUrl(metadata)
+
+      // Assert: Should fallback to first result since no match meets 0.8 threshold
+      expect(feedUrl).toBe('https://feeds.example.com/different.rss')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
   })
 }) 
