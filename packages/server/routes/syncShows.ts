@@ -310,6 +310,19 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                 const spotifyUrl: string = `https://open.spotify.com/show/${show.id}`;
 
                 try {
+                    // -----------------------------------------------------
+                    // ❶ Fetch any existing show row so we can inspect rss_url
+                    // -----------------------------------------------------
+                    const existingShowRes = await safeAwait(
+                        getSupabaseAdmin()
+                            .from('podcast_shows')
+                            .select('id,rss_url')
+                            .eq('spotify_url', spotifyUrl)
+                            .maybeSingle()
+                    );
+
+                    const storedRss: string | null | undefined = (existingShowRes as any)?.data?.rss_url;
+
                     // Try to fetch actual RSS feed URL for this Spotify show
                     let rssUrl: string = spotifyUrl; // Default fallback to Spotify URL
                     
@@ -319,8 +332,19 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                         
                         // Try to find the RSS feed URL using the title slug
                         const fetchedRssUrl = await getFeedUrl(titleSlug);
-                        if (fetchedRssUrl) {
-                            rssUrl = fetchedRssUrl;
+                        const candidateRss = fetchedRssUrl ?? spotifyUrl;
+
+                        // -----------------------------------------------------
+                        // ❷ Safeguard: if we already have a non-null rss_url
+                        //    that differs from what we are about to write AND
+                        //    is not a fallback value, keep it (preserve manual overrides)
+                        // -----------------------------------------------------
+                        if (storedRss && storedRss !== candidateRss && storedRss !== spotifyUrl) {
+                            // Preserve manual override and emit structured log for observability
+                            rssUrl = storedRss;
+                            console.log(`[SyncShows] Preserved existing rss_url override for ${show.name}: ${storedRss}`);
+                        } else if (fetchedRssUrl) {
+                            rssUrl = fetchedRssUrl; // use newly discovered feed
                             if (process.env.DEBUG_SYNC === 'true') {
                                 console.log(`[SyncShows] Found RSS feed for ${show.name}: ${rssUrl}`);
                             }

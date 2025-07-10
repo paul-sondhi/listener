@@ -52,8 +52,7 @@ function getModelName(): string {
   return raw.replace(/^models\//, '');
 }
 
-// Validate environment on module load
-validateEnvironment();
+// Environment validation will be called when functions are used
 
 // ===================================================================
 // TYPE DEFINITIONS
@@ -172,13 +171,15 @@ export async function generateEpisodeNotes(
   transcript: string,
   promptOverrides?: Partial<PromptOverrides>
 ): Promise<EpisodeNotesResult> {
-  // Validate inputs
+  // Validate environment and inputs
+  validateEnvironment();
+  
   if (!transcript || typeof transcript !== 'string') {
     throw new Error('transcript must be a non-empty string');
   }
 
   const model = getModelName();
-  const apiKey = process.env.GEMINI_API_KEY!; // Already validated at module load
+  const apiKey = process.env.GEMINI_API_KEY!; // Validated above
   const overrides = promptOverrides || {};
   
   // Build the default prompt for episode notes generation
@@ -333,6 +334,9 @@ export async function generateNewsletterEdition(
   editionDate: string,
   promptOverrides?: Partial<PromptOverrides>
 ): Promise<NewsletterEditionResult> {
+  // Validate environment first
+  validateEnvironment();
+  
   const startTime = Date.now();
   
   debugLog('Starting newsletter edition generation', {
@@ -377,7 +381,7 @@ export async function generateNewsletterEdition(
 
     // Get model and API configuration
     const model = getModelName();
-    const apiKey = process.env.GEMINI_API_KEY!; // Already validated at module load
+    const apiKey = process.env.GEMINI_API_KEY!; // Validated above
     const overrides = promptOverrides || {};
 
     // Construct API endpoint URL

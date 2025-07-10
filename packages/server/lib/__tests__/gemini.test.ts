@@ -76,10 +76,12 @@ describe('Gemini Client Utility', () => {
       process.env = { ...originalEnv }
       delete process.env.GEMINI_API_KEY
 
-      // Import should throw during module load
-      await expect(async () => {
-        await import('../llm/gemini.js')
-      }).rejects.toThrow('GEMINI_API_KEY is required but not found in environment variables')
+      // Import the function after unsetting the variable
+      const geminiModule = await import('../llm/gemini.js')
+      // Call the function and expect it to throw
+      await expect(
+        geminiModule.generateEpisodeNotes('test transcript')
+      ).rejects.toThrow('GEMINI_API_KEY is required but not found in environment variables')
     })
 
     test('should use default model when GEMINI_MODEL_NAME not set', async () => {

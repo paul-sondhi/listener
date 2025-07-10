@@ -48,6 +48,14 @@ describe('Sync Shows ID Fallback Logic', () => {
 
     // Create table-specific mocks that can be modified in tests
     podcastShowsTableMock = {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: null, // No existing show by default
+            error: null
+          })
+        })
+      }),
       upsert: vi.fn().mockReturnValue({
         select: vi.fn().mockResolvedValue({
           data: [{ id: 'test-uuid-123' }],

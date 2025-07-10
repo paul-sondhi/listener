@@ -82,6 +82,14 @@ describe('Sync Shows Database Schema Integration', () => {
       
       if (tableName === 'podcast_shows') {
         return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null, // No existing show by default
+                error: null
+              })
+            })
+          }),
           upsert: vi.fn().mockReturnValue({
             select: vi.fn().mockResolvedValue({
               data: [{ id: 'show-uuid-123' }],
@@ -153,6 +161,14 @@ describe('Sync Shows Database Schema Integration', () => {
     const mockFrom = vi.fn().mockImplementation((tableName: string) => {
       if (tableName === 'podcast_shows') {
         return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null, // No existing show by default
+                error: null
+              })
+            })
+          }),
           upsert: vi.fn().mockImplementation((data) => {
             showUpsertData = data[0] // Capture the data being inserted
             return {
@@ -213,6 +229,14 @@ describe('Sync Shows Database Schema Integration', () => {
     const mockFrom = vi.fn().mockImplementation((tableName: string) => {
       if (tableName === 'podcast_shows') {
         return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null, // No existing show by default
+                error: null
+              })
+            })
+          }),
           upsert: vi.fn().mockReturnValue({
             select: vi.fn().mockResolvedValue({
               data: [{ id: 'show-uuid-123' }],
@@ -307,6 +331,14 @@ describe('Sync Shows Database Schema Integration', () => {
     const mockFrom = vi.fn().mockImplementation((tableName: string) => {
       if (tableName === 'podcast_shows') {
         return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null, // No existing show by default
+                error: null
+              })
+            })
+          }),
           upsert: vi.fn().mockImplementation((data) => {
             databaseOperations.push({ table: tableName, operation: 'upsert', data: data[0] })
             return {

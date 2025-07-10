@@ -129,8 +129,16 @@ describe('POST /sync-spotify-shows', () => {
     let showCounter = 1; // Reset counter for each test
     mockSupabaseFrom = vi.fn().mockImplementation((tableName) => {
       if (tableName === 'podcast_shows') {
-        // Mock for podcast_shows table - returns unique show IDs after upsert
+        // Mock for podcast_shows table - handles both select('id,rss_url') and upsert
         return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null, // No existing show by default
+                error: null
+              })
+            })
+          }),
           upsert: vi.fn().mockReturnValue({
             select: vi.fn().mockImplementation(() => {
               const showId = `show-uuid-${showCounter++}`;

@@ -18,12 +18,27 @@ const mockUpsert = vi.fn();
 const mockEq = vi.fn();
 const mockIn = vi.fn();
 const mockSelect = vi.fn();
-const mockFrom = vi.fn(() => ({
-  upsert: mockUpsert,
-  eq: mockEq,
-  in: mockIn,
-  select: mockSelect,
-}));
+const mockFrom = vi.fn((tableName) => {
+  if (tableName === 'podcast_shows') {
+    return {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: null, // No existing show by default
+            error: null
+          })
+        })
+      }),
+      upsert: mockUpsert,
+    };
+  }
+  return {
+    upsert: mockUpsert,
+    eq: mockEq,
+    in: mockIn,
+    select: mockSelect,
+  };
+});
 const mockAuthGetUser = vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null }));
 
 vi.mock('@supabase/supabase-js', () => ({
