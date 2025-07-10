@@ -198,8 +198,8 @@ class RssUrlBackfill {
     const showMetadata = await getTitleSlug(show.spotify_url);
     console.log(`  Title slug: "${showMetadata.name}"`);
 
-    // Step 2: Find RSS feed URL using the slug
-    const rssUrl = await getFeedUrl(showMetadata.name);
+    // Step 2: Find RSS feed URL using the enhanced metadata
+    const rssUrl = await getFeedUrl(showMetadata);
     
     if (!rssUrl) {
       throw new Error('No RSS feed URL found for this podcast');

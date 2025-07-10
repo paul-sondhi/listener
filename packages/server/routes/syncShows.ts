@@ -330,8 +330,8 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                         // Get the show title slug and description from Spotify
                         const showMetadata = await getTitleSlug(spotifyUrl);
                         
-                        // Try to find the RSS feed URL using the title slug
-                        const fetchedRssUrl = await getFeedUrl(showMetadata.name);
+                        // Try to find the RSS feed URL using the enhanced metadata
+                        const fetchedRssUrl = await getFeedUrl(showMetadata);
                         const candidateRss = fetchedRssUrl ?? spotifyUrl;
 
                         // -----------------------------------------------------

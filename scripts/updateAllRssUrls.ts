@@ -332,8 +332,8 @@ class RssUrlUpdater {
       const showMetadata = await getTitleSlug(show.spotify_url);
       console.log(`  Search slug: "${showMetadata.name}"`);
 
-      // Step 3: Try to find RSS feed URL using the normalized slug
-      const discoveredRssUrl = await getFeedUrl(showMetadata.name);
+      // Step 3: Try to find RSS feed URL using the enhanced metadata
+      const discoveredRssUrl = await getFeedUrl(showMetadata);
       
       if (discoveredRssUrl) {
         rssUrl = discoveredRssUrl;

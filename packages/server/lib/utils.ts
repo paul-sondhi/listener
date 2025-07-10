@@ -139,15 +139,19 @@ async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, descrip
 }
 
 /**
- * Get the RSS feed URL for a podcast by searching PodcastIndex and iTunes
- * @param {string} slug - The podcast slug/title to search for
+ * Get the RSS feed URL for a podcast using enhanced matching with title and description
+ * @param {string | { name: string, description: string }} metadata - The podcast metadata (name and description) or just the slug
  * @returns {Promise<string | null>} The RSS feed URL or null if not found
  * @throws {Error} If the search fails
  */
-async function getFeedUrl(slug: string): Promise<string | null> {
-    // Fetch feed URL for a given slug, using PodcastIndex with iTunes fallback
+async function getFeedUrl(metadata: string | { name: string, description: string }): Promise<string | null> {
+    // Handle both legacy string input and new metadata object
+    const searchTerm = typeof metadata === 'string' ? metadata : metadata.name;
+    const description = typeof metadata === 'string' ? '' : metadata.description;
+    
+    // Fetch feed URL for a given search term, using PodcastIndex with iTunes fallback
     const authHeaders: AuthHeaders = getAuthHeaders();
-    const searchUrl: string = `https://api.podcastindex.org/api/1.0/search/byterm?q=${encodeURIComponent(slug)}`;
+    const searchUrl: string = `https://api.podcastindex.org/api/1.0/search/byterm?q=${encodeURIComponent(searchTerm)}`;
     
     const searchRes: globalThis.Response = await fetch(searchUrl, {
       headers: {
@@ -167,15 +171,35 @@ async function getFeedUrl(slug: string): Promise<string | null> {
     let feedUrl: string | null = null;
     
     if (feeds && feeds.length > 0) {
-      // Look for exact match first
+      // Enhanced matching: Use 50-50 weighting between title and description similarity
+      let bestMatch: PodcastIndexFeed | null = null;
+      let bestScore = 0;
+      
       for (const feed of feeds) {
-        if (jaccardSimilarity(feed.title.toLowerCase(), slug) >= 0.8) {
-          feedUrl = feed.url;
-          break;
+        // Calculate title similarity (50% weight)
+        const titleSimilarity = jaccardSimilarity(feed.title.toLowerCase(), searchTerm);
+        
+        // Calculate description similarity (50% weight) if description is available
+        let descriptionSimilarity = 0;
+        if (description && feed.description) {
+          descriptionSimilarity = jaccardSimilarity(feed.description.toLowerCase(), description.toLowerCase());
+        }
+        
+        // Combined score with 50-50 weighting
+        const combinedScore = (titleSimilarity * 0.5) + (descriptionSimilarity * 0.5);
+        
+        // Update best match if this score is higher
+        if (combinedScore > bestScore) {
+          bestScore = combinedScore;
+          bestMatch = feed;
         }
       }
-      // If no exact match, use the first result
-      if (!feedUrl && feeds[0]) {
+      
+      // Use best match if it meets the 0.8 threshold
+      if (bestMatch && bestScore >= 0.8) {
+        feedUrl = bestMatch.url;
+      } else if (feeds[0]) {
+        // Fallback to first result if no high-confidence match
         feedUrl = feeds[0].url;
       }
     }
@@ -183,7 +207,7 @@ async function getFeedUrl(slug: string): Promise<string | null> {
     // Fallback to Apple iTunes Lookup
     if (!feedUrl) {
       const itunesRes: globalThis.Response = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(slug)}&media=podcast&limit=1`
+        `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&media=podcast&limit=1`
       );
       
       if (itunesRes.ok) {

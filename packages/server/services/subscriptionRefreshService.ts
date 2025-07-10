@@ -363,8 +363,8 @@ async function updateSubscriptionStatus(
                 const showMetadata = await getTitleSlug(spotifyUrl);
                 showTitle = showMetadata.name; // Use the actual show title
                 
-                // Try to find the RSS feed URL using the title slug
-                const fetchedRssUrl = await getFeedUrl(showMetadata.name);
+                // Try to find the RSS feed URL using the enhanced metadata
+                const fetchedRssUrl = await getFeedUrl(showMetadata);
                 const candidateRss = fetchedRssUrl ?? spotifyUrl;
 
                 // -----------------------------------------------------

@@ -440,5 +440,79 @@ describe('Utility Functions', () => {
       expect(feedUrl).toBe('https://itunes.com/feed')
       expect(mockFetch).toHaveBeenCalledTimes(2)
     })
+
+    test('should use enhanced matching with metadata object input', async () => {
+      // Arrange
+      const metadata = {
+        name: 'the daily',
+        description: 'This is how the news should sound. The Daily from The New York Times.'
+      }
+      const mockPodcastIndexResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({
+          feeds: [
+            { 
+              title: 'The Daily', 
+              url: 'https://feeds.podtrac.com/zKq6WZZLTlbM',
+              description: 'The Daily from The New York Times'
+            },
+            { 
+              title: 'The Daily', 
+              url: 'https://feeds.simplecast.com/Xf9Hoa6w',
+              description: 'A different podcast about daily news'
+            }
+          ],
+        } as MockPodcastIndexResponse),
+      }
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+
+      // Act
+      const feedUrl = await getFeedUrl(metadata)
+
+      // Assert
+      // Should pick the first feed (NYT one) because it has better description match
+      expect(feedUrl).toBe('https://feeds.podtrac.com/zKq6WZZLTlbM')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
+
+    test('should handle metadata object with empty description', async () => {
+      // Arrange
+      const metadata = {
+        name: 'test podcast',
+        description: ''
+      }
+      const mockPodcastIndexResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({
+          feeds: [{ title: 'test podcast', url: 'https://podcastindex.com/feed' }],
+        } as MockPodcastIndexResponse),
+      }
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+
+      // Act
+      const feedUrl = await getFeedUrl(metadata)
+
+      // Assert
+      expect(feedUrl).toBe('https://podcastindex.com/feed')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
+
+    test('should maintain backward compatibility with string input', async () => {
+      // Arrange
+      const mockPodcastIndexResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({
+          feeds: [{ title: 'my test podcast', url: 'https://podcastindex.com/feed' }],
+        } as MockPodcastIndexResponse),
+      }
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+
+      // Act
+      const feedUrl = await getFeedUrl('my test podcast')
+
+      // Assert
+      expect(feedUrl).toBe('https://podcastindex.com/feed')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
   })
 }) 
