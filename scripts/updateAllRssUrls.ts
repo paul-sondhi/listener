@@ -329,11 +329,11 @@ class RssUrlUpdater {
       console.log(`  Original title from Spotify: "${originalTitle}"`);
 
       // Step 2: Get normalized slug for RSS feed searching
-      const titleSlug = await getTitleSlug(show.spotify_url);
-      console.log(`  Search slug: "${titleSlug}"`);
+      const showMetadata = await getTitleSlug(show.spotify_url);
+      console.log(`  Search slug: "${showMetadata.name}"`);
 
       // Step 3: Try to find RSS feed URL using the normalized slug
-      const discoveredRssUrl = await getFeedUrl(titleSlug);
+      const discoveredRssUrl = await getFeedUrl(showMetadata.name);
       
       if (discoveredRssUrl) {
         rssUrl = discoveredRssUrl;

@@ -68,7 +68,8 @@ class PodcastService {
    */
   async getPodcastSlug(url: string): Promise<string> {
     try {
-      return await getTitleSlug(url);
+      const showMetadata = await getTitleSlug(url);
+      return showMetadata.name;
     } catch (error: unknown) {
       const err = error as Error;
       throw new PodcastError(`Failed to get podcast slug: ${err.message}`, 500);

@@ -143,7 +143,10 @@ beforeEach(() => {
   vi.spyOn(transcribeLib, 'transcribe').mockResolvedValue('Test transcription')
 
   // Mock utils library 
-  vi.spyOn(utilsLib, 'getTitleSlug').mockResolvedValue('test-podcast')
+  vi.spyOn(utilsLib, 'getTitleSlug').mockResolvedValue({
+    name: 'test-podcast',
+    description: 'Test podcast description'
+  })
   vi.spyOn(utilsLib, 'getFeedUrl').mockResolvedValue('http://example.com/feed.xml')
 
   // Mock spotify library

@@ -88,13 +88,13 @@ function getAuthHeaders(): AuthHeaders {
 }
 
 /**
- * Get a slugified title from a Spotify show URL
+ * Get enhanced metadata from a Spotify show URL including name and description
  * @param {string} spotifyUrl - The Spotify show URL
- * @returns {Promise<string>} The slugified show title
+ * @returns {Promise<{ name: string, description: string }>} The show name and description
  * @throws {Error} If the URL is invalid or the show cannot be fetched
  */
-async function getTitleSlug(spotifyUrl: string): Promise<string> {
-    // Use Spotify Web API to fetch the show name and slugify it
+async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, description: string }> {
+    // Use Spotify Web API to fetch the show name and description
     const cleanUrl: string = spotifyUrl.split('?')[0]!;
     const { pathname } = new URL(cleanUrl);
     const [, type, id] = pathname.split('/');
@@ -116,18 +116,26 @@ async function getTitleSlug(spotifyUrl: string): Promise<string> {
     }
     
     const showData: SpotifyShow = await apiRes.json() as SpotifyShow;
-    const { name } = showData;
+    const { name, description } = showData;
     
     if (!name) {
       throw new Error('No show name returned from Spotify API');
     }
     
     // Normalize and slugify the show name
-    return name
+    const normalizedName = name
       .toLowerCase()
       .replace(/\|.*$/, '')
       .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '')
       .trim();
+    
+    // Use description if available, otherwise use empty string as fallback
+    const normalizedDescription = description || '';
+    
+    return {
+      name: normalizedName,
+      description: normalizedDescription
+    };
 }
 
 /**

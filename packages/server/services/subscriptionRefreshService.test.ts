@@ -266,7 +266,10 @@ describe('refreshUserSubscriptions', () => {
     vi.mocked(getTitleSlug).mockImplementation(async (spotifyUrl: string) => {
       // Extract the show ID from the Spotify URL and return a simple slug
       const showId = spotifyUrl.split('/').pop() || 'unknown';
-      return `show-${showId}`;
+      return {
+        name: `show-${showId}`,
+        description: 'Test podcast description'
+      };
     });
     
     vi.mocked(getFeedUrl).mockImplementation(async (slug: string) => {
@@ -634,9 +637,9 @@ describe('refreshUserSubscriptions', () => {
   it('should handle Spotify API pagination correctly', async () => {
     // Arrange: Mock the utils functions to avoid external API calls in tests
     vi.mocked(getTitleSlug).mockImplementation(async (spotifyUrl: string) => {
-      if (spotifyUrl.includes('show1')) return 'test-show-1';
-      if (spotifyUrl.includes('show2')) return 'test-show-2';
-      return 'test-show';
+      if (spotifyUrl.includes('show1')) return { name: 'test-show-1', description: 'Test show 1 description' };
+      if (spotifyUrl.includes('show2')) return { name: 'test-show-2', description: 'Test show 2 description' };
+      return { name: 'test-show', description: 'Test show description' };
     });
     
     vi.mocked(getFeedUrl).mockImplementation(async (slug: string) => {
@@ -1321,8 +1324,11 @@ describe('Manual RSS Override Safeguard', () => {
     const spotifyUrl = 'https://open.spotify.com/show/test-show-123';
     const manualRssUrl = 'https://feeds.example.com/manual-override.xml';
     
-    // Arrange: Mock getTitleSlug and getFeedUrl
-    mockGetTitleSlug.mockResolvedValue('test show title');
+          // Arrange: Mock getTitleSlug and getFeedUrl
+      mockGetTitleSlug.mockResolvedValue({
+        name: 'test show title',
+        description: 'Test podcast description'
+      });
     mockGetFeedUrl.mockResolvedValue(null); // No RSS feed found
     
     // Arrange: Mock the select('id,rss_url') query for existing show
@@ -1382,8 +1388,11 @@ describe('Manual RSS Override Safeguard', () => {
     const manualRssUrl = 'https://feeds.example.com/manual-override.xml';
     const discoveredRssUrl = 'https://feeds.example.com/discovered-feed.xml';
     
-    // Arrange: Mock getTitleSlug and getFeedUrl returning different feed
-    mockGetTitleSlug.mockResolvedValue('test show title');
+          // Arrange: Mock getTitleSlug and getFeedUrl returning different feed
+      mockGetTitleSlug.mockResolvedValue({
+        name: 'test show title',
+        description: 'Test podcast description'
+      });
     mockGetFeedUrl.mockResolvedValue(discoveredRssUrl); // Returns different RSS feed
     
     // Arrange: Mock the select('id,rss_url') query for existing show
@@ -1442,8 +1451,11 @@ describe('Manual RSS Override Safeguard', () => {
     const spotifyUrl = 'https://open.spotify.com/show/test-show-123';
     const discoveredRssUrl = 'https://feeds.example.com/discovered-feed.xml';
     
-    // Arrange: Mock getTitleSlug and getFeedUrl returning real feed
-    mockGetTitleSlug.mockResolvedValue('test show title');
+          // Arrange: Mock getTitleSlug and getFeedUrl returning real feed
+      mockGetTitleSlug.mockResolvedValue({
+        name: 'test show title',
+        description: 'Test podcast description'
+      });
     mockGetFeedUrl.mockResolvedValue(discoveredRssUrl); // Returns real RSS feed
     
     // Arrange: Mock the select('id,rss_url') query for existing show with fallback value

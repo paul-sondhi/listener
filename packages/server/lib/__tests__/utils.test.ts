@@ -55,7 +55,7 @@ vi.mock('../spotify.js', () => ({
 
 // System Under Test functions will be imported dynamically
 let getAuthHeaders: () => { 'X-Auth-Key': string; 'X-Auth-Date': string; 'Authorization': string }
-let getTitleSlug: (url: string) => Promise<string>
+let getTitleSlug: (url: string) => Promise<{ name: string, description: string }>
 let getFeedUrl: (slug: string) => Promise<string | null>
 let jaccardSimilarity: (a: string, b: string) => number
 
@@ -160,17 +160,20 @@ describe('Utility Functions', () => {
   })
 
   describe('getTitleSlug', () => {
-    test('should return correct slug for a valid Spotify show URL', async () => {
+    test('should return correct metadata for a valid Spotify show URL', async () => {
       // Arrange
       mockGetSpotifyAccessToken.mockResolvedValue('fake_spotify_token')
       const mockResponse: MockFetchResponse = {
         ok: true,
-        json: async () => ({ name: 'My Awesome Show | Podcasts' } as MockSpotifyShow),
+        json: async () => ({ 
+          name: 'My Awesome Show | Podcasts',
+          description: 'This is a great podcast about technology'
+        } as MockSpotifyShow),
       }
       mockFetch.mockResolvedValueOnce(mockResponse)
 
       // Act
-      const slug = await getTitleSlug('https://open.spotify.com/show/12345ABC?si=xyz')
+      const result = await getTitleSlug('https://open.spotify.com/show/12345ABC?si=xyz')
 
       // Assert
       expect(mockGetSpotifyAccessToken).toHaveBeenCalledTimes(1)
@@ -179,7 +182,10 @@ describe('Utility Functions', () => {
         'https://api.spotify.com/v1/shows/12345ABC',
         { headers: { Authorization: 'Bearer fake_spotify_token' } }
       )
-      expect(slug).toBe('my awesome show')
+      expect(result).toEqual({
+        name: 'my awesome show',
+        description: 'This is a great podcast about technology'
+      })
     })
 
     test('should handle show names with emojis and extra text', async () => {
@@ -187,15 +193,21 @@ describe('Utility Functions', () => {
       mockGetSpotifyAccessToken.mockResolvedValue('fake_spotify_token')
       const mockResponse: MockFetchResponse = {
         ok: true,
-        json: async () => ({ name: '🎉 My Show Title 😊 | Some Other Text' } as MockSpotifyShow),
+        json: async () => ({ 
+          name: '🎉 My Show Title 😊 | Some Other Text',
+          description: 'A fun podcast about life'
+        } as MockSpotifyShow),
       }
       mockFetch.mockResolvedValueOnce(mockResponse)
 
       // Act
-      const slug = await getTitleSlug('https://open.spotify.com/show/67890DEF?si=abc')
+      const result = await getTitleSlug('https://open.spotify.com/show/67890DEF?si=abc')
 
       // Assert
-      expect(slug).toBe('my show title')
+      expect(result).toEqual({
+        name: 'my show title',
+        description: 'A fun podcast about life'
+      })
     })
 
     test('should throw error if URL is not a Spotify show link', async () => {
@@ -216,6 +228,28 @@ describe('Utility Functions', () => {
 
       // Act & Assert
       await expect(getTitleSlug('https://open.spotify.com/show/errorShow')).rejects.toThrow('Failed to fetch show from Spotify API')
+    })
+
+    test('should handle shows without descriptions', async () => {
+      // Arrange
+      mockGetSpotifyAccessToken.mockResolvedValue('fake_spotify_token')
+      const mockResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({ 
+          name: 'Show Without Description',
+          // No description field
+        } as MockSpotifyShow),
+      }
+      mockFetch.mockResolvedValueOnce(mockResponse)
+
+      // Act
+      const result = await getTitleSlug('https://open.spotify.com/show/noDescriptionShow')
+
+      // Assert
+      expect(result).toEqual({
+        name: 'show without description',
+        description: ''
+      })
     })
 
     test('should throw error if Spotify API returns no show name', async () => {

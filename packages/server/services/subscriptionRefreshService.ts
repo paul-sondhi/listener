@@ -359,12 +359,12 @@ async function updateSubscriptionStatus(
             let showTitle: string = `Show ${showId}`; // Default placeholder title
             
             try {
-                // Get the show title slug from Spotify
-                const titleSlug = await getTitleSlug(spotifyUrl);
-                showTitle = titleSlug; // Use the actual show title
+                // Get the show title slug and description from Spotify
+                const showMetadata = await getTitleSlug(spotifyUrl);
+                showTitle = showMetadata.name; // Use the actual show title
                 
                 // Try to find the RSS feed URL using the title slug
-                const fetchedRssUrl = await getFeedUrl(titleSlug);
+                const fetchedRssUrl = await getFeedUrl(showMetadata.name);
                 const candidateRss = fetchedRssUrl ?? spotifyUrl;
 
                 // -----------------------------------------------------

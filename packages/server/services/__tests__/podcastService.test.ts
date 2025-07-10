@@ -74,7 +74,10 @@ describe('PodcastService', () => {
   describe('getPodcastSlug', () => {
     it('should return slug from getTitleSlug', async () => {
       // Arrange
-      mockGetTitleSlug.mockResolvedValue('test-slug')
+      mockGetTitleSlug.mockResolvedValue({
+        name: 'test-slug',
+        description: 'Test podcast description'
+      })
 
       // Act
       const slug = await podcastService.getPodcastSlug('valid-url')

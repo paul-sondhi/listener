@@ -327,11 +327,11 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                     let rssUrl: string = spotifyUrl; // Default fallback to Spotify URL
                     
                     try {
-                        // Get the show title slug from Spotify
-                        const titleSlug = await getTitleSlug(spotifyUrl);
+                        // Get the show title slug and description from Spotify
+                        const showMetadata = await getTitleSlug(spotifyUrl);
                         
                         // Try to find the RSS feed URL using the title slug
-                        const fetchedRssUrl = await getFeedUrl(titleSlug);
+                        const fetchedRssUrl = await getFeedUrl(showMetadata.name);
                         const candidateRss = fetchedRssUrl ?? spotifyUrl;
 
                         // -----------------------------------------------------
