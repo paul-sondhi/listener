@@ -637,5 +637,165 @@ describe('Utility Functions', () => {
       expect(feedUrl).toBe('https://feeds.npr.org/morning-show')
       expect(mockFetch).toHaveBeenCalledTimes(1)
     })
+
+    test('should use episode probe to boost matching feed when Spotify data available', async () => {
+      // Arrange: Test case where episode probe makes the difference
+      const metadata = {
+        name: 'test show',
+        description: 'Test description',
+        publisher: 'Test Publisher',
+        spotifyShowId: 'show-123',
+        accessToken: 'spotify-token'
+      }
+      
+      const mockPodcastIndexResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({
+          feeds: [
+            { 
+              title: 'Test Show', 
+              url: 'https://feeds.example.com/wrong-feed',
+              description: 'Test description',
+              author: 'Test Publisher'
+            },
+            { 
+              title: 'Test Show', 
+              url: 'https://feeds.example.com/correct-feed',
+              description: 'Test description',
+              author: 'Test Publisher'
+            }
+          ],
+        } as MockPodcastIndexResponse),
+      }
+      
+      // Mock Spotify episode responses (for episode probe)
+      const mockSpotifyEpisode = {
+        ok: true,
+        json: async () => ({
+          items: [{
+            id: 'episode-123',
+            name: 'Latest Episode Title',
+            release_date: '2023-12-01'
+          }]
+        })
+      }
+      
+      // Mock RSS responses - first feed has different episode, second has matching episode
+      const mockRssWrongFeed = {
+        ok: true,
+        text: async () => `<?xml version="1.0"?>
+          <rss><channel><item>
+            <title>Different Episode</title>
+            <pubDate>Fri, 01 Dec 2023 10:00:00 GMT</pubDate>
+          </item></channel></rss>`
+      }
+      
+      const mockRssCorrectFeed = {
+        ok: true,
+        text: async () => `<?xml version="1.0"?>
+          <rss><channel><item>
+            <title>Latest Episode Title</title>
+            <pubDate>Fri, 01 Dec 2023 10:00:00 GMT</pubDate>
+          </item></channel></rss>`
+      }
+      
+      // Set up fetch mock sequence: PodcastIndex, then Spotify episodes, then RSS feeds
+      mockFetch
+        .mockResolvedValueOnce(mockPodcastIndexResponse) // PodcastIndex search
+        .mockResolvedValueOnce(mockSpotifyEpisode) // Spotify episode for first feed
+        .mockResolvedValueOnce(mockRssWrongFeed) // RSS for first feed
+        .mockResolvedValueOnce(mockSpotifyEpisode) // Spotify episode for second feed
+        .mockResolvedValueOnce(mockRssCorrectFeed) // RSS for second feed
+
+      // Act
+      const feedUrl = await getFeedUrl(metadata)
+
+      // Assert: Should pick the correct feed due to episode probe boost
+      expect(feedUrl).toBe('https://feeds.example.com/correct-feed')
+      expect(mockFetch).toHaveBeenCalledTimes(5) // 1 PodcastIndex + 2 Spotify + 2 RSS
+    })
+
+    test('should handle episode probe gracefully when it fails', async () => {
+      // Arrange: Test case where episode probe fails but matching still works
+      const metadata = {
+        name: 'test show',
+        description: 'Test description',
+        publisher: 'Test Publisher',
+        spotifyShowId: 'show-123',
+        accessToken: 'spotify-token'
+      }
+      
+      const mockPodcastIndexResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({
+          feeds: [
+            { 
+              title: 'Test Show', 
+              url: 'https://feeds.example.com/test-feed',
+              description: 'Test description',
+              author: 'Test Publisher'
+            }
+          ],
+        } as MockPodcastIndexResponse),
+      }
+      
+      // Mock Spotify episode to fail
+      const mockSpotifyError = {
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error'
+      }
+      
+      mockFetch
+        .mockResolvedValueOnce(mockPodcastIndexResponse) // PodcastIndex search
+        .mockResolvedValueOnce(mockSpotifyError) // Spotify episode fails
+        .mockResolvedValueOnce(mockSpotifyError) // RSS fetch also attempted
+
+      // Act
+      const feedUrl = await getFeedUrl(metadata)
+
+      // Assert: Should still return the feed despite probe failure
+      expect(feedUrl).toBe('https://feeds.example.com/test-feed')
+      expect(mockFetch).toHaveBeenCalledTimes(3) // 1 PodcastIndex + 1 failed Spotify + 1 RSS attempt
+    })
+
+    test('regression test: "The Daily" should match correct RSS feed (simplecast vs podtrac)', async () => {
+      // Arrange: Regression test for the specific "The Daily" mismatch issue
+      const metadata = {
+        name: 'the daily',
+        description: 'This is how the news should sound. The Daily from The New York Times.',
+        publisher: 'The New York Times'
+        // Note: No spotifyShowId/accessToken to test pure publisher matching without episode probe
+      }
+      
+      const mockPodcastIndexResponse: MockFetchResponse = {
+        ok: true,
+        json: async () => ({
+          feeds: [
+            { 
+              title: 'The Daily', 
+              url: 'https://feeds.simplecast.com/XThpxTzR', // Wrong feed
+              description: 'The Daily from some other source',
+              author: 'Different Publisher'
+            },
+            { 
+              title: 'The Daily', 
+              url: 'https://feeds.simplecast.com/54nAGcIl', // Correct feed
+              description: 'This is how the news should sound. The Daily from The New York Times.',
+              author: 'The New York Times'
+            }
+          ],
+        } as MockPodcastIndexResponse),
+      }
+      
+      mockFetch.mockResolvedValueOnce(mockPodcastIndexResponse)
+
+      // Act
+      const feedUrl = await getFeedUrl(metadata)
+
+      // Assert: Should pick the correct New York Times feed due to publisher matching
+      expect(feedUrl).toBe('https://feeds.simplecast.com/54nAGcIl')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
   })
 }) 

@@ -1,4 +1,5 @@
 import { getSpotifyAccessToken } from './spotify.js';
+import { verifyLatestEpisodeMatch } from './episodeProbe.js';
 import crypto from 'crypto';
 
 // Interface for PodcastIndex API authentication headers
@@ -146,16 +147,18 @@ async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, descrip
 }
 
 /**
- * Get the RSS feed URL for a podcast using enhanced matching with title, description, and publisher
- * @param {string | { name: string, description: string, publisher?: string }} metadata - The podcast metadata (name, description, and publisher) or just the slug
+ * Get the RSS feed URL for a podcast using enhanced matching with title, description, publisher, and episode verification
+ * @param {string | { name: string, description: string, publisher?: string, spotifyShowId?: string, accessToken?: string }} metadata - The podcast metadata or just the slug
  * @returns {Promise<string | null>} The RSS feed URL or null if not found
  * @throws {Error} If the search fails
  */
-async function getFeedUrl(metadata: string | { name: string, description: string, publisher?: string }): Promise<string | null> {
+async function getFeedUrl(metadata: string | { name: string, description: string, publisher?: string, spotifyShowId?: string, accessToken?: string }): Promise<string | null> {
     // Handle both legacy string input and new metadata object
     const searchTerm = typeof metadata === 'string' ? metadata : metadata.name;
     const description = typeof metadata === 'string' ? '' : metadata.description;
     const publisher = typeof metadata === 'string' ? '' : (metadata.publisher || '');
+    const spotifyShowId = typeof metadata === 'string' ? undefined : metadata.spotifyShowId;
+    const accessToken = typeof metadata === 'string' ? undefined : metadata.accessToken;
     
     // Fetch feed URL for a given search term, using PodcastIndex with iTunes fallback
     const authHeaders: AuthHeaders = getAuthHeaders();
@@ -188,7 +191,8 @@ async function getFeedUrl(metadata: string | { name: string, description: string
       const descriptionWeight = parseFloat(process.env.RSS_MATCH_DESCRIPTION_WEIGHT || '0.4');
       const publisherWeight = parseFloat(process.env.RSS_MATCH_PUBLISHER_WEIGHT || '0.2');
       
-      for (const feed of feeds) {
+      // First pass: Calculate similarity scores for all feeds
+      const scoredFeeds = feeds.map(feed => {
         // Calculate title similarity (40% weight by default)
         const titleSimilarity = jaccardSimilarity(feed.title.toLowerCase(), searchTerm);
         
@@ -209,11 +213,61 @@ async function getFeedUrl(metadata: string | { name: string, description: string
                              (descriptionSimilarity * descriptionWeight) + 
                              (publisherSimilarity * publisherWeight);
         
-        // Update best match if this score is higher
-        if (combinedScore > bestScore) {
-          bestScore = combinedScore;
-          bestMatch = feed;
+        return { feed, score: combinedScore };
+      });
+      
+      // Sort by score (highest first)
+      scoredFeeds.sort((a, b) => b.score - a.score);
+      
+      // Episode probe enhancement: Run probe on top 2-3 candidates if Spotify data is available
+      if (spotifyShowId && accessToken && scoredFeeds.length > 0) {
+        const topCandidates = scoredFeeds.slice(0, Math.min(3, scoredFeeds.length));
+        
+        // Run episode probes in parallel for top candidates
+        const probePromises = topCandidates.map(async ({ feed, score }) => {
+          try {
+            const probeScore = await verifyLatestEpisodeMatch(spotifyShowId, feed.url, accessToken);
+            
+            // Adjust score based on episode match:
+            // +0.15 if probe score >= 0.9 (high confidence match)
+            // -0.25 if probe score <= 0.2 (likely mismatch)
+            let adjustedScore = score;
+            if (probeScore >= 0.9) {
+              adjustedScore += 0.15;
+            } else if (probeScore <= 0.2) {
+              adjustedScore -= 0.25;
+            }
+            
+            return { feed, score: adjustedScore, probeScore };
+          } catch (error) {
+            // If probe fails, return original score
+            console.warn(`[getFeedUrl] Episode probe failed for ${feed.url}:`, (error as Error).message);
+            return { feed, score, probeScore: 0.5 };
+          }
+        });
+        
+        const probeResults = await Promise.all(probePromises);
+        
+        // Find the best match after probe adjustment
+        if (probeResults.length > 0) {
+          let bestProbeResult = probeResults[0]!; // We know length > 0
+          for (const result of probeResults) {
+            if (result.score > bestProbeResult.score) {
+              bestProbeResult = result;
+            }
+          }
+          
+          bestMatch = bestProbeResult.feed;
+          bestScore = bestProbeResult.score;
+        } else {
+          // Fallback if no probe results
+          bestMatch = scoredFeeds[0]?.feed || null;
+          bestScore = scoredFeeds[0]?.score || 0;
         }
+      } else {
+        // No episode probe available, use highest similarity score
+        bestMatch = scoredFeeds[0]?.feed || null;
+        bestScore = scoredFeeds[0]?.score || 0;
       }
       
       // Get configurable threshold from environment variable with default
