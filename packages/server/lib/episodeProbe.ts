@@ -1,6 +1,21 @@
 import { XMLParser } from 'fast-xml-parser';
 import { jaccardSimilarity } from './utils.js';
 
+// --------------------------------------------------------------
+//  DEBUG LOGGING SUPPORT
+//  When `DEBUG_RSS_MATCHING=true` is set in the environment we
+//  emit detailed console logs that Render will pick up.  These
+//  logs help us understand how the episode probe is behaving
+//  in production without affecting normal operation.
+// --------------------------------------------------------------
+const DEBUG_RSS_MATCHING = process.env.DEBUG_RSS_MATCHING === 'true';
+
+function debugLog(...args: unknown[]): void {
+  if (DEBUG_RSS_MATCHING) {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+}
 // Cache for probe results to avoid duplicate work
 const probeCache = new Map<string, { result: number; timestamp: number }>();
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -222,9 +237,25 @@ export async function verifyLatestEpisodeMatch(
       fetchLatestRssEpisode(candidateFeedUrl)
     ]);
 
+    // Emit a quick overview of the data we were able to fetch
+    debugLog('[EpisodeProbe] Data fetch', {
+      spotifyShowId,
+      candidateFeedUrl,
+      spotifyEpisodeAvailable: !!spotifyEpisode,
+      rssEpisodeAvailable: !!rssEpisode
+    });
+
     // If we can't fetch either episode, return neutral score
     if (!spotifyEpisode || !rssEpisode) {
       const result = 0.5; // Neutral score when data is unavailable
+
+      debugLog('[EpisodeProbe] Missing episode data – returning neutral score', {
+        spotifyShowId,
+        candidateFeedUrl,
+        spotifyEpisodeAvailable: !!spotifyEpisode,
+        rssEpisodeAvailable: !!rssEpisode,
+        result
+      });
       probeCache.set(cacheKey, { result, timestamp: Date.now() });
       return result;
     }
@@ -263,6 +294,16 @@ export async function verifyLatestEpisodeMatch(
 
     // Combine title and date scores (title is more important)
     const finalScore = (titleScore * 0.8) + (dateScore * 0.2);
+
+    debugLog('[EpisodeProbe] Scoring details', {
+      spotifyShowId,
+      candidateFeedUrl,
+      jaccardScore,
+      levenshteinScore,
+      titleScore,
+      dateScore,
+      finalScore
+    });
 
     // Cache the result
     probeCache.set(cacheKey, { result: finalScore, timestamp: Date.now() });

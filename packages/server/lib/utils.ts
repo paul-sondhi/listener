@@ -2,6 +2,22 @@ import { getSpotifyAccessToken } from './spotify.js';
 import { verifyLatestEpisodeMatch } from './episodeProbe.js';
 import crypto from 'crypto';
 
+// --------------------------------------------------------------
+//  DEBUG LOGGING SUPPORT (shared by getFeedUrl & helpers)
+//  When `DEBUG_RSS_MATCHING=true` is set, we emit structured
+//  console logs so that Render captures them in the deployment
+//  logs.  This makes it easy to audit matching decisions during
+//  the daily subscription refresh job.
+// --------------------------------------------------------------
+const DEBUG_RSS_MATCHING = process.env.DEBUG_RSS_MATCHING === 'true';
+
+function debugLog(...args: unknown[]): void {
+  if (DEBUG_RSS_MATCHING) {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+}
+
 // Interface for PodcastIndex API authentication headers
 interface AuthHeaders {
   'X-Auth-Key': string;
@@ -218,6 +234,9 @@ async function getFeedUrl(metadata: string | { name: string, description: string
       
       // Sort by score (highest first)
       scoredFeeds.sort((a, b) => b.score - a.score);
+
+      // Emit top scored feeds for observability
+      debugLog('[getFeedUrl] Scored feeds (top 5)', scoredFeeds.slice(0, 5).map(({ feed, score }) => ({ url: feed.url, title: feed.title, score })));
       
       // Episode probe enhancement: Run probe on top 2-3 candidates if Spotify data is available
       if (spotifyShowId && accessToken && scoredFeeds.length > 0) {
@@ -247,6 +266,9 @@ async function getFeedUrl(metadata: string | { name: string, description: string
         });
         
         const probeResults = await Promise.all(probePromises);
+
+        // Emit probe result details
+        debugLog('[getFeedUrl] Probe results', probeResults.map(r => ({ url: r.feed.url, probeScore: r.probeScore, adjustedScore: r.score })));
         
         // Find the best match after probe adjustment
         if (probeResults.length > 0) {
@@ -280,6 +302,14 @@ async function getFeedUrl(metadata: string | { name: string, description: string
         // Fallback to first result if no high-confidence match
         feedUrl = feeds[0].url;
       }
+
+      debugLog('[getFeedUrl] Final selection before iTunes fallback', {
+        searchTerm,
+        selectedFeed: feedUrl,
+        bestScore,
+        threshold,
+        usedEpisodeProbe: Boolean(spotifyShowId && accessToken)
+      });
     }
     
     // Fallback to Apple iTunes Lookup
@@ -287,6 +317,8 @@ async function getFeedUrl(metadata: string | { name: string, description: string
       const itunesRes: globalThis.Response = await fetch(
         `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&media=podcast&limit=1`
       );
+
+      debugLog('[getFeedUrl] Falling back to iTunes lookup', { searchTerm });
       
       if (itunesRes.ok) {
         const itunesData: iTunesSearchResponse = await itunesRes.json() as iTunesSearchResponse;
@@ -296,6 +328,8 @@ async function getFeedUrl(metadata: string | { name: string, description: string
       }
     }
     
+    debugLog('[getFeedUrl] Returning feed URL', { searchTerm, feedUrl });
+
     return feedUrl;
 }
 
