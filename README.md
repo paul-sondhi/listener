@@ -85,6 +85,12 @@ A podcast transcription service that integrates with Spotify.
    # Re-check toggle (strict boolean): "true" => re-submit last 10, "false" => normal mode
    TRANSCRIPT_WORKER_L10D=false          # Pause worker entirely with TRANSCRIPT_WORKER_ENABLED=false
    
+   # RSS Feed Matching (Optional - defaults provided)
+   RSS_MATCH_THRESHOLD=0.8               # Minimum similarity score for RSS feed matching (0.0-1.0)
+   RSS_MATCH_TITLE_WEIGHT=0.4            # Weight for title similarity in scoring (0.0-1.0)
+   RSS_MATCH_DESCRIPTION_WEIGHT=0.4      # Weight for description similarity in scoring (0.0-1.0)
+   RSS_MATCH_PUBLISHER_WEIGHT=0.2        # Weight for publisher similarity in scoring (0.0-1.0)
+   
    # Newsletter Worker (Optional - defaults provided)
    SEND_WORKER_ENABLED=true              # Enable nightly newsletter sending
    SEND_WORKER_CRON=0 5 * * 1-5          # Run at 5 AM Mon-Fri
