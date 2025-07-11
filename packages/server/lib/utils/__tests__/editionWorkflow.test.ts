@@ -431,5 +431,44 @@ describe('editionWorkflow', () => {
       expect(result.successRate).toBeGreaterThanOrEqual(0);
       expect(result.successRate).toBeLessThanOrEqual(100);
     });
+
+    it('should skip delay in test mode', async () => {
+      // Arrange: Create multiple users to test delay behavior
+      const userId1 = uniqueId('user');
+      const userId2 = uniqueId('user');
+      const showId = uniqueId('show');
+      
+      await supabase.from('users').insert([
+        { id: userId1, email: 'user1@test.com' },
+        { id: userId2, email: 'user2@test.com' }
+      ]);
+      await supabase.from('podcast_shows').insert({
+        id: showId,
+        title: 'Test Show',
+        rss_url: 'https://example.com/feed.rss',
+        spotify_url: 'https://open.spotify.com/show/test'
+      });
+      await supabase.from('user_podcast_subscriptions').insert([
+        { id: uniqueId('sub'), user_id: userId1, show_id: showId, status: 'active' },
+        { id: uniqueId('sub'), user_id: userId2, show_id: showId, status: 'active' }
+      ]);
+
+      // Act: Run workflow in test mode (NODE_ENV should be 'test' by default)
+      const startTime = Date.now();
+      const result = await executeEditionWorkflow(supabase, testConfig);
+      const endTime = Date.now();
+      const totalTime = endTime - startTime;
+
+      // Assert: Should complete quickly without delays in test mode
+      expect(result.totalCandidates).toBeGreaterThanOrEqual(0);
+      expect(result.processedUsers).toBeGreaterThanOrEqual(0);
+      expect(totalTime).toBeLessThan(5000); // Should complete in under 5 seconds (no delays)
+      
+      // Verify that delay logging was not called (since we're in test mode)
+      const delayLogCalls = (debugSubscriptionRefresh as any).mock.calls.filter(
+        (call: any) => call[0] === 'Adding delay between users' || call[0] === 'Adding delay after error'
+      );
+      expect(delayLogCalls).toHaveLength(0);
+    });
   });
 }); 

@@ -346,7 +346,10 @@ export async function executeEditionWorkflow(
     // Step 2: Process each user
     const results: UserProcessingResult[] = [];
     
-    for (const user of prepResult.candidates) {
+    for (let i = 0; i < prepResult.candidates.length; i++) {
+      const user = prepResult.candidates[i];
+      const isLastUser = i === prepResult.candidates.length - 1;
+      
       try {
         const result = await processUserForNewsletter(supabase, user, config, nowOverride);
         results.push(result);
@@ -359,6 +362,18 @@ export async function executeEditionWorkflow(
           elapsedMs: result.elapsedMs,
           episodeNotesCount: result.metadata.episodeNotesCount
         });
+        
+        // Add 10-second delay between users (except for the last user and in test mode)
+        if (!isLastUser && process.env.NODE_ENV !== 'test') {
+          debugSubscriptionRefresh('Adding delay between users', {
+            delayMs: 10000,
+            userIndex: i,
+            totalUsers: prepResult.candidates.length,
+            nextUserEmail: prepResult.candidates[i + 1].email
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, 10000)); // 10 seconds
+        }
         
       } catch (error) {
         // Handle unexpected errors for individual users
@@ -382,6 +397,18 @@ export async function executeEditionWorkflow(
             averageWordCount: 0
           }
         });
+        
+        // Add delay even after errors (except for the last user and in test mode)
+        if (!isLastUser && process.env.NODE_ENV !== 'test') {
+          debugSubscriptionRefresh('Adding delay after error', {
+            delayMs: 10000,
+            userIndex: i,
+            totalUsers: prepResult.candidates.length,
+            nextUserEmail: prepResult.candidates[i + 1].email
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, 10000)); // 10 seconds
+        }
       }
     }
 
