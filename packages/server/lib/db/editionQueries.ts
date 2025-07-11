@@ -385,4 +385,50 @@ export async function queryLast3NewsletterEditions(
     console.error('ERROR: Failed to query last 3 newsletter editions:', error);
     throw error;
   }
+}
+
+/**
+ * Query the last 3 newsletter editions with full details for L10 test mode updates
+ * 
+ * @param supabase - Supabase client instance
+ * @returns Array of newsletter editions with user_id and edition_date for updating
+ */
+export async function queryLast3NewsletterEditionsForUpdate(
+  supabase: SupabaseClient<Database>
+): Promise<Array<{ id: string; user_id: string; edition_date: string }>> {
+  debugDatabase('Starting L10 newsletter editions query for updates');
+
+  try {
+    const { data: editions, error: queryError } = await supabase
+      .from('newsletter_editions')
+      .select('id, user_id, edition_date')
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    debugDatabase('L10 newsletter editions query for updates completed', {
+      error: !!queryError,
+      dataLength: editions?.length || 0,
+      errorMessage: queryError?.message || 'none'
+    });
+
+    if (queryError) {
+      throw new Error(`Failed to query last 3 newsletter editions for updates: ${queryError.message}`);
+    }
+
+    if (!editions || editions.length === 0) {
+      debugDatabase('No newsletter editions found for L10 mode updates');
+      return [];
+    }
+
+    debugDatabase('L10 mode - found editions to update', {
+      count: editions.length,
+      editions: editions.map(e => ({ id: e.id, user_id: e.user_id, edition_date: e.edition_date }))
+    });
+
+    return editions;
+
+  } catch (error) {
+    console.error('ERROR: Failed to query last 3 newsletter editions for updates:', error);
+    throw error;
+  }
 } 

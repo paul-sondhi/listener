@@ -11,7 +11,7 @@ import { EditionWorkerConfig } from '../../config/editionWorkerConfig.js';
 import { UserWithSubscriptions, EpisodeNoteWithEpisode, queryEpisodeNotesForUser } from '../db/editionQueries.js';
 import { generateNewsletterEdition } from '../llm/gemini.js';
 import { sanitizeNewsletterContent } from './buildNewsletterEditionPrompt.js';
-import { insertNewsletterEdition } from '../db/newsletter-editions.ts';
+import { insertNewsletterEdition, upsertNewsletterEdition } from '../db/newsletter-editions.ts';
 import { insertNewsletterEditionEpisodes } from '../db/newsletter-edition-episodes.ts';
 import { _NewsletterEdition } from '@listener/shared';
 import { debugSubscriptionRefresh } from '../debugLogger';
@@ -81,7 +81,8 @@ export async function processUserForNewsletter(
   supabase: SupabaseClient<Database>,
   user: UserWithSubscriptions,
   config: EditionWorkerConfig,
-  nowOverride?: number // Optional for testability
+  nowOverride?: number, // Optional for testability
+  existingEditionsToUpdate?: Array<{ id: string; user_id: string; edition_date: string }> // L10 mode existing editions
 ): Promise<UserProcessingResult> {
   const startTime = Date.now();
   const timing = { queryMs: 0, generationMs: 0, databaseMs: 0 };
@@ -252,9 +253,23 @@ export async function processUserForNewsletter(
       // Insert the newsletter edition
       const editionDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
       
-      const editionResult = await insertNewsletterEdition({
+      // In L10 mode, use existing edition dates if available for this user
+      let targetEditionDate = editionDate;
+      if (config.last10Mode && existingEditionsToUpdate) {
+        const userExistingEdition = existingEditionsToUpdate.find(edition => edition.user_id === user.id);
+        if (userExistingEdition) {
+          targetEditionDate = userExistingEdition.edition_date;
+          debugSubscriptionRefresh('Using existing edition date for L10 mode update', {
+            userId: user.id,
+            originalDate: editionDate,
+            existingDate: targetEditionDate
+          });
+        }
+      }
+      
+      const editionResult = await upsertNewsletterEdition({
         user_id: user.id,
-        edition_date: editionDate,
+        edition_date: targetEditionDate,
         content: newsletterContent,
         status: 'generated',
         model: generationResult.model,
@@ -269,7 +284,7 @@ export async function processUserForNewsletter(
 
       // Remove all fallback logic - let it fail if DB helpers don't work
       if (!editionResult) {
-        throw new Error(`Database save failed: insertNewsletterEdition returned undefined`);
+        throw new Error(`Database save failed: upsertNewsletterEdition returned undefined`);
       }
 
       newsletterEditionId = editionResult.id;

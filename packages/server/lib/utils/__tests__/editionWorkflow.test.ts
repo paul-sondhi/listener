@@ -105,7 +105,7 @@ describe('editionWorkflow', () => {
     it('should not log for normal mode', () => {
       const prepResult: PrepareUsersResult = {
         candidates: [],
-        clearedEditionsCount: 0,
+        existingEditionsToUpdate: [],
         wasL10Mode: false,
         elapsedMs: 100
       };
@@ -117,7 +117,7 @@ describe('editionWorkflow', () => {
       // The function always logs the summary, even in normal mode
       expect(debugSubscriptionRefresh).toHaveBeenCalledWith('L10 Mode Summary', {
         candidateCount: 0,
-        clearedEditionsCount: 0,
+        existingEditionsToUpdateCount: 0,
         isValid: true,
         warnings: [],
         recommendations: []
@@ -129,7 +129,10 @@ describe('editionWorkflow', () => {
         candidates: [
           { id: 'user1', email: 'user1@test.com', subscriptions: [{ id: 'sub1', show_id: 'show1', status: 'active' }] }
         ],
-        clearedEditionsCount: 5,
+        existingEditionsToUpdate: [
+          { id: 'edition1', user_id: 'user1', edition_date: '2024-01-01' },
+          { id: 'edition2', user_id: 'user1', edition_date: '2024-01-02' }
+        ],
         wasL10Mode: true,
         elapsedMs: 200
       };
@@ -144,7 +147,7 @@ describe('editionWorkflow', () => {
       
       expect(debugSubscriptionRefresh).toHaveBeenCalledWith('L10 Mode Summary', {
         candidateCount: 1,
-        clearedEditionsCount: 5,
+        existingEditionsToUpdateCount: 2,
         isValid: true,
         warnings: ['Test warning'],
         recommendations: ['Test recommendation']
@@ -180,7 +183,7 @@ describe('editionWorkflow', () => {
 
       // Assert
       expect(result.wasL10Mode).toBe(false);
-      expect(result.clearedEditionsCount).toBe(0);
+      expect(result.existingEditionsToUpdate).toHaveLength(0);
       expect(result.elapsedMs).toBeGreaterThanOrEqual(0); // Can be 0 for very fast operations
       // Note: Global mock doesn't support complex joins, so candidates may be empty
       // In a real database, this would return the user with subscriptions
@@ -250,9 +253,56 @@ describe('editionWorkflow', () => {
 
       // Assert
       expect(result.wasL10Mode).toBe(false);
-      expect(result.clearedEditionsCount).toBe(0);
+      expect(result.existingEditionsToUpdate).toHaveLength(0);
       expect(result.candidates).toHaveLength(0);
+      expect(result.existingEditionsToUpdate).toHaveLength(0);
+      expect(result.wasL10Mode).toBe(false);
       expect(result.elapsedMs).toBeGreaterThanOrEqual(0); // Can be 0 for very fast operations
+    });
+
+    it('should handle normal mode with users', async () => {
+      // Arrange: Create test user with subscription
+      const userId = uniqueId('user');
+      const showId = uniqueId('show');
+      
+      await supabase.from('users').insert({
+        id: userId,
+        email: 'user@test.com'
+      });
+      await supabase.from('podcast_shows').insert({
+        id: showId,
+        title: 'Test Show',
+        rss_url: 'https://example.com/feed.rss',
+        spotify_url: 'https://open.spotify.com/show/test'
+      });
+      await supabase.from('user_podcast_subscriptions').insert({
+        id: uniqueId('sub'),
+        user_id: userId,
+        show_id: showId,
+        status: 'active'
+      });
+
+      // Act
+      const result = await prepareUsersForNewsletters(supabase, testConfig);
+
+      // Assert
+      expect(result.candidates).toHaveLength(1); // Global mock returns candidates
+      expect(result.existingEditionsToUpdate).toHaveLength(0);
+      expect(result.wasL10Mode).toBe(false);
+      expect(result.elapsedMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should handle L10 mode with no existing editions', async () => {
+      const l10Config = { ...testConfig, last10Mode: true };
+
+      // Act
+      const result = await prepareUsersForNewsletters(supabase, l10Config);
+
+      // Assert
+      expect(result.candidates).toHaveLength(0); // Global mock doesn't support complex joins
+      expect(result.existingEditionsToUpdate).toHaveLength(0);
+      expect(result.wasL10Mode).toBe(true);
+      expect(result.elapsedMs).toBeGreaterThanOrEqual(0);
     });
   });
 

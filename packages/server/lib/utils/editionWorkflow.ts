@@ -8,7 +8,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../../../shared/src/types/supabase.js';
 import { EditionWorkerConfig } from '../../config/editionWorkerConfig.js';
-import { queryUsersWithActiveSubscriptions, queryLast3NewsletterEditions } from '../db/editionQueries.js';
+import { queryUsersWithActiveSubscriptions, queryLast3NewsletterEditionsForUpdate } from '../db/editionQueries.js';
 import { processUserForNewsletter, UserProcessingResult, aggregateUserProcessingResults } from './editionProcessor.js';
 import { _updateNewsletterEdition } from '../db/newsletter-editions.ts';
 import { debugSubscriptionRefresh } from '../debugLogger';
@@ -32,8 +32,12 @@ export interface PrepareUsersResult {
       };
     }>;
   }>;
-  /** Number of existing editions that were cleared (L10 mode only) */
-  clearedEditionsCount: number;
+  /** Existing editions to update in L10 mode */
+  existingEditionsToUpdate: Array<{
+    id: string;
+    user_id: string;
+    edition_date: string;
+  }>;
   /** Whether L10 mode was active */
   wasL10Mode: boolean;
   /** Time taken for preparation in milliseconds */
@@ -125,31 +129,23 @@ export async function prepareUsersForNewsletters(
       mode: config.last10Mode ? 'L10' : 'normal'
     });
 
-    let clearedEditionsCount = 0;
+    let existingEditionsToUpdate: Array<{
+      id: string;
+      user_id: string;
+      edition_date: string;
+    }> = [];
 
-    // Step 2: Handle L10 mode - clear existing content for last 3 newsletter editions
+    // Step 2: Handle L10 mode - prepare existing editions for update
     if (config.last10Mode) {
-      debugSubscriptionRefresh('L10 mode active - clearing content for last 3 newsletter editions');
+      debugSubscriptionRefresh('L10 mode active - preparing existing editions for update');
       
-      const editionIds = await queryLast3NewsletterEditions(supabase);
+      const editionIds = await queryLast3NewsletterEditionsForUpdate(supabase);
       
       if (editionIds.length > 0) {
-        // Clear the content of existing editions (but keep the records)
-        const clearResult = await clearNewsletterEditionContent(supabase, editionIds);
-        
-        if (!clearResult.success) {
-          debugSubscriptionRefresh('Failed to clear some existing edition content in L10 mode', {
-            error: clearResult.error,
-            editionCount: editionIds.length
-          });
-          // Don't fail the entire operation - just log the warning
-        } else {
-          clearedEditionsCount = clearResult.clearedCount;
-          debugSubscriptionRefresh('Successfully cleared content for L10 mode', {
-            clearedCount: clearedEditionsCount,
-            editionCount: editionIds.length
-          });
-        }
+        existingEditionsToUpdate = editionIds;
+        debugSubscriptionRefresh('Successfully prepared existing editions for update in L10 mode', {
+          editionCount: editionIds.length
+        });
       }
     }
 
@@ -157,14 +153,14 @@ export async function prepareUsersForNewsletters(
     
     debugSubscriptionRefresh('User preparation completed', {
       candidateCount: candidates.length,
-      clearedEditionsCount,
+      existingEditionsToUpdateCount: existingEditionsToUpdate.length,
       wasL10Mode: config.last10Mode,
       elapsedMs
     });
 
     return {
       candidates,
-      clearedEditionsCount,
+      existingEditionsToUpdate,
       wasL10Mode: config.last10Mode,
       elapsedMs
     };
@@ -172,50 +168,6 @@ export async function prepareUsersForNewsletters(
   } catch (error) {
     console.error('ERROR: Failed to prepare users for newsletters:', error);
     throw error;
-  }
-}
-
-/**
- * Clear the content of newsletter editions (L10 mode)
- * 
- * @param supabase - Supabase client instance
- * @param editionIds - Array of newsletter edition IDs to clear
- * @returns Promise with success status and cleared count
- */
-async function clearNewsletterEditionContent(
-  supabase: SupabaseClient<Database>,
-  editionIds: string[]
-): Promise<{ success: boolean; clearedCount: number; error?: string }> {
-  try {
-    const { data, error } = await supabase
-      .from('newsletter_editions')
-      .update({ 
-        content: '[Content cleared for L10 test mode]',
-        status: 'cleared_for_testing',
-        updated_at: new Date().toISOString()
-      })
-      .in('id', editionIds)
-      .select('id');
-
-    if (error) {
-      return {
-        success: false,
-        clearedCount: 0,
-        error: error.message
-      };
-    }
-
-    return {
-      success: true,
-      clearedCount: data?.length || 0
-    };
-
-  } catch (error) {
-    return {
-      success: false,
-      clearedCount: 0,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
   }
 }
 
@@ -279,7 +231,7 @@ export function logL10ModeSummary(
 ): void {
   debugSubscriptionRefresh('L10 Mode Summary', {
     candidateCount: prepResult.candidates.length,
-    clearedEditionsCount: prepResult.clearedEditionsCount,
+    existingEditionsToUpdateCount: prepResult.existingEditionsToUpdate.length,
     isValid: validation.isValid,
     warnings: validation.warnings,
     recommendations: validation.recommendations
@@ -360,7 +312,13 @@ export async function executeEditionWorkflow(
       const isLastUser = i === prepResult.candidates.length - 1;
       
       try {
-        const result = await processUserForNewsletter(supabase, user, config, nowOverride);
+        const result = await processUserForNewsletter(
+          supabase, 
+          user, 
+          config, 
+          nowOverride,
+          config.last10Mode ? prepResult.existingEditionsToUpdate : undefined
+        );
         results.push(result);
         
         // Log progress for each user

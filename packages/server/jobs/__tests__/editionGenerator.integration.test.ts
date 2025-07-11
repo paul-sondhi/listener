@@ -287,8 +287,8 @@ class EditionGeneratorIntegrationTestDataFactory {
       user_id: string;
       edition_date: string;
       status: string;
-      html_content?: string;
-      sanitized_content?: string;
+      content?: string;
+      model?: string;
     }>
   ) {
     const editionRecords = editions.map((edition, i) => ({
@@ -296,10 +296,9 @@ class EditionGeneratorIntegrationTestDataFactory {
       user_id: edition.user_id,
       edition_date: edition.edition_date,
       status: edition.status,
-      html_content: edition.html_content || `<html><body>Test newsletter ${i + 1}</body></html>`,
-      sanitized_content: edition.sanitized_content || `Test newsletter ${i + 1}`,
-      episode_count: 3,
-      model: 'gemini-pro',
+      content: edition.content || `Test newsletter ${i + 1}`,
+      model: edition.model || 'gemini-pro',
+      user_email: 'test@example.com',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }));
@@ -739,7 +738,7 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
     expect(duration).toBeLessThan(30000); // Should complete within 30 seconds
   });
 
-  it('should handle L10 mode by clearing and regenerating last 3 newsletter editions', async () => {
+  it('should handle L10 mode by updating last 3 newsletter editions', async () => {
     // Create test user
     const testUsers = await EditionGeneratorIntegrationTestDataFactory.createTestUsers(supabase, 1);
     testIds.userIds = testUsers.map(user => user.id);
@@ -796,9 +795,9 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
       Array(5).fill(null).map((_, i) => ({
         user_id: testUsers[0].id,
         edition_date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-        status: 'done',
-        html_content: `<html><body>Original newsletter ${i + 1}</body></html>`,
-        sanitized_content: `Original newsletter ${i + 1}`
+        status: 'generated',
+        content: `Original newsletter ${i + 1}`,
+        model: 'gemini-pro'
       }))
     );
     testIds.editionIds = existingEditions.map(edition => edition.id);
@@ -819,7 +818,7 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
       // Assert: Verify the job completed
       expect(typeof result).toBe('boolean');
 
-      // Assert: Verify the last 3 editions were cleared and regenerated
+      // Assert: Verify the last 3 editions were updated (not cleared)
       const { data: updatedEditions, error: updatedEditionsError } = await supabase
         .from('newsletter_editions')
         .select('*')
@@ -832,15 +831,11 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
 
       // Check that the first 3 editions were updated with new content
       for (const edition of updatedEditions!) {
-        // The following fields are not present in the DB schema, so we do not assert on them:
-        // expect(edition.html_content).toContain('Test Newsletter'); // New content from mock
-        // expect(edition.sanitized_content).toContain('Test Newsletter');
-        // expect(edition.episode_count).toBe(1);
         expect(edition.model).toBe('gemini-pro');
         expect(edition.content).toBeTruthy(); // Asserts the main newsletter content exists
-        // In L10 mode, editions may be cleared but not immediately regenerated in test environment
-        // So we accept either 'generated' or 'cleared_for_testing' status
-        expect(['generated', 'cleared_for_testing']).toContain(edition.status);
+        expect(edition.status).toBe('generated'); // Should remain generated, not cleared
+        // The content should be updated, not cleared
+        expect(edition.content).not.toBe('Original newsletter');
       }
 
       // Check that the last 2 editions were NOT updated
@@ -854,12 +849,10 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
       expect(unchangedEditions).toHaveLength(2);
 
       for (const edition of unchangedEditions!) {
-        // The following fields are not present in the DB schema, so we do not assert on them:
-        // expect(edition.html_content).toContain('Original newsletter'); // Original content
         expect(edition.content).toBeTruthy(); // Asserts the main newsletter content exists
-        // In L10 mode, editions may be cleared but not immediately regenerated in test environment
-        // So we accept either 'done' or 'cleared_for_testing' status for unchanged editions
-        expect(['done', 'cleared_for_testing']).toContain(edition.status);
+        expect(edition.status).toBe('generated'); // Should remain generated
+        // The content should remain original for unchanged editions
+        expect(edition.content).toContain('Original newsletter');
       }
 
     } finally {
