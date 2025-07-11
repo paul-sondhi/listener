@@ -89,7 +89,7 @@ export async function queryTranscriptsNeedingNotes(
     }
 
     // Limit results - more in L10 mode, reasonable limit in normal mode
-    const limit = last10Mode ? 10 : 100;
+    const limit = last10Mode ? 10 : 1000;
     baseQuery = baseQuery.limit(limit);
 
     const { data: rawTranscripts, error: queryError } = await baseQuery;
