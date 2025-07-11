@@ -54,7 +54,8 @@ export async function prepareTranscriptsForNotes(
     const candidates = await queryTranscriptsNeedingNotes(
       supabase,
       config.lookbackHours,
-      config.last10Mode
+      config.last10Mode,
+      config.last10Count
     );
 
     console.log('DEBUG: Found candidate transcripts', {
@@ -138,7 +139,7 @@ export function validateL10Mode(
   actualCount: number;
 } {
   const warnings: string[] = [];
-  const expectedCount = config.last10Mode ? 10 : -1; // -1 means variable count in normal mode
+  const expectedCount = config.last10Mode ? config.last10Count : -1; // -1 means variable count in normal mode
   const actualCount = candidates.length;
 
   if (!config.last10Mode) {
@@ -154,10 +155,10 @@ export function validateL10Mode(
   // L10 mode validation
   if (actualCount === 0) {
     warnings.push('L10 mode is active but no transcripts were found - this may indicate no transcripts exist in the database');
-  } else if (actualCount < 10) {
-    warnings.push(`L10 mode is active but only ${actualCount} transcripts were found (expected up to 10) - this may be normal if fewer transcripts exist`);
-  } else if (actualCount > 10) {
-    warnings.push(`L10 mode returned ${actualCount} transcripts but should be limited to 10 - this indicates a query logic issue`);
+  } else if (actualCount < config.last10Count) {
+    warnings.push(`L10 mode is active but only ${actualCount} transcripts were found (expected up to ${config.last10Count}) - this may be normal if fewer transcripts exist`);
+  } else if (actualCount > config.last10Count) {
+    warnings.push(`L10 mode returned ${actualCount} transcripts but should be limited to ${config.last10Count} - this indicates a query logic issue`);
   }
 
   // Check that transcripts are ordered by creation date (most recent first)
@@ -174,7 +175,7 @@ export function validateL10Mode(
     }
   }
 
-  const isValid = actualCount <= 10 && (actualCount > 0 || warnings.length === 1); // Allow 0 results with warning
+  const isValid = actualCount <= config.last10Count && (actualCount > 0 || warnings.length === 1); // Allow 0 results with warning
 
   return {
     isValid,

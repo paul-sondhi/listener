@@ -11,8 +11,10 @@ export interface NotesWorkerConfig {
   enabled: boolean;
   /** Hours to look back for new transcripts needing notes */
   lookbackHours: number;
-  /** When true, re-process the 10 most-recent transcripts (overwrite duplicates); when false, run in normal mode */
+  /** When true, re-process the most-recent transcripts (overwrite duplicates); when false, run in normal mode */
   last10Mode: boolean;
+  /** Number of most-recent transcripts to process in L10 mode (default: 10) */
+  last10Count: number;
   /** Maximum concurrent Gemini API calls */
   maxConcurrency: number;
   /** Path to the prompt template file */
@@ -40,6 +42,12 @@ export function getNotesWorkerConfig(): NotesWorkerConfig {
 
   // Parse last10Mode flag (strict boolean semantics) – any value other than the string "true" yields false
   const last10Mode: boolean = process.env.NOTES_WORKER_L10 === 'true';
+
+  // Parse last10Count with validation (default: 10)
+  const last10Count = parseInt(process.env.NOTES_WORKER_L10_COUNT || '10', 10);
+  if (isNaN(last10Count) || last10Count < 1 || last10Count > 1000) {
+    throw new Error(`Invalid NOTES_WORKER_L10_COUNT: "${process.env.NOTES_WORKER_L10_COUNT}". Must be a number between 1 and 1000.`);
+  }
 
   // Parse max concurrency with validation
   const maxConcurrency = parseInt(process.env.NOTES_MAX_CONCURRENCY || '30', 10);
@@ -88,6 +96,7 @@ export function getNotesWorkerConfig(): NotesWorkerConfig {
     enabled,
     lookbackHours,
     last10Mode,
+    last10Count,
     maxConcurrency,
     promptPath,
     promptTemplate,
@@ -104,6 +113,7 @@ export function getConfigSummary(config: NotesWorkerConfig): Record<string, unkn
     enabled: config.enabled,
     lookback_hours: config.lookbackHours,
     last10_mode: config.last10Mode,
+    last10_count: config.last10Count,
     max_concurrency: config.maxConcurrency,
     prompt_path: config.promptPath,
     prompt_template_length: config.promptTemplate.length,

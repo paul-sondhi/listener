@@ -10,10 +10,12 @@
  * Usage:
  *   npx tsx jobs/noteGenerator.ts                    # Normal mode
  *   NOTES_WORKER_L10=true npx tsx jobs/noteGenerator.ts  # Testing mode (last 10)
+ *   NOTES_WORKER_L10=true NOTES_WORKER_L10_COUNT=25 npx tsx jobs/noteGenerator.ts  # Testing mode (last 25)
  * 
  * Environment Variables:
  *   NOTES_LOOKBACK_HOURS    - Hours to look back for new transcripts (default: 24)
- *   NOTES_WORKER_L10        - Testing mode: process last 10 transcripts (default: false)
+ *   NOTES_WORKER_L10        - Testing mode: process most recent transcripts (default: false)
+ *   NOTES_WORKER_L10_COUNT  - Number of recent transcripts to process in L10 mode (default: 10)
  *   NOTES_MAX_CONCURRENCY   - Max simultaneous Gemini API calls (default: 30)
  *   NOTES_PROMPT_PATH       - Path to prompt template file (default: prompts/episode-notes.md)
  *   GEMINI_API_KEY          - Google Gemini API key (required)
@@ -91,6 +93,7 @@ export class EpisodeNotesWorker {
         lookback_hours: config.lookbackHours,
         max_concurrency: config.maxConcurrency,
         last10_mode: config.last10Mode,
+        last10_count: config.last10Count,
         prompt_template_length: config.promptTemplate.length
       }
     });

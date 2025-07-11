@@ -44,6 +44,7 @@ export async function queryTranscriptsNeedingNotes(
   supabase: SupabaseClient<Database>,
   lookbackHours: number,
   last10Mode: boolean,
+  last10Count: number = 10,
   nowOverride?: number // Optional for testability
 ): Promise<TranscriptWithEpisode[]> {
   const now = nowOverride ?? Date.now();
@@ -88,8 +89,8 @@ export async function queryTranscriptsNeedingNotes(
       baseQuery = baseQuery.gte('created_at', cutoffTime);
     }
 
-    // Limit results - more in L10 mode, reasonable limit in normal mode
-    const limit = last10Mode ? 10 : 1000;
+    // Limit results - configurable count in L10 mode, reasonable limit in normal mode
+    const limit = last10Mode ? last10Count : 1000;
     baseQuery = baseQuery.limit(limit);
 
     const { data: rawTranscripts, error: queryError } = await baseQuery;

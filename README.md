@@ -977,8 +977,11 @@ NOTES_MAX_CONCURRENCY=30
 # Configure prompt template file (default: prompts/episode-notes.md)
 NOTES_PROMPT_PATH=prompts/episode-notes.md
 
-# Testing mode: process last 10 transcripts regardless of existing notes
+# Testing mode: process most recent transcripts regardless of existing notes
 NOTES_WORKER_L10=false
+
+# Number of recent transcripts to process in L10 mode (default: 10)
+NOTES_WORKER_L10_COUNT=10
 ```
 
 **Job Configuration Examples:**
@@ -998,6 +1001,12 @@ NOTES_LOOKBACK_HOURS=24
 NOTES_MAX_CONCURRENCY=5
 NOTES_WORKER_L10=true
 
+# Testing configuration (overwrites last 25 notes)
+NOTES_LOOKBACK_HOURS=24
+NOTES_MAX_CONCURRENCY=5
+NOTES_WORKER_L10=true
+NOTES_WORKER_L10_COUNT=25
+
 # Disable the job entirely
 NOTES_WORKER_ENABLED=false
 ```
@@ -1010,6 +1019,9 @@ npx tsx jobs/noteGenerator.ts
 
 # Run in testing mode (last 10 transcripts)
 NOTES_WORKER_L10=true npx tsx jobs/noteGenerator.ts
+
+# Run in testing mode (last 25 transcripts)
+NOTES_WORKER_L10=true NOTES_WORKER_L10_COUNT=25 npx tsx jobs/noteGenerator.ts
 ```
 
 **Prompt Customization:**

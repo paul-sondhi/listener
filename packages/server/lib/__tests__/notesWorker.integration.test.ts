@@ -283,7 +283,7 @@ describe('Notes Worker Integration', () => {
       const { data: _allTranscripts, error: _transcriptsError } = await supabase.from('transcripts').select('*');
       
       // 2. Query for transcripts needing notes
-      const transcripts = await queryTranscriptsNeedingNotes(supabase, 24, false, now);
+      const transcripts = await queryTranscriptsNeedingNotes(supabase, 24, false, 10, now);
       // Debug: print all transcripts before the query
       const { data: _debugAllTranscripts } = await supabase.from('transcripts').select('*');
       expect(transcripts).toHaveLength(1);
@@ -401,7 +401,7 @@ describe('Notes Worker Integration', () => {
       const { data: _allTranscripts, error: _transcriptsError } = await supabase.from('transcripts').select('*');
       
       // 2. Query for transcripts needing notes
-      const transcripts = await queryTranscriptsNeedingNotes(supabase, 24, false, now);
+      const transcripts = await queryTranscriptsNeedingNotes(supabase, 24, false, 10, now);
       // Debug: print all transcripts before the query
       const { data: _debugAllTranscripts } = await supabase.from('transcripts').select('*');
       expect(transcripts).toHaveLength(2); // Should exclude empty storage path
@@ -529,7 +529,7 @@ describe('Notes Worker Integration', () => {
       const { data: _allTranscripts, error: _transcriptsError } = await supabase.from('transcripts').select('*');
       
       // 2. Query for transcripts in L10 mode
-      const transcriptsL10 = await queryTranscriptsNeedingNotes(supabase, 24, true, now);
+      const transcriptsL10 = await queryTranscriptsNeedingNotes(supabase, 24, true, 10, now);
       // Debug: print all transcripts before the query
       const { data: _debugAllTranscripts } = await supabase.from('transcripts').select('*');
       expect(transcriptsL10).toHaveLength(5); // Should get all 5 transcripts
@@ -686,7 +686,7 @@ describe('Notes Worker Integration', () => {
       expect(activeNotes).toHaveLength(0);
       
       // 8. Verify that L10 mode includes all transcripts regardless of existing notes
-      const transcriptsL10 = await queryTranscriptsNeedingNotes(supabase, 24, true, now);
+      const transcriptsL10 = await queryTranscriptsNeedingNotes(supabase, 24, true, 10, now);
       // Debug: print all transcripts before the query
       const { data: _debugAllTranscripts } = await supabase.from('transcripts').select('*');
       expect(transcriptsL10).toHaveLength(3); // Should get all 3 transcripts
