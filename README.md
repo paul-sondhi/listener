@@ -1087,7 +1087,7 @@ EDITION_WORKER_L10=false
 EDITION_LOOKBACK_HOURS=12
 EDITION_WORKER_L10=false
 
-# Testing configuration (overwrites last 10 editions)
+# Testing configuration (overwrites last 3 editions)
 EDITION_LOOKBACK_HOURS=24
 EDITION_WORKER_L10=true
 

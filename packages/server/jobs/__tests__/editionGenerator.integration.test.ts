@@ -739,7 +739,7 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
     expect(duration).toBeLessThan(30000); // Should complete within 30 seconds
   });
 
-  it('should handle L10 mode by clearing and regenerating last 10 newsletter editions', async () => {
+  it('should handle L10 mode by clearing and regenerating last 3 newsletter editions', async () => {
     // Create test user
     const testUsers = await EditionGeneratorIntegrationTestDataFactory.createTestUsers(supabase, 1);
     testIds.userIds = testUsers.map(user => user.id);
@@ -791,9 +791,9 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
       { user_id: testUsers[0].id, show_id: testShows[0].id, status: 'active' }
     ]);
 
-    // Create 12 existing newsletter editions (more than 10 for L10 mode)
+    // Create 5 existing newsletter editions (more than 3 for L10 mode)
     const existingEditions = await EditionGeneratorIntegrationTestDataFactory.createTestNewsletterEditions(supabase, 
-      Array(12).fill(null).map((_, i) => ({
+      Array(5).fill(null).map((_, i) => ({
         user_id: testUsers[0].id,
         edition_date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
         status: 'done',
@@ -819,18 +819,18 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
       // Assert: Verify the job completed
       expect(typeof result).toBe('boolean');
 
-      // Assert: Verify the last 10 editions were cleared and regenerated
+      // Assert: Verify the last 3 editions were cleared and regenerated
       const { data: updatedEditions, error: updatedEditionsError } = await supabase
         .from('newsletter_editions')
         .select('*')
-        .in('id', testIds.editionIds.slice(0, 10)) // First 10 editions
+        .in('id', testIds.editionIds.slice(0, 3)) // First 3 editions
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(3);
 
       expect(updatedEditionsError).toBeNull();
-      expect(updatedEditions).toHaveLength(10);
+      expect(updatedEditions).toHaveLength(3);
 
-      // Check that the first 10 editions were updated with new content
+      // Check that the first 3 editions were updated with new content
       for (const edition of updatedEditions!) {
         // The following fields are not present in the DB schema, so we do not assert on them:
         // expect(edition.html_content).toContain('Test Newsletter'); // New content from mock
@@ -847,7 +847,7 @@ maybeDescribe('End-to-End Edition Generator Integration', () => {
       const { data: unchangedEditions, error: unchangedError } = await supabase
         .from('newsletter_editions')
         .select('*')
-        .in('id', testIds.editionIds.slice(10, 12)) // Last 2 editions
+        .in('id', testIds.editionIds.slice(3, 5)) // Last 2 editions
         .order('created_at', { ascending: false });
 
       expect(unchangedError).toBeNull();

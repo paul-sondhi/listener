@@ -8,11 +8,11 @@
  *
  * Usage:
  *   npx tsx jobs/sendNewsletterWorker.ts                    # Normal mode
- *   SEND_WORKER_L10=true npx tsx jobs/sendNewsletterWorker.ts  # Testing mode (last 10 to test email)
+ *   SEND_WORKER_L10=true npx tsx jobs/sendNewsletterWorker.ts  # Testing mode (last 3 to test email)
  *
  * Environment Variables:
  *   SEND_LOOKBACK            - Hours to look back for unsent editions (default: 24)
- *   SEND_WORKER_L10          - Testing mode: send 10 most recent editions to test email (default: false)
+ *   SEND_WORKER_L10          - Testing mode: send 3 most recent editions to test email (default: false)
  *   SEND_WORKER_CRON         - Cron schedule (default: '0 5 * * 1-5')
  *   SEND_WORKER_ENABLED      - Enable/disable worker (default: true)
  *   RESEND_API_KEY           - Resend API key (required)

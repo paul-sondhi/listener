@@ -340,12 +340,12 @@ export async function queryEpisodeNotesForUser(
 }
 
 /**
- * Query the last 10 newsletter editions for L10 test mode
+ * Query the last 3 newsletter editions for L10 test mode
  * 
  * @param supabase - Supabase client instance
  * @returns Array of newsletter edition IDs to overwrite
  */
-export async function queryLast10NewsletterEditions(
+export async function queryLast3NewsletterEditions(
   supabase: SupabaseClient<Database>
 ): Promise<string[]> {
   debugDatabase('Starting L10 newsletter editions query');
@@ -355,7 +355,7 @@ export async function queryLast10NewsletterEditions(
       .from('newsletter_editions')
       .select('id')
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(3);
 
     debugDatabase('L10 newsletter editions query completed', {
       error: !!queryError,
@@ -364,7 +364,7 @@ export async function queryLast10NewsletterEditions(
     });
 
     if (queryError) {
-      throw new Error(`Failed to query last 10 newsletter editions: ${queryError.message}`);
+      throw new Error(`Failed to query last 3 newsletter editions: ${queryError.message}`);
     }
 
     if (!editions || editions.length === 0) {
@@ -382,7 +382,7 @@ export async function queryLast10NewsletterEditions(
     return editionIds;
 
   } catch (error) {
-    console.error('ERROR: Failed to query last 10 newsletter editions:', error);
+    console.error('ERROR: Failed to query last 3 newsletter editions:', error);
     throw error;
   }
 } 

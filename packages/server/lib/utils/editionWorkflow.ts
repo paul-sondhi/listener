@@ -8,7 +8,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../../../shared/src/types/supabase.js';
 import { EditionWorkerConfig } from '../../config/editionWorkerConfig.js';
-import { queryUsersWithActiveSubscriptions, queryLast10NewsletterEditions } from '../db/editionQueries.js';
+import { queryUsersWithActiveSubscriptions, queryLast3NewsletterEditions } from '../db/editionQueries.js';
 import { processUserForNewsletter, UserProcessingResult, aggregateUserProcessingResults } from './editionProcessor.js';
 import { _updateNewsletterEdition } from '../db/newsletter-editions.ts';
 import { debugSubscriptionRefresh } from '../debugLogger';
@@ -127,11 +127,11 @@ export async function prepareUsersForNewsletters(
 
     let clearedEditionsCount = 0;
 
-    // Step 2: Handle L10 mode - clear existing content for last 10 newsletter editions
+    // Step 2: Handle L10 mode - clear existing content for last 3 newsletter editions
     if (config.last10Mode) {
-      debugSubscriptionRefresh('L10 mode active - clearing content for last 10 newsletter editions');
+      debugSubscriptionRefresh('L10 mode active - clearing content for last 3 newsletter editions');
       
-      const editionIds = await queryLast10NewsletterEditions(supabase);
+      const editionIds = await queryLast3NewsletterEditions(supabase);
       
       if (editionIds.length > 0) {
         // Clear the content of existing editions (but keep the records)

@@ -9,11 +9,11 @@
  * 
  * Usage:
  *   npx tsx jobs/editionGenerator.ts                    # Normal mode
- *   EDITION_WORKER_L10=true npx tsx jobs/editionGenerator.ts  # Testing mode (last 10)
+ *   EDITION_WORKER_L10=true npx tsx jobs/editionGenerator.ts  # Testing mode (last 3)
  * 
  * Environment Variables:
  *   EDITION_LOOKBACK_HOURS    - Hours to look back for episode notes (default: 24)
- *   EDITION_WORKER_L10        - Testing mode: overwrite last 10 newsletter editions (default: false)
+ *   EDITION_WORKER_L10        - Testing mode: overwrite last 3 newsletter editions (default: false)
  *   EDITION_PROMPT_PATH       - Path to prompt template file (default: prompts/newsletter-edition.md)
  *   GEMINI_API_KEY            - Google Gemini API key (required)
  * 

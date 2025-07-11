@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   queryUsersWithActiveSubscriptions, 
   queryEpisodeNotesForUser, 
-  queryLast10NewsletterEditions,
+  queryLast3NewsletterEditions,
   _UserWithSubscriptions,
   _EpisodeNoteWithEpisode
 } from '../editionQueries.js';
@@ -318,8 +318,8 @@ describe('editionQueries', () => {
     });
   });
 
-  describe('queryLast10NewsletterEditions', () => {
-    it('should query last 10 newsletter editions successfully', async () => {
+  describe('queryLast3NewsletterEditions', () => {
+    it('should query last 3 newsletter editions successfully', async () => {
       const editions = Array.from({ length: 3 }, (_, i) => ({
         id: uniqueId(`edition${i + 1}`),
         user_id: uniqueId('user'),
@@ -329,12 +329,12 @@ describe('editionQueries', () => {
       }));
       
       await supabase.from('newsletter_editions').insert(editions);
-      const result = await queryLast10NewsletterEditions(supabase);
+      const result = await queryLast3NewsletterEditions(supabase);
       expect(result).toEqual(editions.map(e => e.id)); // Insertion order in global mock
     });
 
     it('should return empty array when no newsletter editions found', async () => {
-      const result = await queryLast10NewsletterEditions(supabase);
+      const result = await queryLast3NewsletterEditions(supabase);
       expect(result).toEqual([]);
     });
 
@@ -355,12 +355,12 @@ describe('editionQueries', () => {
         })
       };
 
-      await expect(queryLast10NewsletterEditions(localMock))
-        .rejects.toThrow('Failed to query last 10 newsletter editions: Database connection failed');
+      await expect(queryLast3NewsletterEditions(localMock))
+        .rejects.toThrow('Failed to query last 3 newsletter editions: Database connection failed');
     });
 
-    it('should return maximum 10 edition IDs even if more exist', async () => {
-      const editions = Array.from({ length: 15 }, (_, i) => ({
+    it('should return maximum 3 edition IDs even if more exist', async () => {
+      const editions = Array.from({ length: 5 }, (_, i) => ({
         id: uniqueId(`edition${i + 1}`),
         user_id: uniqueId('user'),
         edition_date: `2024-01-0${i + 1}`,
@@ -369,8 +369,8 @@ describe('editionQueries', () => {
       }));
       
       await supabase.from('newsletter_editions').insert(editions);
-      const result = await queryLast10NewsletterEditions(supabase);
-      expect(result).toHaveLength(15); // Global mock doesn't support limit
+      const result = await queryLast3NewsletterEditions(supabase);
+      expect(result).toHaveLength(5); // Global mock doesn't support limit
     });
   });
 }); 
