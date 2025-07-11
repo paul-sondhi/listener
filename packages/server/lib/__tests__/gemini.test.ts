@@ -360,7 +360,7 @@ describe('Gemini Client Utility', () => {
       expect(requestBody).toHaveProperty('generationConfig')
       expect(requestBody.contents[0].parts[0].text).toContain('test transcript')
       expect(requestBody.generationConfig.temperature).toBe(0.3)
-      expect(requestBody.generationConfig.maxOutputTokens).toBe(2048)
+      expect(requestBody.generationConfig.maxOutputTokens).toBe(8192)
     })
   })
 })
