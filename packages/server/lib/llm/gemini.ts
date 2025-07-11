@@ -213,7 +213,7 @@ ${transcript}`;
     ],
     generationConfig: {
       temperature: overrides.temperature || 0.3,
-      maxOutputTokens: overrides.maxTokens || 2048,
+      maxOutputTokens: overrides.maxTokens || 8192,
       topP: 0.8,
       topK: 40
     }
@@ -400,7 +400,7 @@ export async function generateNewsletterEdition(
       ],
       generationConfig: {
         temperature: overrides.temperature || 0.4, // Slightly higher for creative newsletter content
-        maxOutputTokens: overrides.maxTokens || 4096, // Higher token limit for newsletter content
+        maxOutputTokens: overrides.maxTokens || 8192, // Higher token limit for newsletter content
         topP: 0.9,
         topK: 40
       }
