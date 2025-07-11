@@ -8,16 +8,10 @@
  * @since 2025-07-08
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
-import { Logger } from '../../logger.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock the Resend client
-const mockResendSend = vi.fn();
-const mockResend = {
-  emails: {
-    send: mockResendSend
-  }
-};
+
+
 
 // Mock the logger
 vi.mock('../../logger.js');
@@ -31,13 +25,7 @@ const testFromEmail = 'test@example.com';
 const testFromName = 'Test Sender';
 const testJobId = 'test-job-123';
 
-// Mock logger
-const mockLogger = {
-  info: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn()
-} as unknown as Logger;
+
 
 describe('EmailClient', () => {
   let emailClient: EmailClient;

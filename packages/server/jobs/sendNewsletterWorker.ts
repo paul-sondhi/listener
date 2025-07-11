@@ -34,7 +34,7 @@ import { getSendNewsletterWorkerConfig, validateDependencies } from '../config/s
 import { getSharedSupabaseClient } from '../lib/db/sharedSupabaseClient.js';
 import { 
   queryNewsletterEditionsForSending,
-  queryLast10NewsletterEditionsForSending,
+  queryLast3NewsletterEditionsForSending,
   updateNewsletterEditionSentAt,
   type NewsletterEditionWithUser
 } from '../lib/db/sendNewsletterQueries.js';
@@ -105,10 +105,10 @@ export class SendNewsletterWorker {
       let editions: NewsletterEditionWithUser[];
       
       if (config.last10Mode) {
-        this.logger.info('system', 'Using L10 mode - querying last 10 newsletter editions', {
+        this.logger.info('system', 'Using L10 mode - querying last 3 newsletter editions', {
           metadata: { job_id: jobId }
         });
-        editions = await queryLast10NewsletterEditionsForSending(supabase);
+        editions = await queryLast3NewsletterEditionsForSending(supabase);
       } else {
         this.logger.info('system', 'Using normal mode - querying editions within lookback window', {
           metadata: { 

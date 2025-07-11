@@ -57,30 +57,29 @@ export async function queryNewsletterEditionsForSending(
   }
 }
 
-export async function queryLast10NewsletterEditionsForSending(
+export async function queryLast3NewsletterEditionsForSending(
   supabase: SupabaseClient<Database>
 ): Promise<NewsletterEditionWithUser[]> {
-  debugDatabase('Starting L10 newsletter editions query for sending');
+  debugDatabase('Starting L10 newsletter editions query for sending (last 3)');
 
   try {
     const { data: editions, error: queryError } = await supabase
       .from('newsletter_editions')
       .select('*')
       .eq('status', 'generated')
-      .is('sent_at', null)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(3);
 
     if (queryError) {
-      throw new Error(`Failed to query last 10 newsletter editions for sending: ${queryError.message}`);
+      throw new Error(`Failed to query last 3 newsletter editions for sending: ${queryError.message}`);
     }
 
     // Reverse to get chronological order (oldest first)
     return (editions || []).reverse() as NewsletterEditionWithUser[];
 
   } catch (error) {
-    console.error('ERROR: Failed to query last 10 newsletter editions for sending:', error);
+    console.error('ERROR: Failed to query last 3 newsletter editions for sending:', error);
     throw error;
   }
 }

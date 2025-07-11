@@ -13,7 +13,7 @@ const DEBUG_RSS_MATCHING = process.env.DEBUG_RSS_MATCHING === 'true';
 
 function debugLog(...args: unknown[]): void {
   if (DEBUG_RSS_MATCHING) {
-    // eslint-disable-next-line no-console
+     
     console.log(...args);
   }
 }

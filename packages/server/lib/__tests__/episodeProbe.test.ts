@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { verifyLatestEpisodeMatch, clearExpiredProbeCache, clearAllProbeCache, getProbeCacheStats } from '../episodeProbe.js';
+import { verifyLatestEpisodeMatch, clearAllProbeCache, getProbeCacheStats } from '../episodeProbe.js';
 
 // Mock fetch globally
 global.fetch = vi.fn();

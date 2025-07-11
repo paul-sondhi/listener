@@ -6,8 +6,8 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import { 
   queryNewsletterEditionsForSending,
-  queryLast10NewsletterEditionsForSending,
-  updateNewsletterEditionSentAt
+  updateNewsletterEditionSentAt,
+  queryLast3NewsletterEditionsForSending
 } from '../sendNewsletterQueries.js';
 
 // Use environment variables for local Supabase connection
@@ -105,37 +105,88 @@ describe('sendNewsletterQueries', () => {
     });
   });
 
-  describe('queryLast10NewsletterEditionsForSending', () => {
-    it('should return editions with status generated', async () => {
-      // Create test editions
+  describe('queryLast3NewsletterEditionsForSending', () => {
+    it('should return the last 3 newsletter editions', async () => {
+      // Create test editions - only 3 this time
       await createTestNewsletterEdition('edition-1', TEST_USER_ID, 'generated', null);
-      await createTestNewsletterEdition('edition-2', TEST_USER_ID, 'error', null);
+      await new Promise(resolve => setTimeout(resolve, 10)); // Small delay to ensure different timestamps
+      await createTestNewsletterEdition('edition-2', TEST_USER_ID, 'generated', null);
+      await new Promise(resolve => setTimeout(resolve, 10)); // Small delay to ensure different timestamps
       await createTestNewsletterEdition('edition-3', TEST_USER_ID, 'generated', null);
 
-      const result = await queryLast10NewsletterEditionsForSending(supabase);
+      // Debug: Check what editions exist
+      const { data: allEditions } = await supabase
+        .from('newsletter_editions')
+        .select('*')
+        .eq('user_id', TEST_USER_ID)
+        .order('created_at', { ascending: false });
+      
+      console.log('All editions in database:', allEditions?.map(e => ({ id: e.id, created_at: e.created_at })));
 
+      const result = await queryLast3NewsletterEditionsForSending(supabase);
+
+      console.log('Query result:', result.map(e => ({ id: e.id, created_at: e.created_at })));
+
+      expect(result).toHaveLength(3);
+      // Should return the 3 editions in reverse chronological order (newest first)
+      expect(result.map(e => e.id)).toEqual(['edition-3', 'edition-2', 'edition-1']);
+    });
+
+    it('should include editions that have already been sent', async () => {
+      const sentAt = new Date().toISOString();
+      
+      // Create editions with sent_at timestamps
+      await createTestNewsletterEdition('edition-sent-1', TEST_USER_ID, 'generated', sentAt);
+      await createTestNewsletterEdition('edition-sent-2', TEST_USER_ID, 'generated', sentAt);
+      await createTestNewsletterEdition('edition-unsent', TEST_USER_ID, 'generated', null);
+
+      const result = await queryLast3NewsletterEditionsForSending(supabase);
+
+      // Should include both sent and unsent editions
       expect(result.length).toBeGreaterThan(0);
-      expect(result.every(e => e.status === 'generated')).toBe(true);
+      expect(result.some(e => e.sent_at)).toBe(true);
+      expect(result.some(e => !e.sent_at)).toBe(true);
     });
 
-    it('should only return editions with status generated', async () => {
-      await createTestNewsletterEdition('edition-1', TEST_USER_ID, 'generated', null);
-      await createTestNewsletterEdition('edition-2', TEST_USER_ID, 'error', null);
-      await createTestNewsletterEdition('edition-3', TEST_USER_ID, 'generated', null);
+    it('should exclude editions with other statuses', async () => {
+      await createTestNewsletterEdition('edition-error', TEST_USER_ID, 'error', null);
+      await createTestNewsletterEdition('edition-generated', TEST_USER_ID, 'generated', null);
 
-      const result = await queryLast10NewsletterEditionsForSending(supabase);
+      const result = await queryLast3NewsletterEditionsForSending(supabase);
 
-      expect(result).toHaveLength(2);
-      expect(result.every(e => e.status === 'generated')).toBe(true);
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('edition-generated');
     });
 
-    it('should return all editions if less than 10 exist', async () => {
+    it('should exclude deleted editions', async () => {
+      // Create a deleted edition (with deleted_at timestamp)
+      await createTestNewsletterEdition('edition-deleted', TEST_USER_ID, 'generated', null);
+      // Manually update to mark as deleted
+      await supabase.from('newsletter_editions').update({ deleted_at: new Date().toISOString() }).eq('id', 'edition-deleted');
+      
+      await createTestNewsletterEdition('edition-active', TEST_USER_ID, 'generated', null);
+
+      const result = await queryLast3NewsletterEditionsForSending(supabase);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('edition-active');
+    });
+
+    it('should return empty array when no editions found', async () => {
+      const result = await queryLast3NewsletterEditionsForSending(supabase);
+      expect(result).toHaveLength(0);
+    });
+
+    it('should return fewer than 3 editions when less exist', async () => {
       await createTestNewsletterEdition('edition-1', TEST_USER_ID, 'generated', null);
+      await new Promise(resolve => setTimeout(resolve, 10)); // Small delay to ensure different timestamps
       await createTestNewsletterEdition('edition-2', TEST_USER_ID, 'generated', null);
 
-      const result = await queryLast10NewsletterEditionsForSending(supabase);
+      const result = await queryLast3NewsletterEditionsForSending(supabase);
 
       expect(result).toHaveLength(2);
+      // Should be in chronological order (oldest first) after reverse
+      expect(result.map(e => e.id)).toEqual(['edition-2', 'edition-1']);
     });
   });
 
