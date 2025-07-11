@@ -15,6 +15,7 @@ import { insertNewsletterEdition } from '../db/newsletter-editions.ts';
 import { insertNewsletterEditionEpisodes } from '../db/newsletter-edition-episodes.ts';
 import { _NewsletterEdition } from '@listener/shared';
 import { debugSubscriptionRefresh } from '../debugLogger';
+import { retryWithBackoff, DEFAULT_NEWSLETTER_RETRY_OPTIONS, RetryResult } from './retryWithBackoff.js';
 
 /**
  * Result of processing a single user for newsletter generation
@@ -48,6 +49,12 @@ export interface UserProcessingResult {
     subscribedShowsCount: number;
     totalWordCount: number;
     averageWordCount: number;
+  };
+  /** Retry information for newsletter generation */
+  retryInfo?: {
+    attemptsUsed: number;
+    totalRetryTimeMs: number;
+    wasRetried: boolean;
   };
   /** Additional fields for test assertions */
   html_content?: string;
@@ -161,19 +168,34 @@ export async function processUserForNewsletter(
     baseResult.metadata.totalWordCount = totalWordCount;
     baseResult.metadata.averageWordCount = averageWordCount;
 
-    // Phase 2: Generate newsletter content using Gemini
+    // Phase 2: Generate newsletter content using Gemini with retry logic
     const generationStart = Date.now();
     let newsletterContent: string;
     let generationResult: any; // Make generationResult available in the DB save phase
+    let retryResult: RetryResult<any>;
 
     try {
       const editionDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-      generationResult = await generateNewsletterEdition(notesTexts, user.email, editionDate);
-      timing.generationMs = Date.now() - generationStart;
       
-      if (!generationResult.success) {
-        throw new Error(generationResult.error || 'Newsletter generation failed');
-      }
+      // Wrap newsletter generation in retry logic
+      retryResult = await retryWithBackoff(
+        async () => {
+          const result = await generateNewsletterEdition(notesTexts, user.email, editionDate);
+          
+          if (!result.success) {
+            throw new Error(result.error || 'Newsletter generation failed');
+          }
+          
+          return result;
+        },
+        {
+          ...DEFAULT_NEWSLETTER_RETRY_OPTIONS,
+          context: `newsletter generation for user ${user.email}`
+        }
+      );
+      
+      generationResult = retryResult.result;
+      timing.generationMs = Date.now() - generationStart;
       
       // Use the sanitized content from the result
       newsletterContent = generationResult.sanitizedContent;
@@ -182,7 +204,10 @@ export async function processUserForNewsletter(
         userId: user.id,
         contentLength: newsletterContent.length,
         model: generationResult.model,
-        generationMs: timing.generationMs
+        generationMs: timing.generationMs,
+        attemptsUsed: retryResult.attemptsUsed,
+        wasRetried: retryResult.attemptsUsed > 1,
+        totalRetryTimeMs: retryResult.totalElapsedMs
       });
       
     } catch (error) {
@@ -194,14 +219,21 @@ export async function processUserForNewsletter(
         userId: user.id,
         episodeNotesCount: episodeNotes.length,
         error: errorMessage,
-        generationMs: timing.generationMs
+        generationMs: timing.generationMs,
+        attemptsUsed: retryResult?.attemptsUsed || 0,
+        totalRetryTimeMs: retryResult?.totalElapsedMs || 0
       });
 
       return {
         ...baseResult,
         status: 'error',
         error: errorMessage,
-        elapsedMs: Date.now() - startTime
+        elapsedMs: Date.now() - startTime,
+        retryInfo: retryResult ? {
+          attemptsUsed: retryResult.attemptsUsed,
+          totalRetryTimeMs: retryResult.totalElapsedMs,
+          wasRetried: retryResult.attemptsUsed > 1
+        } : undefined
       };
     }
 
@@ -327,7 +359,12 @@ export async function processUserForNewsletter(
       html_content: htmlContent,
       sanitized_content: sanitizedContent,
       episode_count: episodeCount,
-      elapsedMs
+      elapsedMs,
+      retryInfo: retryResult ? {
+        attemptsUsed: retryResult.attemptsUsed,
+        totalRetryTimeMs: retryResult.totalElapsedMs,
+        wasRetried: retryResult.attemptsUsed > 1
+      } : undefined
     };
 
   } catch (error) {
@@ -380,6 +417,13 @@ export function aggregateUserProcessingResults(results: UserProcessingResult[]):
     queryMs: number;
     generationMs: number;
     databaseMs: number;
+  };
+  retryStats: {
+    totalRetries: number;
+    usersWhoRetried: number;
+    averageAttemptsPerUser: number;
+    maxAttempts: number;
+    retrySuccessRate: number;
   };
   errorBreakdown: Record<string, number>;
   contentStats: {
@@ -437,6 +481,22 @@ export function aggregateUserProcessingResults(results: UserProcessingResult[]):
     totalLength: contentLengths.reduce((sum, length) => sum + length, 0)
   };
   
+  // Retry statistics
+  const resultsWithRetryInfo = results.filter(r => r.retryInfo);
+  const usersWhoRetried = resultsWithRetryInfo.filter(r => r.retryInfo!.wasRetried).length;
+  const totalAttempts = resultsWithRetryInfo.reduce((sum, r) => sum + (r.retryInfo!.attemptsUsed || 1), 0);
+  const maxAttempts = resultsWithRetryInfo.length > 0 ? Math.max(...resultsWithRetryInfo.map(r => r.retryInfo!.attemptsUsed)) : 0;
+  const retriedResults = resultsWithRetryInfo.filter(r => r.retryInfo!.wasRetried);
+  const retrySuccessRate = retriedResults.length > 0 ? (retriedResults.filter(r => r.status === 'done').length / retriedResults.length) * 100 : 0;
+  
+  const retryStats = {
+    totalRetries: totalAttempts - resultsWithRetryInfo.length, // Total extra attempts beyond first
+    usersWhoRetried,
+    averageAttemptsPerUser: resultsWithRetryInfo.length > 0 ? totalAttempts / resultsWithRetryInfo.length : 0,
+    maxAttempts,
+    retrySuccessRate
+  };
+
   // Episode count statistics
   const episodeCounts = successfulResults
     .map(r => r.episodeIds?.length || 0)
@@ -458,6 +518,7 @@ export function aggregateUserProcessingResults(results: UserProcessingResult[]):
     totalElapsedMs,
     averageProcessingTimeMs,
     averageTiming,
+    retryStats,
     errorBreakdown,
     contentStats,
     episodeStats

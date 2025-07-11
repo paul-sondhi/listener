@@ -66,6 +66,14 @@ export interface EditionWorkflowResult {
     generationMs: number;
     databaseMs: number;
   };
+  /** Retry statistics */
+  retryStats: {
+    totalRetries: number;
+    usersWhoRetried: number;
+    averageAttemptsPerUser: number;
+    maxAttempts: number;
+    retrySuccessRate: number;
+  };
   /** Error breakdown by type */
   errorBreakdown: Record<string, number>;
   /** Content statistics */
@@ -337,6 +345,7 @@ export async function executeEditionWorkflow(
         averageProcessingTimeMs: 0,
         successRate: 0,
         averageTiming: { queryMs: 0, generationMs: 0, databaseMs: 0 },
+        retryStats: { totalRetries: 0, usersWhoRetried: 0, averageAttemptsPerUser: 0, maxAttempts: 0, retrySuccessRate: 0 },
         errorBreakdown: {},
         contentStats: { minLength: 0, maxLength: 0, averageLength: 0, totalLength: 0 },
         episodeStats: { minEpisodes: 0, maxEpisodes: 0, averageEpisodes: 0, totalEpisodes: 0 }
@@ -426,6 +435,7 @@ export async function executeEditionWorkflow(
       averageProcessingTimeMs: summaryStats.averageProcessingTimeMs,
       successRate: summaryStats.successRate,
       averageTiming: summaryStats.averageTiming,
+      retryStats: summaryStats.retryStats,
       errorBreakdown: summaryStats.errorBreakdown,
       contentStats: summaryStats.contentStats,
       episodeStats: summaryStats.episodeStats
@@ -435,6 +445,7 @@ export async function executeEditionWorkflow(
       ...workflowResult,
       success_rate: summaryStats.successRate.toFixed(1),
       avg_timing_ms: summaryStats.averageTiming,
+      retry_stats: summaryStats.retryStats,
       error_breakdown: summaryStats.errorBreakdown,
       content_stats: summaryStats.contentStats,
       episode_stats: summaryStats.episodeStats
