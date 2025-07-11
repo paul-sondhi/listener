@@ -66,6 +66,8 @@ Generate clean HTML content suitable for email newsletters. Use this structure:
 ## Context Information
 
 - **Episode Count**: [EPISODE_COUNT] - Number of episodes being summarized
+- **User Email**: [USER_EMAIL] - Which user this will be sent to
+- **Edition Date**: [EDITION_DATE] - The date this edition was written
 
 **Use this context to personalize the newsletter:**
 - Consider the episode count when determining the depth and scope of coverage
