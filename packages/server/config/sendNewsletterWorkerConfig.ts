@@ -16,6 +16,8 @@ export interface SendNewsletterWorkerConfig {
   resendApiKey: string;
   /** Email address to send from (required) */
   sendFromEmail: string;
+  /** Sender name to display in email clients (optional, defaults to email domain) */
+  sendFromName: string;
   /** Email address to send test emails to when in L10 mode (required) */
   testReceiverEmail: string;
 }
@@ -67,6 +69,9 @@ export function getSendNewsletterWorkerConfig(): SendNewsletterWorkerConfig {
     throw new Error(`Invalid SEND_FROM_EMAIL: "${sendFromEmail}". Must be a valid email address.`);
   }
 
+  // Parse sender name (optional, defaults to empty string which will use email domain)
+  const sendFromName = process.env.SEND_FROM_NAME || '';
+
   // Validate test receiver email (required for L10 mode, but we'll validate it's set)
   const testReceiverEmail = process.env.TEST_RECEIVER_EMAIL;
   if (!testReceiverEmail || testReceiverEmail.trim().length === 0) {
@@ -86,6 +91,7 @@ export function getSendNewsletterWorkerConfig(): SendNewsletterWorkerConfig {
     last10Mode,
     resendApiKey: resendApiKey.trim(),
     sendFromEmail: trimmedSendFromEmail,
+    sendFromName,
     testReceiverEmail: trimmedTestReceiverEmail,
   };
 }
@@ -147,6 +153,7 @@ export function getConfigSummary(config: SendNewsletterWorkerConfig): Record<str
     lookback_hours: config.lookbackHours,
     last10_mode: config.last10Mode,
     send_from_email: config.sendFromEmail,
+    send_from_name: config.sendFromName,
     test_receiver_email: config.testReceiverEmail,
     resend_api_key_configured: config.resendApiKey.length > 0,
     resend_api_key_prefix: config.resendApiKey.substring(0, 6) + '...',

@@ -84,7 +84,7 @@ export class SendNewsletterWorker {
     validateDependencies(config);
 
     // Initialize EmailClient
-    const emailClient = createEmailClient(config.resendApiKey, config.sendFromEmail);
+    const emailClient = createEmailClient(config.resendApiKey, config.sendFromEmail, config.sendFromName);
 
     this.logger.info('system', 'Send Newsletter Worker starting', {
       metadata: {

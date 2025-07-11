@@ -33,11 +33,13 @@ export class EmailClient {
   private resend: Resend;
   private logger: Logger;
   private fromEmail: string;
+  private fromName: string;
 
-  constructor(apiKey: string, fromEmail: string, resendInstance?: Resend) {
+  constructor(apiKey: string, fromEmail: string, fromName?: string, resendInstance?: Resend) {
     this.resend = resendInstance || new Resend(apiKey);
     this.logger = createLogger();
     this.fromEmail = fromEmail;
+    this.fromName = fromName || '';
   }
 
   /**
@@ -61,8 +63,11 @@ export class EmailClient {
     });
 
     try {
+      // Format the from field: "Sender Name <email@domain.com>" or just "email@domain.com"
+      const fromField = this.fromName ? `${this.fromName} <${this.fromEmail}>` : this.fromEmail;
+      
       const result = await this.resend.emails.send({
-        from: this.fromEmail,
+        from: fromField,
         to: [to],
         subject: subject,
         html: html,
@@ -159,8 +164,9 @@ export class EmailClient {
  * Factory function to create an EmailClient instance
  * @param apiKey Resend API key
  * @param fromEmail Email address to send from
+ * @param fromName Optional sender name to display
  * @returns EmailClient instance
  */
-export function createEmailClient(apiKey: string, fromEmail: string, resendInstance?: Resend): EmailClient {
-  return new EmailClient(apiKey, fromEmail, resendInstance);
+export function createEmailClient(apiKey: string, fromEmail: string, fromName?: string, resendInstance?: Resend): EmailClient {
+  return new EmailClient(apiKey, fromEmail, fromName, resendInstance);
 } 

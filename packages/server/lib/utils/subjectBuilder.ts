@@ -12,7 +12,7 @@ export function buildSubject(editionDate: Date | string): string {
   
   // Check for invalid date
   if (isNaN(dateObj.getTime())) {
-    return 'Listener Recap: Invalid Date';
+    return 'Invalid Date';
   }
   
   // Format: July 8, 2025
@@ -23,5 +23,5 @@ export function buildSubject(editionDate: Date | string): string {
     timeZone: 'UTC' // Use UTC to avoid timezone issues
   };
   const formattedDate = dateObj.toLocaleDateString('en-US', options);
-  return `Listener Recap: ${formattedDate}`;
+  return formattedDate;
 } 

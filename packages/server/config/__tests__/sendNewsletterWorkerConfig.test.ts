@@ -163,6 +163,22 @@ describe('Send Newsletter Worker Configuration', () => {
       expect(() => getSendNewsletterWorkerConfig()).toThrow('Invalid TEST_RECEIVER_EMAIL');
     });
 
+    it('should parse SEND_FROM_NAME when provided', () => {
+      process.env.SEND_FROM_NAME = 'Listener Team';
+      
+      const config = getSendNewsletterWorkerConfig();
+      
+      expect(config.sendFromName).toBe('Listener Team');
+    });
+
+    it('should default SEND_FROM_NAME to empty string when not provided', () => {
+      delete process.env.SEND_FROM_NAME;
+      
+      const config = getSendNewsletterWorkerConfig();
+      
+      expect(config.sendFromName).toBe('');
+    });
+
     it('should accept valid email addresses', () => {
       process.env.SEND_FROM_EMAIL = 'test@example.com';
       process.env.TEST_RECEIVER_EMAIL = 'paulsondhi1@gmail.com';
@@ -222,6 +238,7 @@ describe('Send Newsletter Worker Configuration', () => {
         last10Mode: false,
         resendApiKey: 're_test_key_123456789',
         sendFromEmail: 'test@example.com',
+        sendFromName: 'Listener Team',
         testReceiverEmail: 'paulsondhi1@gmail.com',
       };
 
@@ -236,6 +253,7 @@ describe('Send Newsletter Worker Configuration', () => {
         last10Mode: false,
         resendApiKey: '',
         sendFromEmail: 'test@example.com',
+        sendFromName: '',
         testReceiverEmail: 'paulsondhi1@gmail.com',
       };
 
@@ -250,6 +268,7 @@ describe('Send Newsletter Worker Configuration', () => {
         last10Mode: false,
         resendApiKey: 're_test_key_123456789',
         sendFromEmail: '',
+        sendFromName: '',
         testReceiverEmail: 'paulsondhi1@gmail.com',
       };
 
@@ -264,6 +283,7 @@ describe('Send Newsletter Worker Configuration', () => {
         last10Mode: false,
         resendApiKey: 're_test_key_123456789',
         sendFromEmail: 'test@example.com',
+        sendFromName: '',
         testReceiverEmail: '',
       };
 

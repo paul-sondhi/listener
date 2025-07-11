@@ -26,6 +26,11 @@ vi.mock('../../logger.js');
 import * as logger from '../../logger.js';
 import { EmailClient, createEmailClient, type SendEmailParams, type _SendEmailResult } from '../emailClient.js';
 
+const testApiKey = 're_test_key_123456789';
+const testFromEmail = 'test@example.com';
+const testFromName = 'Test Sender';
+const testJobId = 'test-job-123';
+
 // Mock logger
 const mockLogger = {
   info: vi.fn(),
@@ -36,22 +41,27 @@ const mockLogger = {
 
 describe('EmailClient', () => {
   let emailClient: EmailClient;
-  let mockCreateLogger: Mock;
-
-  const testApiKey = 're_test_key_123456789';
-  const testFromEmail = 'test@listener.com';
-  const testJobId = 'test-job-123';
+  let mockResendSend: any;
+  let mockLogger: any;
 
   beforeEach(() => {
-    // Reset all mocks
-    vi.clearAllMocks();
+    // Mock the logger
+    mockLogger = {
+      info: vi.fn(),
+      error: vi.fn(),
+    };
+    vi.spyOn(logger, 'createLogger').mockReturnValue(mockLogger);
 
-    // Setup logger mock
-    mockCreateLogger = vi.mocked(logger.createLogger);
-    mockCreateLogger.mockReturnValue(mockLogger);
+    // Mock the Resend send method
+    mockResendSend = vi.fn();
+    const mockResend = {
+      emails: {
+        send: mockResendSend
+      }
+    };
 
-    // Create email client instance with injected mockResend
-    emailClient = new EmailClient(testApiKey, testFromEmail, mockResend as any);
+    // Create EmailClient with mocked Resend instance
+    emailClient = new EmailClient(testApiKey, testFromEmail, undefined, mockResend as any);
   });
 
   afterEach(() => {
@@ -123,6 +133,32 @@ describe('EmailClient', () => {
         subject: emailParamsWithText.subject,
         html: emailParamsWithText.html,
         text: emailParamsWithText.text,
+        headers: {
+          'X-Job-Id': testJobId
+        }
+      });
+    });
+
+    it('should format sender name correctly when provided', async () => {
+      // Create EmailClient with sender name
+      const emailClientWithName = new EmailClient(testApiKey, testFromEmail, testFromName, {
+        emails: { send: mockResendSend }
+      } as any);
+
+      mockResendSend.mockResolvedValue({
+        data: { id: 'test-message-id-789' },
+        error: null
+      });
+
+      const result = await emailClientWithName.sendEmail(testEmailParams, testJobId);
+
+      expect(result.success).toBe(true);
+      expect(mockResendSend).toHaveBeenCalledWith({
+        from: `${testFromName} <${testFromEmail}>`,
+        to: [testEmailParams.to],
+        subject: testEmailParams.subject,
+        html: testEmailParams.html,
+        text: undefined,
         headers: {
           'X-Job-Id': testJobId
         }
@@ -229,18 +265,19 @@ describe('EmailClient', () => {
 });
 
 describe('createEmailClient', () => {
-  it('should create an EmailClient instance', () => {
-    const client = createEmailClient('test-api-key', 'test@example.com');
+  it('should create EmailClient with default parameters', () => {
+    const client = createEmailClient(testApiKey, testFromEmail);
     expect(client).toBeInstanceOf(EmailClient);
   });
 
-  it('should pass parameters to the EmailClient constructor', () => {
-    const apiKey = 'test-api-key-123';
-    const fromEmail = 'test@listener.com';
-    
-    const client = createEmailClient(apiKey, fromEmail);
-    
-    // The client should be created successfully
-    expect(client).toBeDefined();
+  it('should create EmailClient with sender name', () => {
+    const client = createEmailClient(testApiKey, testFromEmail, testFromName);
+    expect(client).toBeInstanceOf(EmailClient);
+  });
+
+  it('should create EmailClient with custom Resend instance', () => {
+    const mockResend = {} as any;
+    const client = createEmailClient(testApiKey, testFromEmail, undefined, mockResend);
+    expect(client).toBeInstanceOf(EmailClient);
   });
 }); 
