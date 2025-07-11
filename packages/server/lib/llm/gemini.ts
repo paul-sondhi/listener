@@ -95,8 +95,8 @@ export interface PromptOverrides {
   systemPrompt?: string;
   /** Temperature for response randomness (0.0-1.0) */
   temperature?: number;
-  /** Maximum tokens to generate */
-  maxTokens?: number;
+  /** Maximum tokens to generate (output tokens) */
+  maxOutputTokens?: number;
 }
 
 // ===================================================================
@@ -213,7 +213,7 @@ ${transcript}`;
     ],
     generationConfig: {
       temperature: overrides.temperature || 0.3,
-      maxOutputTokens: overrides.maxTokens || 8192,
+      maxOutputTokens: overrides.maxOutputTokens ?? 8192,
       topP: 0.8,
       topK: 40
     }
@@ -400,7 +400,7 @@ export async function generateNewsletterEdition(
       ],
       generationConfig: {
         temperature: overrides.temperature || 0.4, // Slightly higher for creative newsletter content
-        maxOutputTokens: overrides.maxTokens || 8192, // Higher token limit for newsletter content
+        maxOutputTokens: overrides.maxOutputTokens ?? 8192, // Higher token limit for newsletter content
         topP: 0.9,
         topK: 40
       }

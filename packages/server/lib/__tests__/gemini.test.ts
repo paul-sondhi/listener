@@ -176,7 +176,7 @@ describe('Gemini Client Utility', () => {
       const overrides = {
         systemPrompt: 'Custom prompt for analysis',
         temperature: 0.7,
-        maxTokens: 1000
+        maxOutputTokens: 1000
       }
 
       // Act
