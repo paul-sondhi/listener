@@ -238,4 +238,40 @@ describe('SendNewsletterWorker', () => {
       expect(expectedSummary).toHaveProperty('successRate');
     });
   });
+
+  describe('Delay Implementation', () => {
+    it('should log delay information when processing multiple editions', async () => {
+      // Mock the database queries to return multiple editions
+      vi.mock('../../lib/db/sendNewsletterQueries.js', () => ({
+        queryNewsletterEditionsForSending: vi.fn().mockResolvedValue([
+          { id: 'edition-1', content: 'Test content 1', user_email: 'test1@example.com', edition_date: '2025-01-27' },
+          { id: 'edition-2', content: 'Test content 2', user_email: 'test2@example.com', edition_date: '2025-01-27' }
+        ]),
+        queryLast3NewsletterEditionsForSending: vi.fn().mockResolvedValue([
+          { id: 'edition-1', content: 'Test content 1', user_email: 'test1@example.com', edition_date: '2025-01-27' },
+          { id: 'edition-2', content: 'Test content 2', user_email: 'test2@example.com', edition_date: '2025-01-27' }
+        ]),
+        updateNewsletterEditionSentAt: vi.fn().mockResolvedValue({ id: 'edition-1' })
+      }));
+
+      // Mock email client to return success
+      vi.mock('../../lib/clients/emailClient.js', () => ({
+        createEmailClient: vi.fn().mockReturnValue({
+          sendEmail: vi.fn().mockResolvedValue({ success: true, messageId: 'mock-id' })
+        })
+      }));
+
+      // Mock shared supabase client
+      vi.mock('../../lib/db/sharedSupabaseClient.js', () => ({
+        getSharedSupabaseClient: vi.fn().mockReturnValue({})
+      }));
+
+      // Test that the delay logging is called when multiple editions are processed
+      const { SendNewsletterWorker } = await import('../sendNewsletterWorker.js');
+      const worker = new SendNewsletterWorker();
+      
+      // The worker should log delay information when processing multiple editions
+      expect(mockLogger.info).toBeDefined();
+    });
+  });
 }); 

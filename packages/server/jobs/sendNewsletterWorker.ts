@@ -223,6 +223,21 @@ export class SendNewsletterWorker {
             }
           });
         }
+        
+        // Add delay between emails to respect rate limits
+        if (editions.length > 1) { // Only delay if there are more emails to send
+          const delayMs = 500; // 500ms delay
+          this.logger.info('system', `Adding ${delayMs}ms delay between emails to respect rate limits`, {
+            metadata: { 
+              job_id: jobId,
+              delay_ms: delayMs,
+              remaining_editions: editions.length - (successfulSends + errorCount + noContentCount)
+            }
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+        
         processingTimes.push(Date.now() - editionStartTime);
       }
 
