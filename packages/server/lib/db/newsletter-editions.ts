@@ -59,6 +59,7 @@ export interface CreateNewsletterEditionParams {
   model?: string | null;
   error_message?: string | null;
   episode_ids?: string[]; // Optional: episode IDs to link to this newsletter edition
+  edition_id?: string; // Optional: existing edition ID for L10 mode updates
 }
 
 /**
@@ -263,25 +264,56 @@ export async function upsertNewsletterEdition(
     content: params.content ?? null,
     model: params.model ?? null,
     error_message: params.error_message ?? null,
-    deleted_at: null,
-    id: randomUUID()
+    deleted_at: null
   };
 
-  // Perform upsert: ON CONFLICT (user_id, edition_date) DO UPDATE SET ...
-  const { data, error } = await getSupabaseClient()
+  // First, try to find an existing edition for this user and date
+  const { data: existingEdition, error: findError } = await getSupabaseClient()
     .from('newsletter_editions')
-    .upsert(upsertData, { onConflict: 'user_id,edition_date' })
-    .select()
+    .select('id')
+    .eq('user_id', params.user_id)
+    .eq('edition_date', params.edition_date)
+    .is('deleted_at', null)
     .single();
 
-  if (error) {
-    throw new Error(`Failed to upsert newsletter edition: ${error.message}`);
-  }
-  if (!data) {
-    throw new Error('No data returned from newsletter edition upsert');
+  if (findError && findError.code !== 'PGRST116') {
+    throw new Error(`Failed to check for existing newsletter edition: ${findError.message}`);
   }
 
-  return data as NewsletterEdition;
+  let result;
+  if (existingEdition || params.edition_id) {
+    // Update existing edition (either found by user/date or provided edition_id)
+    const editionId = params.edition_id || existingEdition?.id;
+    const { data, error } = await getSupabaseClient()
+      .from('newsletter_editions')
+      .update(upsertData)
+      .eq('id', editionId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update newsletter edition: ${error.message}`);
+    }
+    result = data;
+  } else {
+    // Insert new edition
+    const { data, error } = await getSupabaseClient()
+      .from('newsletter_editions')
+      .insert({ ...upsertData, id: randomUUID() })
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to insert newsletter edition: ${error.message}`);
+    }
+    result = data;
+  }
+
+  if (!result) {
+    throw new Error('No data returned from newsletter edition operation');
+  }
+
+  return result as NewsletterEdition;
 }
 
 /**

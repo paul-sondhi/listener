@@ -99,7 +99,7 @@ describe('processUserForNewsletter', () => {
     expect([0, 1]).toContain(result.metadata.episodeNotesCount);
     expect(result.metadata.subscribedShowsCount).toBe(1);
     expect([0, 1, 2]).toContain(result.metadata.totalWordCount);
-    expect(result.elapsedMs).toBeGreaterThan(0);
+    expect(result.elapsedMs).toBeGreaterThanOrEqual(0); // Can be 0 for very fast operations in test environment
     
     // Verify retry info is undefined for no_content_found scenarios
     if (result.status === 'no_content_found') {

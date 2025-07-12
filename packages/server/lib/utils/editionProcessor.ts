@@ -255,14 +255,17 @@ export async function processUserForNewsletter(
       
       // In L10 mode, use existing edition dates if available for this user
       let targetEditionDate = editionDate;
+      let targetEditionId: string | undefined;
       if (config.last10Mode && existingEditionsToUpdate) {
         const userExistingEdition = existingEditionsToUpdate.find(edition => edition.user_id === user.id);
         if (userExistingEdition) {
           targetEditionDate = userExistingEdition.edition_date;
+          targetEditionId = userExistingEdition.id;
           debugSubscriptionRefresh('Using existing edition date for L10 mode update', {
             userId: user.id,
             originalDate: editionDate,
-            existingDate: targetEditionDate
+            existingDate: targetEditionDate,
+            editionId: targetEditionId
           });
         }
       }
@@ -273,7 +276,8 @@ export async function processUserForNewsletter(
         content: newsletterContent,
         status: 'generated',
         model: generationResult.model,
-        error_message: null
+        error_message: null,
+        edition_id: targetEditionId
       });
       
       // DEBUG: Log the editionResult to diagnose test failures
