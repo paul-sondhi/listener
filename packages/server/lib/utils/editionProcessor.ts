@@ -293,16 +293,29 @@ export async function processUserForNewsletter(
 
       newsletterEditionId = editionResult.id;
 
-      // Insert episode references
+      // Insert episode references (skip for L10 mode since content is being regenerated)
       episodeIds = episodeNotes.map(note => note.episode_id);
-      const episodeLinksResult = await insertNewsletterEditionEpisodes({
-        newsletter_edition_id: newsletterEditionId,
-        episode_ids: episodeIds
-      });
+      let episodeLinksResult;
+      
+      if (config.last10Mode && targetEditionId) {
+        // Skip episode linking for L10 mode - content is being regenerated, episode links already exist
+        debugSubscriptionRefresh('Skipping episode linking for L10 mode update', {
+          userId: user.id,
+          newsletterEditionId,
+          episodeCount: episodeIds.length
+        });
+        episodeLinksResult = []; // Empty array to maintain compatibility
+      } else {
+        // Normal mode - insert episode links
+        episodeLinksResult = await insertNewsletterEditionEpisodes({
+          newsletter_edition_id: newsletterEditionId,
+          episode_ids: episodeIds
+        });
 
-      // Remove fallback logic for episodeLinksResult
-      if (!episodeLinksResult) {
-        throw new Error(`Database save failed: insertNewsletterEditionEpisodes returned undefined`);
+        // Remove fallback logic for episodeLinksResult
+        if (!episodeLinksResult) {
+          throw new Error(`Database save failed: insertNewsletterEditionEpisodes returned undefined`);
+        }
       }
 
       // --- Set additional fields for test assertions ---
@@ -336,7 +349,8 @@ export async function processUserForNewsletter(
         userId: user.id,
         newsletterEditionId,
         episodeCount: episodeIds.length,
-        databaseMs: timing.databaseMs
+        databaseMs: timing.databaseMs,
+        wasL10Mode: config.last10Mode && targetEditionId
       });
       
     } catch (error) {
