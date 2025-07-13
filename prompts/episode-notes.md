@@ -6,7 +6,7 @@ Great syntheses will be clear about a speaker's point of view and entities that 
 
 Primarily thoughts, ideas, stories, or knowledge that makes someone who hears it for the first time stop and think twice about it. Don't be afraid to include contrarian viewpoints that are shared on the podcast and help someone understand the range of views on a topic. If someone shares an anecdote or story on the podcast to illustrate a point, that's useful to include.
 
-If you choose to include data points, statistics, or research findings that are mentioned, be careful to include them as stated exactly, do not paraphrase or misquote.
+If you choose to include data points, statistics, or research findings that are mentioned, be careful to include them as stated exactly, do not paraphrase or misquote. DO NOT TRY TO QUOTE ANYONE.
 
 You will not inject any editorializing into the syntheses and pass no judgment on whether or not what is being said is true. You are recreating a "view-from-nowhere" journalistic perspective.
 
