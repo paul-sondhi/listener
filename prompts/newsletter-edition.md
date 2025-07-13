@@ -15,6 +15,7 @@ Your goal is to help someone figure out which podcast in their feed they should 
 - **HTML structure**: Use semantic HTML tags (h2, h3, p, ul, li) with inline styles for email compatibility
 - **Include full wrapper tags**: Begin with <!DOCTYPE html> and wrap the content in <html>, <head>, and <body> as shown above for maximum email‑client compatibility
 - **Email-friendly styling**: Use inline CSS styles for colors, spacing, and typography that work across email clients
+- **Dark mode**: Include a `<style>` block with a `@media (prefers-color-scheme: dark)` rule that flips the inner 600 px “card” to `background:#121212` and `color:#e1e1e1` so dark‑mode email clients display an appropriate theme.
 - **Categories**: Do not create categories on your own, pull them directly from the episode notes where they are documented
 - **Formatting**: Use <em></em> tags to italicize podcast show names and episode titles
 
@@ -29,12 +30,17 @@ YOU MUST FOLLOW THIS STRUCTURE EXACTLY:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @media (prefers-color-scheme: dark) {
+      .card-bg { background:#121212 !important; color:#e1e1e1 !important; }
+    }
+  </style>
 </head>
 <body style="margin:0; padding:0; font-family: Arial, sans-serif; background-color:#ffffff;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="table-layout:fixed;">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px; max-width:100%;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" class="card-bg" style="width:600px; max-width:100%; background:#ffffff;">
           <tr>
             <td style="padding:20px;">
               <p style="line-height:1.6;margin-bottom:20px;">[One sentence intro, following this format: "Good morning. I listened to X episodes for you. Here's what I heard." You would, of course, replace X in that with the actual episode count. Do not try to address the reader by name, email address, or any other way. Do not write anything before this section. ]</p>
