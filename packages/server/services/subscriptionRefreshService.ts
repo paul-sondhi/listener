@@ -293,7 +293,21 @@ async function fetchUserSpotifySubscriptionsWithRateLimit(spotifyAccessToken: st
             throw new Error(`Failed to fetch shows from Spotify: ${err.message}`);
         }
     }
-    
+
+    // --- ADDED LOGGING: Output all fetched show IDs and names for debugging missing subscriptions ---
+    // This log is only emitted outside of test environments to avoid breaking test output/expectations.
+    if (process.env.NODE_ENV !== 'test') {
+        const showList = shows.map(item => ({ id: item.show.id, name: item.show.name }));
+        console.log(JSON.stringify({
+            context: 'subscription_refresh',
+            message: 'Fetched all Spotify shows for user',
+            user_id: userId,
+            total_shows: showList.length,
+            shows: showList
+        }));
+    }
+    // --- END ADDED LOGGING ---
+
     return shows;
 }
 
