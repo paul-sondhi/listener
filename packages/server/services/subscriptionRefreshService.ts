@@ -269,24 +269,51 @@ async function makeRateLimitedSpotifyRequest(
 async function fetchUserSpotifySubscriptionsWithRateLimit(spotifyAccessToken: string, userId: string): Promise<Array<{ show: SpotifyShow }>> {
     const shows: Array<{ show: SpotifyShow }> = [];
     let nextUrl: string | null = 'https://api.spotify.com/v1/me/shows?limit=50';
-    
+    let lastPageTotal: number | undefined = undefined;
+    let pageCount = 0;
+    // Optional: If you have a metric for API calls, increment it here
+    let incrementSpotifyApiCalls: (() => void) | undefined = undefined;
+    // Try to find the metric incrementer if it exists
+    if (typeof globalThis.emitMetric === 'function') {
+        incrementSpotifyApiCalls = () => globalThis.emitMetric('spotify_api_calls', 1, { user_id: userId });
+    }
+
     while (nextUrl) {
+        pageCount++;
         try {
-            console.log(`[SubscriptionRefresh] Fetching shows from: ${nextUrl}`);
+            if (process.env.NODE_ENV !== 'test') {
+                console.log(`[SubscriptionRefresh] Fetching shows from: ${nextUrl}`);
+            }
             const data = await makeRateLimitedSpotifyRequest(nextUrl, spotifyAccessToken, userId);
-            
             const spotifyData = data as SpotifyUserShows;
             if (Array.isArray(spotifyData.items)) {
                 shows.push(...spotifyData.items);
-                console.log(`[SubscriptionRefresh] Fetched ${spotifyData.items.length} shows, total: ${shows.length}`);
+                if (process.env.NODE_ENV !== 'test') {
+                    console.log(`[SubscriptionRefresh] Fetched ${spotifyData.items.length} shows, total: ${shows.length}`);
+                }
             }
+            // Log Spotify paging fields for each page
+            if (process.env.NODE_ENV !== 'test') {
+                console.log(JSON.stringify({
+                    context: 'subscription_refresh',
+                    message: 'Spotify paging info',
+                    user_id: userId,
+                    page: pageCount,
+                    total: spotifyData.total,
+                    offset: spotifyData.offset,
+                    limit: spotifyData.limit,
+                    next: spotifyData.next,
+                    previous: spotifyData.previous
+                }));
+            }
+            // Increment metric for each API call
+            if (incrementSpotifyApiCalls) incrementSpotifyApiCalls();
+            lastPageTotal = spotifyData.total;
             nextUrl = spotifyData.next || null;
-            
             // Add small delay between paginated requests to be respectful
             if (nextUrl) {
                 await sleep(SCHEDULED_RATE_LIMIT_CONFIG.min_request_interval_ms);
             }
-            
         } catch (error: unknown) {
             const err = error as Error;
             console.error('[SubscriptionRefresh] Failed to fetch shows with enhanced rate limiting:', err.message);
@@ -305,6 +332,10 @@ async function fetchUserSpotifySubscriptionsWithRateLimit(spotifyAccessToken: st
             total_shows: showList.length,
             shows: showList
         }));
+        // Warn if the number of shows fetched does not match the reported total
+        if (typeof lastPageTotal === 'number' && showList.length !== lastPageTotal) {
+            console.warn(`[SubscriptionRefresh] WARNING: shows.length (${showList.length}) !== Spotify reported total (${lastPageTotal}) for user ${userId}`);
+        }
     }
     // --- END ADDED LOGGING ---
 
