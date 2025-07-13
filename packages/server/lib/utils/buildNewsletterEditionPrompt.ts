@@ -686,19 +686,41 @@ export function sanitizeNewsletterContent(htmlContent: string): string {
   const sanitized = sanitizeHtml(htmlContent, {
     // Allow safe HTML elements for newsletter formatting
     allowedTags: [
-      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', // Headings
-      'p', 'br', 'hr', // Paragraphs and line breaks
-      'ul', 'ol', 'li', // Lists
-      'strong', 'b', 'em', 'i', 'u', // Text formatting
-      'blockquote', 'q', // Quotes
-      'div', 'span', // Containers
-      'a', // Links (with restrictions)
-      'img' // Images (with restrictions)
+      // HTML document structure (for complete HTML documents)
+      'html', 'head', 'body', 'meta', 'style',
+      // Table structure for email layout
+      'table', 'tr', 'td',
+      // Headings
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      // Paragraphs and line breaks
+      'p', 'br', 'hr',
+      // Lists
+      'ul', 'ol', 'li',
+      // Text formatting
+      'strong', 'b', 'em', 'i', 'u',
+      // Quotes
+      'blockquote', 'q',
+      // Containers
+      'div', 'span',
+      // Links (with restrictions)
+      'a',
+      // Images (with restrictions)
+      'img'
     ],
     // Allow safe attributes
     allowedAttributes: {
       // Global attributes
       '*': ['class', 'id', 'style'],
+      // HTML document structure attributes
+      'html': ['lang'],
+      'head': [],
+      'body': ['style'],
+      'meta': ['charset', 'name', 'content'],
+      'style': [],
+      // Table attributes for email layout
+      'table': ['role', 'cellpadding', 'cellspacing', 'border', 'align', 'width', 'style'],
+      'tr': ['style'],
+      'td': ['style'],
       // Link attributes
       'a': ['href', 'title', 'target'],
       // Image attributes
@@ -735,7 +757,11 @@ export function sanitizeNewsletterContent(htmlContent: string): string {
         'padding-top': [/^\d+(?:px|em|%)?$/],
         'padding-bottom': [/^\d+(?:px|em|%)?$/],
         'padding-left': [/^\d+(?:px|em|%)?$/],
-        'padding-right': [/^\d+(?:px|em|%)?$/]
+        'padding-right': [/^\d+(?:px|em|%)?$/],
+        // Additional styles for table layout
+        'width': [/^\d+(?:px|em|%)?$/],
+        'font-family': [/^[a-zA-Z\s,]+$/],
+        'background': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/]
       }
     },
     // Allow safe URL schemes

@@ -178,4 +178,66 @@ describe('sanitizeNewsletterContent', () => {
     expect(safe).toContain('color:#123456');
     expect(safe).toContain('font-size:16px');
   });
+
+  it('preserves complete HTML document structure for email newsletters', () => {
+    const fullHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @media (prefers-color-scheme: dark) {
+      .card-bg { background:#121212 !important; color:#e1e1e1 !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; font-family: Arial, sans-serif; background-color:#ffffff;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+         align="center" width="600" class="card-bg"
+         style="width:600px; background:#ffffff;">
+    <tr>
+      <td style="padding:20px;">
+        <h3 style="color:#34495e;margin-top:25px;margin-bottom:15px;">Test Newsletter</h3>
+        <p style="line-height:1.6;margin-bottom:20px;">This is a test newsletter content.</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+    
+    const sanitized = sanitizeNewsletterContent(fullHtml);
+    
+    // Note: DOCTYPE declarations are not preserved by sanitize-html library
+    // but the rest of the HTML document structure should be preserved
+    expect(sanitized).toContain('<html lang="en">');
+    expect(sanitized).toContain('</html>');
+    expect(sanitized).toContain('<head>');
+    expect(sanitized).toContain('</head>');
+    expect(sanitized).toContain('<body');
+    expect(sanitized).toContain('</body>');
+    expect(sanitized).toContain('<table');
+    expect(sanitized).toContain('</table>');
+    expect(sanitized).toContain('<tr>');
+    expect(sanitized).toContain('</tr>');
+    expect(sanitized).toContain('<td');
+    expect(sanitized).toContain('</td>');
+    expect(sanitized).toContain('<style>');
+    expect(sanitized).toContain('</style>');
+    expect(sanitized).toContain('<meta');
+    
+    // Should preserve important attributes
+    expect(sanitized).toContain('lang="en"');
+    expect(sanitized).toContain('charset="UTF-8"');
+    expect(sanitized).toContain('role="presentation"');
+    expect(sanitized).toContain('cellpadding="0"');
+    expect(sanitized).toContain('cellspacing="0"');
+    expect(sanitized).toContain('border="0"');
+    expect(sanitized).toContain('align="center"');
+    expect(sanitized).toContain('width="600"');
+    expect(sanitized).toContain('class="card-bg"');
+    
+    // Should preserve content
+    expect(sanitized).toContain('Test Newsletter');
+    expect(sanitized).toContain('This is a test newsletter content.');
+  });
 }); 
