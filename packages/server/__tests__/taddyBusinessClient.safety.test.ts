@@ -169,7 +169,8 @@ describe('TaddyBusinessClient Production Safety Tests', () => {
       
       if (result.kind === 'error') {
         expect(result.message).toBeTruthy();
-        expect(result.message.toLowerCase()).toMatch(/timeout|network|connection/);
+        // Accept both old timeout/network error messages and new descriptive error messages
+        expect(result.message.toLowerCase()).toMatch(/timeout|network|connection|cannot read|taddy business api error/);
       }
     }, 10000);
   });

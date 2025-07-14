@@ -119,6 +119,15 @@ export class TaddyBusinessClient {
         { maxAttempts: 2 }
       );
 
+      // Enhanced logging for Step 1
+      logger.debug('Taddy Business: Step 1 - Podcast series lookup', {
+        rssUrl: feedUrl,
+        result: podcastResult ? 'found' : 'not_found',
+        seriesUuid: podcastResult?.uuid,
+        seriesName: podcastResult?.name,
+        totalEpisodes: podcastResult?.totalEpisodesCount
+      });
+
       if (!podcastResult) {
         logger.debug('No podcast series found for RSS URL', { 
           feedUrl,
@@ -132,6 +141,19 @@ export class TaddyBusinessClient {
         () => this.queryPodcastEpisode(podcastResult.uuid, episodeGuid),
         { maxAttempts: 2 }
       );
+
+      // Enhanced logging for Step 2
+      logger.debug('Taddy Business: Step 2 - Episode lookup', {
+        episodeGuid,
+        podcastUuid: podcastResult.uuid,
+        podcastName: podcastResult.name,
+        result: episodeResult ? 'found' : 'not_found',
+        episodeUuid: episodeResult?.uuid,
+        episodeName: episodeResult?.name,
+        transcribeStatus: episodeResult?.taddyTranscribeStatus,
+        datePublished: episodeResult?.datePublished,
+        duration: episodeResult?.duration
+      });
 
       if (!episodeResult) {
         logger.debug('No episode found for GUID', { 
@@ -149,15 +171,34 @@ export class TaddyBusinessClient {
         { maxAttempts: 2 }
       );
 
+      // Enhanced logging for Step 3
+      logger.debug('Taddy Business: Step 3 - Transcript lookup', {
+        episodeUuid: episodeResult.uuid,
+        episodeName: episodeResult.name,
+        result: transcriptResult ? 'found' : 'not_found',
+        transcriptSegments: transcriptResult?.length || 0,
+        hasText: transcriptResult && transcriptResult.length > 0,
+        firstSegmentText: transcriptResult && transcriptResult.length > 0 ? 
+          transcriptResult[0].text.substring(0, 100) + '...' : undefined
+      });
+
       // Step 4: Classify transcript result and determine credits consumed
       // NOTE: Credit consumption is estimated since Taddy doesn't provide actual usage in headers
       const result = this.classifyBusinessTranscriptResult(transcriptResult, episodeResult);
+      
+      // Determine the specific failure reason for no_match results
+      const failureReason = !podcastResult ? 'series_not_found' :
+                           !episodeResult ? 'episode_not_found' :
+                           !transcriptResult ? 'transcript_not_found' :
+                           transcriptResult && transcriptResult.length === 0 ? 'transcript_empty' :
+                           'unknown';
       
       const duration = Date.now() - startTime;
       logger.info('Taddy Business transcript lookup completed', {
         feedUrl,
         episodeGuid,
         result: result.kind,
+        failure_reason: result.kind === 'no_match' ? failureReason : undefined,
         duration,
         creditsConsumed: result.creditsConsumed, // Estimated - may not reflect actual API usage
         wordCount: 'wordCount' in result ? result.wordCount : undefined,

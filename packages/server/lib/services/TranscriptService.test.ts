@@ -52,13 +52,26 @@ describe('TranscriptService', () => {
 
   describe('getTranscript with an episode object', () => {
     it('should return not_found for a valid, eligible episode when no Taddy client is available', async () => {
+      // Ensure no API key is set so no client is created
+      const originalApiKey = process.env.TADDY_API_KEY;
+      delete process.env.TADDY_API_KEY;
+      
+      // Create a new service instance without API key
+      const serviceWithoutClient = new TranscriptService();
+      
       const mockEpisode = createMockEpisode();
-      const result = await transcriptService.getTranscript(mockEpisode);
+      const result = await serviceWithoutClient.getTranscript(mockEpisode);
+      
       expect(result).toEqual({ 
         kind: 'not_found',
         source: 'taddy',
         creditsConsumed: 0
       });
+      
+      // Restore original environment
+      if (originalApiKey) {
+        process.env.TADDY_API_KEY = originalApiKey;
+      }
     });
 
     it('should return error for an episode with a null rss_url', async () => {
