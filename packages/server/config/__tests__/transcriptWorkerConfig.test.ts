@@ -52,7 +52,8 @@ describe('Transcript Worker Configuration', () => {
         cronSchedule: '0 1 * * *',
         tier: 'business',
         useAdvisoryLock: true,
-        last10Mode: false
+        last10Mode: false,
+        last10Count: 10
       });
     });
 
@@ -75,6 +76,7 @@ describe('Transcript Worker Configuration', () => {
       expect(config.tier).toBe('business');
       expect(config.useAdvisoryLock).toBe(true);
       expect(config.last10Mode).toBe(false);
+      expect(config.last10Count).toBe(10);
     });
   });
 
@@ -167,6 +169,66 @@ describe('Transcript Worker Configuration', () => {
         const config = getTranscriptWorkerConfig();
 
         expect(config.last10Mode).toBe(false);
+      });
+    });
+
+    /**
+     * Tests for TRANSCRIPT_WORKER_L10_COUNT configuration
+     */
+    describe('last10Count Configuration (TRANSCRIPT_WORKER_L10_COUNT)', () => {
+      it('should default last10Count to 10 when env var is unset', () => {
+        delete process.env.TRANSCRIPT_WORKER_L10_COUNT; // ensure unset
+
+        const config = getTranscriptWorkerConfig();
+
+        expect(config.last10Count).toBe(10);
+      });
+
+      it('should parse valid last10Count values', () => {
+        // Test minimum boundary
+        process.env.TRANSCRIPT_WORKER_L10_COUNT = '1';
+        let config = getTranscriptWorkerConfig();
+        expect(config.last10Count).toBe(1);
+
+        // Test maximum boundary
+        process.env.TRANSCRIPT_WORKER_L10_COUNT = '100';
+        config = getTranscriptWorkerConfig();
+        expect(config.last10Count).toBe(100);
+
+        // Test default value
+        process.env.TRANSCRIPT_WORKER_L10_COUNT = '10';
+        config = getTranscriptWorkerConfig();
+        expect(config.last10Count).toBe(10);
+      });
+
+      it('should reject last10Count below minimum', () => {
+        process.env.TRANSCRIPT_WORKER_L10_COUNT = '0';
+        
+        expect(() => getTranscriptWorkerConfig()).toThrow(
+          'Invalid TRANSCRIPT_WORKER_L10_COUNT: "0". Must be a number between 1 and 100.'
+        );
+      });
+
+      it('should reject last10Count above maximum', () => {
+        process.env.TRANSCRIPT_WORKER_L10_COUNT = '101';
+        
+        expect(() => getTranscriptWorkerConfig()).toThrow(
+          'Invalid TRANSCRIPT_WORKER_L10_COUNT: "101". Must be a number between 1 and 100.'
+        );
+      });
+
+      it('should reject non-numeric last10Count', () => {
+        process.env.TRANSCRIPT_WORKER_L10_COUNT = 'invalid';
+        
+        expect(() => getTranscriptWorkerConfig()).toThrow(
+          'Invalid TRANSCRIPT_WORKER_L10_COUNT: "invalid". Must be a number between 1 and 100.'
+        );
+      });
+
+      it('should treat empty string last10Count as default (10)', () => {
+        process.env.TRANSCRIPT_WORKER_L10_COUNT = '';
+        const config = getTranscriptWorkerConfig();
+        expect(config.last10Count).toBe(10);
       });
     });
   });
@@ -545,7 +607,8 @@ describe('Transcript Worker Configuration', () => {
         cronSchedule: '0 1 * * *',
         tier: 'business',
         useAdvisoryLock: true,
-        last10Mode: false
+        last10Mode: false,
+        last10Count: 10
       });
     });
 
@@ -568,7 +631,8 @@ describe('Transcript Worker Configuration', () => {
         cronSchedule: '*/5 * * * *',
         tier: 'free',
         useAdvisoryLock: false,
-        last10Mode: false
+        last10Mode: false,
+        last10Count: 10
       });
     });
   });

@@ -440,7 +440,7 @@ export class TranscriptWorker {
       });
 
       if (this.config.last10Mode) {
-        episodesNeedingTranscripts = episodesNeedingTranscripts.slice(0, 10);
+        episodesNeedingTranscripts = episodesNeedingTranscripts.slice(0, this.config.last10Count);
       }
 
           // Log how many episodes are deemed needing transcripts

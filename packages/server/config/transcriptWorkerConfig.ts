@@ -18,8 +18,10 @@ export interface TranscriptWorkerConfig {
   concurrency: number;
   /** Whether to use PostgreSQL advisory lock */
   useAdvisoryLock: boolean;
-  /** When true, re-process the 10 most-recent episodes (overwrite duplicates); when false, run in normal nightly mode */
+  /** When true, re-process the most-recent episodes (overwrite duplicates); when false, run in normal nightly mode */
   last10Mode: boolean;
+  /** Number of most-recent episodes to process in L10 mode (default: 10) */
+  last10Count: number;
 }
 
 /**
@@ -73,6 +75,14 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
   // Parse last10Mode flag (strict boolean semantics) – any value other than the string "true" yields false
   const last10Mode: boolean = process.env.TRANSCRIPT_WORKER_L10D === 'true';
 
+  // Parse last10Count (default: 10)
+  const last10CountEnv = process.env.TRANSCRIPT_WORKER_L10_COUNT;
+  const last10CountValue = last10CountEnv === '' ? '10' : (last10CountEnv || '10');
+  const last10Count = parseInt(last10CountValue, 10);
+  if (isNaN(last10Count) || last10Count < 1 || last10Count > 100) { // Reasonable upper limit for a count
+    throw new Error(`Invalid TRANSCRIPT_WORKER_L10_COUNT: "${last10CountEnv || ''}". Must be a number between 1 and 100.`);
+  }
+
   return {
     enabled,
     cronSchedule,
@@ -82,6 +92,7 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
     concurrency,
     useAdvisoryLock,
     last10Mode,
+    last10Count,
   };
 }
 
@@ -135,5 +146,6 @@ export function getConfigSummary(config: TranscriptWorkerConfig): Record<string,
     max_concurrent: config.concurrency,
     advisory_lock: config.useAdvisoryLock,
     last10_mode: config.last10Mode,
+    last10_count: config.last10Count,
   };
 } 

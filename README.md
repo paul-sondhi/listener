@@ -82,8 +82,9 @@ A podcast transcription service that integrates with Spotify.
    TRANSCRIPT_MAX_REQUESTS=15            # Max API calls per run
    TRANSCRIPT_CONCURRENCY=10             # Max simultaneous requests
    TRANSCRIPT_ADVISORY_LOCK=true         # Prevent overlapping runs
-   # Re-check toggle (strict boolean): "true" => re-submit last 10, "false" => normal mode
+   # Re-check toggle (strict boolean): "true" => re-submit last N episodes, "false" => normal mode
    TRANSCRIPT_WORKER_L10D=false          # Pause worker entirely with TRANSCRIPT_WORKER_ENABLED=false
+   TRANSCRIPT_WORKER_L10_COUNT=10        # Number of episodes to process in L10 mode (1-100, default: 10)
    
    # RSS Feed Matching (Optional - defaults provided)
    RSS_MATCH_THRESHOLD=0.8               # Minimum similarity score for RSS feed matching (0.0-1.0)
@@ -958,7 +959,7 @@ Allowed status values (superset of provider states):
 
 ❌ **Legacy statuses** `available`, `pending`, `not_found` have been removed. Any references in code or docs should be updated.
 
-In **re-check mode** (`TRANSCRIPT_WORKER_L10D=true`) the worker *overwrites* both `initial_status` and `current_status` for the last 10 episodes per show, ensuring stale or erroneous states are refreshed.
+In **re-check mode** (`TRANSCRIPT_WORKER_L10D=true`) the worker *overwrites* both `initial_status` and `current_status` for the last N episodes per show (where N is controlled by `TRANSCRIPT_WORKER_L10_COUNT`, default: 10), ensuring stale or erroneous states are refreshed.
 
 #### 7. Configure Episode-Notes Worker Background Job
 

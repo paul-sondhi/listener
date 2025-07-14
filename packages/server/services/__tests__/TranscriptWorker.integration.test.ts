@@ -830,6 +830,23 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
       expect(summary.totalEpisodes).toBeLessThanOrEqual(10);
     });
 
+    it('should respect configurable last10Count when last10Mode is true', async () => {
+      const cfg: TranscriptWorkerConfig = { 
+        ...integrationConfig, 
+        last10Mode: true, 
+        last10Count: 2 
+      } as any;
+
+      const l10Worker = new TranscriptWorker(cfg, mockLogger, supabase);
+
+      const summary = await l10Worker.run();
+
+      // Should limit to 2 episodes even though we have 4 seeded episodes
+      expect(summary.totalEpisodes).toBe(2);
+      expect(summary.processedEpisodes).toBeGreaterThan(0);
+      expect(summary.totalEpisodes).toBeLessThanOrEqual(2);
+    });
+
     it('should overwrite existing transcript rows when last10Mode is true', async () => {
       // 1️⃣ Arrange: Pre-insert transcripts with old data
       const initialWordCount = 1;
