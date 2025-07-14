@@ -277,15 +277,15 @@ describe('Transcript Worker Configuration', () => {
         process.env.TRANSCRIPT_MAX_REQUESTS = '0';
         
         expect(() => getTranscriptWorkerConfig()).toThrow(
-          'Invalid TRANSCRIPT_MAX_REQUESTS: "0". Must be a number between 1 and 100.'
+          'Invalid TRANSCRIPT_MAX_REQUESTS: "0". Must be a number between 1 and 1000.'
         );
       });
 
       it('should reject max requests above maximum', () => {
-        process.env.TRANSCRIPT_MAX_REQUESTS = '150';
+        process.env.TRANSCRIPT_MAX_REQUESTS = '1500';
         
         expect(() => getTranscriptWorkerConfig()).toThrow(
-          'Invalid TRANSCRIPT_MAX_REQUESTS: "150". Must be a number between 1 and 100.'
+          'Invalid TRANSCRIPT_MAX_REQUESTS: "1500". Must be a number between 1 and 1000.'
         );
       });
 
@@ -297,18 +297,31 @@ describe('Transcript Worker Configuration', () => {
         expect(config.maxRequests).toBe(1);
 
         // Test maximum boundary - need to keep concurrency within limit
-        process.env.TRANSCRIPT_MAX_REQUESTS = '100';
+        process.env.TRANSCRIPT_MAX_REQUESTS = '1000';
         process.env.TRANSCRIPT_CONCURRENCY = '10';
         config = getTranscriptWorkerConfig();
-        expect(config.maxRequests).toBe(100);
+        expect(config.maxRequests).toBe(1000);
       });
 
       it('should reject non-numeric max requests', () => {
         process.env.TRANSCRIPT_MAX_REQUESTS = 'many';
         
         expect(() => getTranscriptWorkerConfig()).toThrow(
-          'Invalid TRANSCRIPT_MAX_REQUESTS: "many". Must be a number between 1 and 100.'
+          'Invalid TRANSCRIPT_MAX_REQUESTS: "many". Must be a number between 1 and 1000.'
         );
+      });
+
+      it('should accept values in the expanded range', () => {
+        // Test values in the new expanded range
+        const testValues = [500, 750, 999];
+        
+        for (const value of testValues) {
+          process.env.TRANSCRIPT_MAX_REQUESTS = value.toString();
+          process.env.TRANSCRIPT_CONCURRENCY = '10'; // Keep concurrency within limit
+          
+          const config = getTranscriptWorkerConfig();
+          expect(config.maxRequests).toBe(value);
+        }
       });
     });
 

@@ -79,7 +79,7 @@ A podcast transcription service that integrates with Spotify.
    TRANSCRIPT_WORKER_CRON=0 1 * * *      # Run at 1 AM daily
    TRANSCRIPT_TIER=business              # Taddy API tier ('free' or 'business')
    TRANSCRIPT_LOOKBACK=24                # Hours to scan for new episodes
-   TRANSCRIPT_MAX_REQUESTS=15            # Max API calls per run
+   TRANSCRIPT_MAX_REQUESTS=15            # Max API calls per run (1-1000)
    TRANSCRIPT_CONCURRENCY=10             # Max simultaneous requests
    TRANSCRIPT_ADVISORY_LOCK=true         # Prevent overlapping runs
    # Re-check toggle (strict boolean): "true" => re-submit last N episodes, "false" => normal mode
@@ -893,7 +893,7 @@ TRANSCRIPT_WORKER_CRON=0 1 * * *
 TRANSCRIPT_LOOKBACK=24
 
 # Configure API usage limits (defaults optimized for Free tier)
-TRANSCRIPT_MAX_REQUESTS=15            # Max Taddy API calls per run
+TRANSCRIPT_MAX_REQUESTS=15            # Max Taddy API calls per run (1-1000)
 TRANSCRIPT_CONCURRENCY=10             # Max simultaneous requests
 
 # Enable advisory lock to prevent overlapping runs (default: enabled)
@@ -1187,7 +1187,7 @@ EDITION_WORKER_CRON=0 3 * * *
 # Job-specific configuration
 TRANSCRIPT_TIER=business
 TRANSCRIPT_LOOKBACK=24
-TRANSCRIPT_MAX_REQUESTS=15
+TRANSCRIPT_MAX_REQUESTS=15            # Max API calls per run (1-1000)
 TRANSCRIPT_CONCURRENCY=10
 
 NOTES_LOOKBACK_HOURS=24

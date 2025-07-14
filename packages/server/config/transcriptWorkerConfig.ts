@@ -54,8 +54,8 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
 
   // Parse max requests with validation
   const maxRequests = parseInt(process.env.TRANSCRIPT_MAX_REQUESTS || '15', 10);
-  if (isNaN(maxRequests) || maxRequests < 1 || maxRequests > 100) {
-    throw new Error(`Invalid TRANSCRIPT_MAX_REQUESTS: "${process.env.TRANSCRIPT_MAX_REQUESTS}". Must be a number between 1 and 100.`);
+  if (isNaN(maxRequests) || maxRequests < 1 || maxRequests > 1000) {
+    throw new Error(`Invalid TRANSCRIPT_MAX_REQUESTS: "${process.env.TRANSCRIPT_MAX_REQUESTS}". Must be a number between 1 and 1000.`);
   }
 
   // Parse concurrency with validation
