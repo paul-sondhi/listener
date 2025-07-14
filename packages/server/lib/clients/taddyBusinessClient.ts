@@ -133,6 +133,15 @@ export class TaddyBusinessClient {
           feedUrl,
           context: 'This would result in no_match status'
         });
+        
+        // Add info-level summary for no_match episodes
+        logger.info('Taddy Business lookup failed - Step 1: Podcast series not found', {
+          rss_url: feedUrl,
+          episode_guid: episodeGuid,
+          failed_step: 'podcast_series_lookup',
+          result_kind: 'no_match'
+        });
+        
         return { kind: 'no_match', creditsConsumed: 1 };
       }
 
@@ -162,6 +171,17 @@ export class TaddyBusinessClient {
           podcastName: podcastResult.name,
           context: 'This would result in no_match status'
         });
+        
+        // Add info-level summary for no_match episodes
+        logger.info('Taddy Business lookup failed - Step 2: Episode not found', {
+          rss_url: feedUrl,
+          episode_guid: episodeGuid,
+          podcast_uuid: podcastResult.uuid,
+          podcast_name: podcastResult.name,
+          failed_step: 'episode_lookup',
+          result_kind: 'no_match'
+        });
+        
         return { kind: 'no_match', creditsConsumed: 1 };
       }
 
@@ -603,6 +623,15 @@ export class TaddyBusinessClient {
     if (!transcriptItems || transcriptItems.length === 0) {
       logger.debug('No transcript items found for episode', {
         episodeUuid: episodeInfo.uuid,
+      });
+      
+      // Add info-level summary for transcript not found
+      logger.info('Taddy Business lookup failed - Step 3: Transcript not available', {
+        episode_uuid: episodeInfo.uuid,
+        episode_name: episodeInfo.name,
+        transcribe_status: episodeInfo.taddyTranscribeStatus,
+        failed_step: 'transcript_lookup',
+        result_kind: 'not_found'
       });
       
       return {
