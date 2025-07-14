@@ -47,6 +47,54 @@ function getEpisodeCutoffDate(): Date {
   return new Date(Date.now() - EPISODE_CUTOFF_HOURS * 60 * 60 * 1000);
 }
 
+/**
+ * Robust RSS date parsing that handles various timezone formats
+ * @param dateStr - RSS date string to parse
+ * @returns Date | null - Parsed date or null if all parsing attempts fail
+ */
+function parseRssDate(dateStr: string): Date | null {
+  if (!dateStr) {
+    return null;
+  }
+
+  // Strategy 1: Try standard parsing first
+  let date = new Date(dateStr);
+  if (!isNaN(date.getTime())) {
+    return date;
+  }
+
+  // Strategy 2: Try normalizing timezone formats
+  // Handle RedCircle's +0000 format by converting to -0000
+  const normalizedDateStr = dateStr.replace(/(\d{2}:\d{2}:\d{2})\s*\+0000/, '$1 -0000');
+  if (normalizedDateStr !== dateStr) {
+    date = new Date(normalizedDateStr);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
+
+  // Strategy 3: Try parsing without timezone (strip timezone entirely)
+  const dateWithoutTimezone = dateStr.replace(/\s*[+-]\d{4}\s*$/, '');
+  if (dateWithoutTimezone !== dateStr) {
+    date = new Date(dateWithoutTimezone);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
+
+  // Strategy 4: Try parsing as UTC if it looks like a UTC date
+  if (dateStr.includes('GMT') || dateStr.includes('UTC')) {
+    const utcDateStr = dateStr.replace(/\s*GMT\s*/, ' ').replace(/\s*UTC\s*/, ' ');
+    date = new Date(utcDateStr);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
+
+  // All parsing strategies failed
+  return null;
+}
+
 // Interface for RSS feed episode item
 interface RssEpisodeItem {
   title?: string;
@@ -484,19 +532,35 @@ export class EpisodeSyncService {
       guid = item.title || `episode-${Date.now()}`;
     }
 
-    // Extract publication date
+    // Extract publication date using robust parsing
     const pubDateStr = item.pubDate;
     let pubDate: Date | null = null;
     if (pubDateStr) {
-      pubDate = new Date(pubDateStr);
-      if (isNaN(pubDate.getTime())) {
-        pubDate = null;
+      pubDate = parseRssDate(pubDateStr);
+      
+      // Log problematic dates for debugging
+      if (!pubDate && pubDateStr) {
+        this.logger.warn('Failed to parse RSS publication date', { 
+          pubDateStr, 
+          guid,
+          showId 
+        });
       }
+    }
+
+    // Filter out episodes with null publication dates
+    if (!pubDate) {
+      this.logger.debug('Skipping episode with null publication date', { 
+        guid, 
+        showId,
+        title: item.title 
+      });
+      return null;
     }
 
     // Filter by dynamic cutoff date (e.g., 48 h ago)
     const cutoffDate = getEpisodeCutoffDate();
-    if (pubDate && pubDate < cutoffDate) {
+    if (pubDate < cutoffDate) {
       return null; // Skip episodes older than cutoff
     }
 
@@ -518,7 +582,7 @@ export class EpisodeSyncService {
       episode_url: episodeUrl,
       title: item.title || null,
       description: item.description || null,
-      pub_date: pubDate?.toISOString() || null,
+      pub_date: pubDate.toISOString(),
       duration_sec: durationSec
     };
   }

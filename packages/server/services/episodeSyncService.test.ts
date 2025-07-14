@@ -36,7 +36,8 @@ const {
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
+    error: vi.fn(),
+    debug: vi.fn()
   },
   mockFetch: vi.fn()
 }));
@@ -694,13 +695,18 @@ describe('EpisodeSyncService', () => {
         ignoreDuplicates: false
       });
 
-      // Assert: Verify warning was logged about failed episode parsing
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'Failed to parse episode item',
+      // Assert: Verify debug was logged about skipping episode with null publication date
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'Skipping episode with null publication date',
         expect.objectContaining({
-          error: 'No episode URL found in enclosure'
+          guid: 'incomplete-episode-123',
+          showId: 'show-123',
+          title: 'Episode with Missing Fields'
         })
       );
+
+      // Assert: No warning log should be called for missing pubDate
+      expect(mockLogger.warn).not.toHaveBeenCalled();
     });
 
     it('should handle malformed XML gracefully', async () => {
