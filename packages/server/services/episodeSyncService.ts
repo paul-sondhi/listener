@@ -57,16 +57,19 @@ function parseRssDate(dateStr: string): Date | null {
     return null;
   }
 
+  // Decode HTML entities (specifically &#43; to + for RedCircle feeds)
+  const decodedDateStr = dateStr.replace(/&#43;/g, '+');
+
   // Strategy 1: Try standard parsing first
-  let date = new Date(dateStr);
+  let date = new Date(decodedDateStr);
   if (!isNaN(date.getTime())) {
     return date;
   }
 
   // Strategy 2: Try normalizing timezone formats
   // Handle RedCircle's +0000 format by converting to -0000
-  const normalizedDateStr = dateStr.replace(/(\d{2}:\d{2}:\d{2})\s*\+0000/, '$1 -0000');
-  if (normalizedDateStr !== dateStr) {
+  const normalizedDateStr = decodedDateStr.replace(/(\d{2}:\d{2}:\d{2})\s*\+0000/, '$1 -0000');
+  if (normalizedDateStr !== decodedDateStr) {
     date = new Date(normalizedDateStr);
     if (!isNaN(date.getTime())) {
       return date;
@@ -74,8 +77,8 @@ function parseRssDate(dateStr: string): Date | null {
   }
 
   // Strategy 3: Try parsing without timezone (strip timezone entirely)
-  const dateWithoutTimezone = dateStr.replace(/\s*[+-]\d{4}\s*$/, '');
-  if (dateWithoutTimezone !== dateStr) {
+  const dateWithoutTimezone = decodedDateStr.replace(/\s*[+-]\d{4}\s*$/, '');
+  if (dateWithoutTimezone !== decodedDateStr) {
     date = new Date(dateWithoutTimezone);
     if (!isNaN(date.getTime())) {
       return date;
@@ -83,8 +86,8 @@ function parseRssDate(dateStr: string): Date | null {
   }
 
   // Strategy 4: Try parsing as UTC if it looks like a UTC date
-  if (dateStr.includes('GMT') || dateStr.includes('UTC')) {
-    const utcDateStr = dateStr.replace(/\s*GMT\s*/, ' ').replace(/\s*UTC\s*/, ' ');
+  if (decodedDateStr.includes('GMT') || decodedDateStr.includes('UTC')) {
+    const utcDateStr = decodedDateStr.replace(/\s*GMT\s*/, ' ').replace(/\s*UTC\s*/, ' ');
     date = new Date(utcDateStr);
     if (!isNaN(date.getTime())) {
       return date;
