@@ -109,7 +109,9 @@ const AppPage = (): React.JSX.Element => {
             hasRefreshToken: !!refreshToken, 
             hasExpiresAt: !!expiresAt 
           })
-          setError('Spotify authentication incomplete. Please log in again.')
+          // Skip token sync if provider tokens are missing (common after session refresh)
+          // Users don't return to the app after initial auth, so this is expected behavior
+          logger.info('Skipping token sync - provider tokens not available in refreshed session')
           // Mark as attempted to prevent infinite retries
           hasSynced.current = true
           return
