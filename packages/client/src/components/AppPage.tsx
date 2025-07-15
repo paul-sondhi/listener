@@ -28,7 +28,6 @@ interface SyncShowsResponse extends ApiResponse {
 const AppPage = (): React.JSX.Element => {
   const { user, signOut, clearReauthFlag, checkReauthStatus: _checkReauthStatus } = useAuth()
   const [isSyncing, setIsSyncing] = useState<boolean>(false)
-  const [error, setError] = useState<string | null>(null)
   
   // Use ref to track if we've already synced for this user session
   const hasSynced = useRef<boolean>(false)
@@ -63,12 +62,10 @@ const AppPage = (): React.JSX.Element => {
 
       try {
         setIsSyncing(true)
-        setError(null)
         
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         if (sessionError) {
           logger.error('Error getting session:', sessionError)
-          setError(sessionError.message)
           // Mark as attempted to prevent infinite retries
           hasSynced.current = true
           return
@@ -96,7 +93,6 @@ const AppPage = (): React.JSX.Element => {
         // NEW: Ensure we have a Supabase access token before proceeding
         if (!supabaseAccessToken) {
           logger.error('Missing Supabase access token – cannot authenticate backend request')
-          setError('Authentication error: missing session token. Please log out and sign in again.')
           // Prevent endless retry loops
           hasSynced.current = true
           return
@@ -135,7 +131,6 @@ const AppPage = (): React.JSX.Element => {
           const errorData: ErrorResponse = await storeResponse.json()
           const errorMessage = errorData.error || 'Failed to store Spotify tokens'
           logger.error('Token storage failed:', errorMessage)
-          setError(`Authentication error: ${errorMessage}`)
           // CRITICAL: Mark as attempted even on failure to prevent infinite loops
           hasSynced.current = true
           return
@@ -161,7 +156,6 @@ const AppPage = (): React.JSX.Element => {
           const errorData: ErrorResponse = await syncResponse.json()
           const errorMessage = errorData.error || 'Failed to sync Spotify shows'
           logger.error('Show sync failed:', errorMessage)
-          setError(`Sync error: ${errorMessage}`)
           // Mark as attempted since token storage succeeded
           hasSynced.current = true
           return
@@ -176,7 +170,6 @@ const AppPage = (): React.JSX.Element => {
       } catch (error: unknown) {
         const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
         logger.error('Error syncing Spotify tokens or subsequent operations:', errorMessage)
-        setError(`Authentication error: ${errorMessage}`)
         // CRITICAL: Always mark as attempted to prevent infinite loops
         hasSynced.current = true
       } finally {
@@ -245,11 +238,6 @@ const AppPage = (): React.JSX.Element => {
               Log out
             </button>
           </div>
-          {error && (
-            <div className="error" role="alert">
-              {error}
-            </div>
-          )}
         </>
       )}
     </div>
