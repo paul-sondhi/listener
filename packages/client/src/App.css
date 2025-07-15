@@ -41,6 +41,27 @@
   color: #888;
 }
 
+/* Ensure all text elements have explicit color */
+p, div, span, label {
+  color: #213547;
+}
+
+.user-info {
+  color: #213547;
+}
+
+.error {
+  color: #d32f2f;
+}
+
+.syncing {
+  color: #1976d2;
+}
+
+.login-prompt {
+  color: #213547;
+}
+
 * { 
   box-sizing: border-box; 
   margin: 0; 
@@ -59,6 +80,7 @@ body {
   justify-content: center;
   min-height: 100vh;
   background: #fff;
+  color: #213547;
   padding: 2rem;
   border-radius: 8px;
   width: 100%;
@@ -76,6 +98,8 @@ input[type="url"] {
   margin-bottom: 1rem;
   border: 1px solid #ccc;
   border-radius: 4px;
+  color: #213547;
+  background-color: #fff;
 }
 
 button {
@@ -97,4 +121,5 @@ h1 {
   text-align: center;
   margin-bottom: 1.5rem;
   font-size: 1.5rem;
+  color: #213547;
 }
