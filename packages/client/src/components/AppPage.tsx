@@ -172,6 +172,7 @@ const AppPage = (): React.JSX.Element => {
         
         // Mark as successfully synced for this session
         hasSynced.current = true
+        logger.info('Sync completed successfully, setting isSyncing to false')
       } catch (error: unknown) {
         const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
         logger.error('Error syncing Spotify tokens or subsequent operations:', errorMessage)
@@ -179,10 +180,8 @@ const AppPage = (): React.JSX.Element => {
         // CRITICAL: Always mark as attempted to prevent infinite loops
         hasSynced.current = true
       } finally {
-        // Avoid state update if component has unmounted (e.g., after test teardown)
-        if (isMounted.current) {
-          setIsSyncing(false)
-        }
+        // Always set syncing to false when done
+        setIsSyncing(false)
       }
     }
 
@@ -284,11 +283,10 @@ const AppPage = (): React.JSX.Element => {
   }
 
   return (
-    <div className="container">
+    <div className="app-page">
       {/* Reauth prompt overlay - shows when user needs to re-authenticate */}
       <ReauthPrompt />
       
-      <h1>Podcast Transcript Downloader</h1>
       {!user ? (
         <div className="login-prompt">
           <p>Please log in with Spotify to access the transcript downloader.</p>
@@ -320,6 +318,7 @@ const AppPage = (): React.JSX.Element => {
             <button 
               type="submit" 
               disabled={isLoading || isSyncing}
+              className="download-btn"
             >
               {isLoading ? 'Downloading...' : 'Download Episode'}
             </button>

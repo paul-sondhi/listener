@@ -58,26 +58,23 @@ export default function Login(): React.JSX.Element {
   }
 
   return (
-    <div className="container">
-      <div className="login-card">
-        <h1>Welcome to Listener</h1>
-        <p>Connect your Spotify account to get started</p>
-        
-        <button 
-          onClick={handleLogin}
-          disabled={isLoading}
-          className={`login-button ${isLoading ? 'loading' : ''}`}
-          type="button"
-        >
-          {isLoading ? 'Connecting...' : 'Log in with Spotify'}
-        </button>
-        
-        {error && (
-          <div className="error-message" role="alert">
-            {error}
-          </div>
-        )}
-      </div>
+    <div className="login-card">
+      <h1>Listener 1.0</h1>
+      
+      <button 
+        onClick={handleLogin}
+        disabled={isLoading}
+        className={`login-button ${isLoading ? 'loading' : ''}`}
+        type="button"
+      >
+        {isLoading ? 'Connecting...' : 'Connect Spotify'}
+      </button>
+      
+      {error && (
+        <div className="error-message" role="alert">
+          {error}
+        </div>
+      )}
     </div>
   )
 } 
