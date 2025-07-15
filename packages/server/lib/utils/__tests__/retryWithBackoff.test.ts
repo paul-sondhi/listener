@@ -129,7 +129,7 @@ describe('retryWithBackoff', () => {
         .mockResolvedValue('success');
 
       const delays: number[] = [];
-      const originalSetTimeout = global.setTimeout;
+      const _originalSetTimeout = global.setTimeout;
       
       // Mock setTimeout to capture delay values without complex timer manipulation
       vi.spyOn(global, 'setTimeout').mockImplementation((callback, delay) => {

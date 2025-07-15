@@ -268,7 +268,7 @@ describe('SendNewsletterWorker', () => {
 
       // Test that the delay logging is called when multiple editions are processed
       const { SendNewsletterWorker } = await import('../sendNewsletterWorker.js');
-      const worker = new SendNewsletterWorker();
+      const _worker = new SendNewsletterWorker();
       
       // The worker should log delay information when processing multiple editions
       expect(mockLogger.info).toBeDefined();

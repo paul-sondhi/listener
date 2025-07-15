@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, FormEvent, ChangeEvent } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabaseClient'
 import { ApiResponse } from '@listener/shared'
@@ -27,8 +27,6 @@ interface SyncShowsResponse extends ApiResponse {
  */
 const AppPage = (): React.JSX.Element => {
   const { user, signOut, clearReauthFlag, checkReauthStatus: _checkReauthStatus } = useAuth()
-  const [spotifyUrl, setSpotifyUrl] = useState<string>('')
-  const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isSyncing, setIsSyncing] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   
@@ -198,59 +196,6 @@ const AppPage = (): React.JSX.Element => {
     }
   }, [user])
 
-  /**
-   * Handle form submission for transcript download
-   * @param event - Form submission event
-   */
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
-    setIsLoading(true)
-    setError(null)
-
-    // Trim whitespace and remove leading/trailing quotes or apostrophes from the URL
-    let cleanSpotifyUrl: string = spotifyUrl.trim()
-    // Specifically remove the leading modifier letter turned comma if present
-    if (cleanSpotifyUrl.startsWith('ʻ')) {
-      cleanSpotifyUrl = cleanSpotifyUrl.substring(1)
-    }
-    // Remove leading/trailing standard single or double quotes
-    if ((cleanSpotifyUrl.startsWith("'") && cleanSpotifyUrl.endsWith("'")) || 
-        (cleanSpotifyUrl.startsWith('"') && cleanSpotifyUrl.endsWith('"'))) {
-      cleanSpotifyUrl = cleanSpotifyUrl.substring(1, cleanSpotifyUrl.length - 1)
-    }
-
-    try {
-      const response: globalThis.Response = await fetch(
-        `${API_BASE_URL}/api/transcribe?url=${encodeURIComponent(cleanSpotifyUrl)}`
-      )
-
-      if (!response.ok) {
-        const errorData: ErrorResponse = await response.json()
-        throw new Error(errorData.error || `HTTP ${response.status}`)
-      }
-
-      // Parse transcript text and trigger download
-      const transcript: string = await response.text()
-      const blob: Blob = new Blob([transcript], { type: 'text/plain' })
-      const downloadUrl: string = URL.createObjectURL(blob)
-      const linkElement: HTMLAnchorElement = document.createElement('a')
-      linkElement.href = downloadUrl
-      linkElement.download = 'transcript.txt'
-      document.body.appendChild(linkElement)
-      linkElement.click()
-      linkElement.remove()
-      URL.revokeObjectURL(downloadUrl)
-
-      // Clear the input after successful download
-      setSpotifyUrl('')
-    } catch (error: unknown) {
-      const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
-      logger.error('Download error:', errorMessage)
-      setError(errorMessage)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   /**
    * Handle user logout
@@ -274,13 +219,6 @@ const AppPage = (): React.JSX.Element => {
     }
   }
 
-  /**
-   * Handle input change for Spotify URL
-   * @param event - Input change event
-   */
-  const handleInputChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    setSpotifyUrl(event.target.value)
-  }
 
   return (
     <div className="app-page">
@@ -295,8 +233,8 @@ const AppPage = (): React.JSX.Element => {
       ) : (
         <>
           <div className="user-info">
-            <p>Welcome, {user.email}!</p>
-            {isSyncing && <p className="syncing">Syncing Spotify data...</p>}
+            <h1>You're in!</h1>
+            <p>Look out for an email from Listener every day at 12p ET / 9a PT.</p>
             <button 
               onClick={handleLogout} 
               className="logout-btn"
@@ -305,24 +243,6 @@ const AppPage = (): React.JSX.Element => {
               Log out
             </button>
           </div>
-          <form onSubmit={handleSubmit}>
-            <input
-              type="url"
-              value={spotifyUrl}
-              onChange={handleInputChange}
-              placeholder="Enter Spotify show URL"
-              required
-              disabled={isSyncing}
-              aria-label="Spotify show URL"
-            />
-            <button 
-              type="submit" 
-              disabled={isLoading || isSyncing}
-              className="download-btn"
-            >
-              {isLoading ? 'Downloading...' : 'Download Episode'}
-            </button>
-          </form>
           {error && (
             <div className="error" role="alert">
               {error}

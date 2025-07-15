@@ -6,7 +6,7 @@
  * the enhanced matching algorithm works correctly in practice.
  */
 
-import { getTitleSlug, getFeedUrl } from './packages/server/lib/utils';
+import { getTitleSlug, getFeedUrl } from '../../packages/server/lib/utils';
 
 async function testDailyMatching() {
   console.log('🧪 Testing enhanced RSS matching with "The Daily"...\n');

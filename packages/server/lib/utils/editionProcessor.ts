@@ -11,7 +11,7 @@ import { EditionWorkerConfig } from '../../config/editionWorkerConfig.js';
 import { UserWithSubscriptions, EpisodeNoteWithEpisode, queryEpisodeNotesForUser } from '../db/editionQueries.js';
 import { generateNewsletterEdition } from '../llm/gemini.js';
 import { sanitizeNewsletterContent } from './buildNewsletterEditionPrompt.js';
-import { insertNewsletterEdition, upsertNewsletterEdition } from '../db/newsletter-editions.ts';
+import { upsertNewsletterEdition } from '../db/newsletter-editions.ts';
 import { insertNewsletterEditionEpisodes } from '../db/newsletter-edition-episodes.ts';
 import { _NewsletterEdition } from '@listener/shared';
 import { debugSubscriptionRefresh } from '../debugLogger';

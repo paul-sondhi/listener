@@ -65,7 +65,7 @@ describe('Login Component', () => {
     )
 
     // Assert: Check if the login button is present in the document
-    const loginButton: HTMLElement = screen.getByRole('button', { name: /log in with spotify/i })
+    const loginButton: HTMLElement = screen.getByRole('button', { name: /connect spotify/i })
     expect(loginButton).toBeInTheDocument()
   })
 
@@ -90,7 +90,7 @@ describe('Login Component', () => {
       </MemoryRouter>
     )
     
-    const loginButton: HTMLElement = screen.getByRole('button', { name: /log in with spotify/i })
+    const loginButton: HTMLElement = screen.getByRole('button', { name: /connect spotify/i })
 
     // Act: Simulate a user clicking the login button
     await act(async () => {
@@ -138,7 +138,7 @@ describe('Login Component', () => {
       </MemoryRouter>
     )
     
-    const loginButton: HTMLElement = screen.getByRole('button', { name: /log in with spotify/i })
+    const loginButton: HTMLElement = screen.getByRole('button', { name: /connect spotify/i })
 
     // Act: Click the button, which should now lead to an error
     await act(async () => {
@@ -166,7 +166,7 @@ describe('Login Component', () => {
       </MemoryRouter>
     )
     
-    const loginButton: HTMLElement = screen.getByRole('button', { name: /log in with spotify/i })
+    const loginButton: HTMLElement = screen.getByRole('button', { name: /connect spotify/i })
 
     // Act: Click the button, which should throw an error
     await act(async () => {
@@ -229,7 +229,7 @@ describe('Login Component', () => {
       </MemoryRouter>
     )
     
-    const loginButton: HTMLElement = screen.getByRole('button', { name: /log in with spotify/i })
+    const loginButton: HTMLElement = screen.getByRole('button', { name: /connect spotify/i })
 
     // Act: Click the button but don't resolve the promise yet - wrap in act()
     await act(async () => {

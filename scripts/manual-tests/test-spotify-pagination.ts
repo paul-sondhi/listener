@@ -5,8 +5,7 @@
  * This will show us exactly what responses we get from Spotify and whether pagination is working correctly
  */
 
-import { getSupabaseAdmin } from './packages/server/lib/db/supabase';
-import { getValidTokens } from './packages/server/services/authService';
+import { getValidTokens } from '../../packages/server/services/authService';
 
 // Configuration
 const TEST_USER_ID = process.env.TEST_USER_ID || 'your-user-id-here';
