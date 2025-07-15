@@ -40,7 +40,8 @@ app.use(express.json());
 // CORS configuration with proper typing
 const corsOptions: CorsOptions = {
   origin: [
-    'https://listener-seven.vercel.app', 
+    'https://listener-seven.vercel.app',
+    'https://getlistener.app',
     'http://localhost:5173', 
     'http://localhost:5174', 
     'http://localhost:3000'
