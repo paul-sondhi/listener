@@ -84,7 +84,7 @@ p, div, span, label {
   padding: 0.75rem 2rem;
   min-width: 200px;
   background-color: #1DB954 !important; /* Spotify green */
-  color: black !important;
+  color: white !important;
 }
 
 .login-button:hover {
