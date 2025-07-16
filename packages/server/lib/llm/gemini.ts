@@ -133,6 +133,47 @@ export class GeminiAPIError extends Error {
 }
 
 // ===================================================================
+// RATE LIMITING
+// ===================================================================
+
+/**
+ * Global rate limiter for Gemini API requests
+ * Enforces 2-second minimum interval between requests to prevent rate limiting
+ */
+class GeminiRateLimiter {
+  private static instance: GeminiRateLimiter;
+  private lastRequestTime = 0;
+  private readonly minRequestInterval = 2000; // 2 seconds between requests
+
+  static getInstance(): GeminiRateLimiter {
+    if (!GeminiRateLimiter.instance) {
+      GeminiRateLimiter.instance = new GeminiRateLimiter();
+    }
+    return GeminiRateLimiter.instance;
+  }
+
+  async throttleRequest(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    if (timeSinceLastRequest < this.minRequestInterval) {
+      const waitTime = this.minRequestInterval - timeSinceLastRequest;
+      
+      // Log throttling at info level for visibility
+      console.log(`[Gemini] Throttling request - waiting ${waitTime}ms before API call`);
+      
+      await this.sleep(waitTime);
+    }
+    
+    this.lastRequestTime = Date.now();
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+// ===================================================================
 // MAIN EXPORT FUNCTION
 // ===================================================================
 
@@ -177,6 +218,9 @@ export async function generateEpisodeNotes(
   if (!transcript || typeof transcript !== 'string') {
     throw new Error('transcript must be a non-empty string');
   }
+
+  // Apply rate limiting before making API request
+  await GeminiRateLimiter.getInstance().throttleRequest();
 
   const model = getModelName();
   const apiKey = process.env.GEMINI_API_KEY!; // Validated above
@@ -346,6 +390,8 @@ export async function generateNewsletterEdition(
   });
 
   try {
+    // Apply rate limiting before making API request
+    await GeminiRateLimiter.getInstance().throttleRequest();
     // Validate inputs
     if (!episodeNotes || !Array.isArray(episodeNotes)) {
       throw new Error('episodeNotes must be a non-empty array');
