@@ -47,6 +47,9 @@ interface MockFetchResponse {
   statusText?: string
   json: () => Promise<any>
   text?: () => Promise<string>
+  headers?: {
+    get: (key: string) => string | null
+  }
 }
 
 // Mock for the spotify module
@@ -236,6 +239,10 @@ describe('Utility Functions', () => {
         status: 500,
         statusText: 'Server Error',
         json: async () => ({}),
+        text: async () => 'Internal Server Error',
+        headers: {
+          get: (key: string) => null
+        }
       }
       mockFetch.mockResolvedValueOnce(mockResponse)
 

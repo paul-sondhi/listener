@@ -132,7 +132,34 @@ async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, origina
     });
     
     if (!apiRes.ok) {
-      throw new Error('Failed to fetch show from Spotify API');
+      // Get detailed error information
+      const errorBody = await apiRes.text();
+      const errorDetails = {
+        status: apiRes.status,
+        statusText: apiRes.statusText,
+        headers: {
+          'x-rate-limit-remaining': apiRes.headers.get('x-rate-limit-remaining'),
+          'x-rate-limit-reset': apiRes.headers.get('x-rate-limit-reset'),
+          'retry-after': apiRes.headers.get('retry-after')
+        },
+        body: errorBody,
+        showId: id,
+        url: `https://api.spotify.com/v1/shows/${id}`
+      };
+      
+      console.error('[Spotify API Error]', JSON.stringify(errorDetails, null, 2));
+      
+      // Provide specific error message based on status code
+      let errorMessage = `Failed to fetch show from Spotify API: ${apiRes.status} ${apiRes.statusText}`;
+      if (apiRes.status === 401) {
+        errorMessage += ' (Authentication failed - token may be expired)';
+      } else if (apiRes.status === 429) {
+        errorMessage += ' (Rate limit exceeded)';
+      } else if (apiRes.status === 404) {
+        errorMessage += ' (Show not found)';
+      }
+      
+      throw new Error(errorMessage);
     }
     
     const showData: SpotifyShow = await apiRes.json() as SpotifyShow;

@@ -54,8 +54,14 @@ async function getSpotifyAccessToken(): Promise<string> {
 
   if (!res.ok) {
     const errorBody: string = await res.text(); // Read response body as text
-    console.error('Spotify Access Token Request Failed - Status:', res.status);
-    console.error('Spotify Access Token Request Failed - Body:', errorBody);
+    console.error('[Spotify Token Error]', {
+      status: res.status,
+      statusText: res.statusText,
+      body: errorBody,
+      clientIdPresent: !!process.env.SPOTIFY_CLIENT_ID,
+      clientSecretPresent: !!process.env.SPOTIFY_CLIENT_SECRET,
+      timestamp: new Date().toISOString()
+    });
     throw new Error(`Failed to get Spotify access token. Status: ${res.status}. Response: ${errorBody}`);
   }
 

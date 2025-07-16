@@ -406,7 +406,10 @@ async function updateSubscriptionStatus(
             try {
                 // Get the show title slug and description from Spotify
                 const showMetadata = await getTitleSlug(spotifyUrl);
-                showTitle = showMetadata.originalName; // Use the original show title with proper capitalization
+                // Only update showTitle if we successfully got metadata
+                if (showMetadata && showMetadata.originalName) {
+                    showTitle = showMetadata.originalName; // Use the original show title with proper capitalization
+                }
                 
                 // Try to find the RSS feed URL using the enhanced metadata with episode probe support
                 const fetchedRssUrl = await getFeedUrl(showMetadata);
@@ -431,7 +434,12 @@ async function updateSubscriptionStatus(
                 }
             } catch (rssError) {
                 // If RSS lookup fails, we'll use the Spotify URL as fallback
-                console.warn(`[SubscriptionRefresh] RSS lookup failed for ${spotifyUrl}:`, (rssError as Error).message);
+                const error = rssError as Error;
+                console.warn(`[SubscriptionRefresh] RSS lookup failed for ${spotifyUrl}:`, {
+                    message: error.message,
+                    showId: showId,
+                    stack: error.stack?.split('\n').slice(0, 3).join('\n') // First 3 lines of stack trace
+                });
             }
 
             // Upsert the show into podcast_shows table
