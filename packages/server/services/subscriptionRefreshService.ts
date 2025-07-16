@@ -387,25 +387,27 @@ async function updateSubscriptionStatus(
         
         try {
             // ---------------------------------------------------------
-            // ❶ Fetch any existing show row so we can inspect rss_url
+            // ❶ Fetch any existing show row so we can preserve data
             // ---------------------------------------------------------
             const existingShowRes = await safeAwait(
                 getSupabaseAdmin()
                     .from('podcast_shows')
-                    .select('id,rss_url')
+                    .select('id,rss_url,title,description,image_url')
                     .eq('spotify_url', spotifyUrl)
                     .maybeSingle()
             );
 
-            const storedRss: string | null | undefined = (existingShowRes as any)?.data?.rss_url;
+            const existingShow = (existingShowRes as any)?.data;
+            const storedRss: string | null | undefined = existingShow?.rss_url;
 
             // Try to fetch actual RSS feed URL for this Spotify show
             let rssUrl: string = spotifyUrl; // Default fallback to Spotify URL
             let showTitle: string = `Show ${showId}`; // Default placeholder title
+            let showMetadata: any = null; // Will hold Spotify metadata if fetch succeeds
             
             try {
                 // Get the show title slug and description from Spotify
-                const showMetadata = await getTitleSlug(spotifyUrl);
+                showMetadata = await getTitleSlug(spotifyUrl);
                 // Only update showTitle if we successfully got metadata
                 if (showMetadata && showMetadata.originalName) {
                     showTitle = showMetadata.originalName; // Use the original show title with proper capitalization
@@ -442,20 +444,56 @@ async function updateSubscriptionStatus(
                 });
             }
 
+            // Build upsert data dynamically to preserve existing data
+            const upsertData: any = {
+                spotify_url: spotifyUrl,
+                last_updated: now
+            };
+
+            // Only update title if we got valid data from Spotify
+            if (showMetadata && showMetadata.originalName) {
+                upsertData.title = showMetadata.originalName;
+            } else if (existingShow?.title) {
+                upsertData.title = existingShow.title; // Preserve existing
+            } else {
+                upsertData.title = showTitle; // Fallback to placeholder only if no existing data
+            }
+
+            // Always set RSS URL (we have logic above to determine the best value)
+            upsertData.rss_url = rssUrl;
+
+            // Preserve existing description and image_url since we don't fetch these from Spotify
+            if (existingShow?.description) {
+                upsertData.description = existingShow.description;
+            } else {
+                upsertData.description = null; // Only set null if no existing data
+            }
+            
+            if (existingShow?.image_url) {
+                upsertData.image_url = existingShow.image_url;
+            } else {
+                upsertData.image_url = null; // Only set null if no existing data
+            }
+
+            // Log data preservation decisions
+            if (existingShow) {
+                log.info('subscription_refresh', 'Data preservation during show upsert', {
+                    spotify_url: spotifyUrl,
+                    preserved_fields: {
+                        title: !showMetadata?.originalName && !!existingShow.title,
+                        description: !!existingShow.description,
+                        image_url: !!existingShow.image_url,
+                        rss_url: storedRss === rssUrl && storedRss !== spotifyUrl
+                    },
+                    had_spotify_metadata: !!showMetadata?.originalName
+                });
+            }
+
             // Upsert the show into podcast_shows table
             const showUpsertResult = await safeAwait(
                 getSupabaseAdmin()
                     .from('podcast_shows')
-                    .upsert([
-                        {
-                            spotify_url: spotifyUrl,
-                            rss_url: rssUrl, // Use actual RSS URL if found, otherwise Spotify URL as fallback
-                            title: showTitle,
-                            description: null,
-                            image_url: null,
-                            last_updated: now
-                        }
-                    ], { 
+                    .upsert([upsertData], { 
                         onConflict: 'spotify_url',
                         ignoreDuplicates: false 
                     })
