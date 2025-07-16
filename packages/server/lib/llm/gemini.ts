@@ -138,12 +138,14 @@ export class GeminiAPIError extends Error {
 
 /**
  * Global rate limiter for Gemini API requests
- * Enforces 2-second minimum interval between requests to prevent rate limiting
+ * Uses request scheduling to enforce 2-second intervals between API calls
+ * Works correctly with concurrent requests by assigning each request a scheduled time slot
  */
 class GeminiRateLimiter {
   private static instance: GeminiRateLimiter;
-  private lastRequestTime = 0;
-  private readonly minRequestInterval = 2000; // 2 seconds between requests
+  private nextAvailableTime = 0;
+  private readonly requestInterval = 2000; // 2 seconds between requests
+  private readonly idleResetThreshold = 300000; // 5 minutes - reset scheduler after idle period
 
   static getInstance(): GeminiRateLimiter {
     if (!GeminiRateLimiter.instance) {
@@ -154,18 +156,26 @@ class GeminiRateLimiter {
 
   async throttleRequest(): Promise<void> {
     const now = Date.now();
-    const timeSinceLastRequest = now - this.lastRequestTime;
     
-    if (timeSinceLastRequest < this.minRequestInterval) {
-      const waitTime = this.minRequestInterval - timeSinceLastRequest;
-      
+    // Reset scheduler if we've been idle for too long
+    if (now - this.nextAvailableTime > this.idleResetThreshold) {
+      this.nextAvailableTime = now;
+    }
+    
+    // Assign this request the next available time slot
+    const myScheduledTime = Math.max(this.nextAvailableTime, now);
+    
+    // Reserve the next slot for the following request
+    this.nextAvailableTime = myScheduledTime + this.requestInterval;
+    
+    // Wait until our scheduled time
+    const waitTime = myScheduledTime - now;
+    if (waitTime > 0) {
       // Log throttling at info level for visibility
       console.log(`[Gemini] Throttling request - waiting ${waitTime}ms before API call`);
       
       await this.sleep(waitTime);
     }
-    
-    this.lastRequestTime = Date.now();
   }
 
   private sleep(ms: number): Promise<void> {
