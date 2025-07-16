@@ -224,6 +224,7 @@ export type Database = {
       }
       podcast_shows: {
         Row: {
+          created_at: string
           description: string | null
           etag: string | null
           id: string
@@ -237,6 +238,7 @@ export type Database = {
           title: string | null
         }
         Insert: {
+          created_at?: string
           description?: string | null
           etag?: string | null
           id?: string
@@ -250,6 +252,7 @@ export type Database = {
           title?: string | null
         }
         Update: {
+          created_at?: string
           description?: string | null
           etag?: string | null
           id?: string
