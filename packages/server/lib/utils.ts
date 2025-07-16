@@ -113,7 +113,7 @@ function getAuthHeaders(): AuthHeaders {
  * @returns {Promise<{ name: string, description: string, publisher: string, spotifyShowId: string, accessToken: string }>} The show metadata with episode probe support
  * @throws {Error} If the URL is invalid or the show cannot be fetched
  */
-async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, description: string, publisher: string, spotifyShowId: string, accessToken: string }> {
+async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, originalName: string, description: string, publisher: string, spotifyShowId: string, accessToken: string }> {
     // Use Spotify Web API to fetch the show name and description
     const cleanUrl: string = spotifyUrl.split('?')[0]!;
     const { pathname } = new URL(cleanUrl);
@@ -142,7 +142,10 @@ async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, descrip
       throw new Error('No show name returned from Spotify API');
     }
     
-    // Normalize and slugify the show name
+    // Store the original name with proper capitalization
+    const originalName = name;
+    
+    // Normalize and slugify the show name for matching/slug purposes
     const normalizedName = name
       .toLowerCase()
       .replace(/\|.*$/, '')
@@ -157,6 +160,7 @@ async function getTitleSlug(spotifyUrl: string): Promise<{ name: string, descrip
     
     return {
       name: normalizedName,
+      originalName: originalName, // Return the original name with proper capitalization
       description: normalizedDescription,
       publisher: normalizedPublisher,
       spotifyShowId: id,

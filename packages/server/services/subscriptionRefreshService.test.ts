@@ -268,6 +268,7 @@ describe('refreshUserSubscriptions', () => {
       const showId = spotifyUrl.split('/').pop() || 'unknown';
       return {
         name: `show-${showId}`,
+        originalName: `Show ${showId}`, // Add originalName with proper capitalization
         description: 'Test podcast description',
         publisher: 'Test Publisher',
         spotifyShowId: showId,
@@ -641,9 +642,9 @@ describe('refreshUserSubscriptions', () => {
   it('should handle Spotify API pagination correctly', async () => {
     // Arrange: Mock the utils functions to avoid external API calls in tests
     vi.mocked(getTitleSlug).mockImplementation(async (spotifyUrl: string) => {
-      if (spotifyUrl.includes('show1')) return { name: 'test-show-1', description: 'Test show 1 description', publisher: 'Test Publisher 1', spotifyShowId: 'show1', accessToken: 'mock-token' };
-      if (spotifyUrl.includes('show2')) return { name: 'test-show-2', description: 'Test show 2 description', publisher: 'Test Publisher 2', spotifyShowId: 'show2', accessToken: 'mock-token' };
-      return { name: 'test-show', description: 'Test show description', publisher: 'Test Publisher', spotifyShowId: 'test-show', accessToken: 'mock-token' };
+      if (spotifyUrl.includes('show1')) return { name: 'test-show-1', originalName: 'Test Show 1', description: 'Test show 1 description', publisher: 'Test Publisher 1', spotifyShowId: 'show1', accessToken: 'mock-token' };
+      if (spotifyUrl.includes('show2')) return { name: 'test-show-2', originalName: 'Test Show 2', description: 'Test show 2 description', publisher: 'Test Publisher 2', spotifyShowId: 'show2', accessToken: 'mock-token' };
+      return { name: 'test-show', originalName: 'Test Show', description: 'Test show description', publisher: 'Test Publisher', spotifyShowId: 'test-show', accessToken: 'mock-token' };
     });
     
     vi.mocked(getFeedUrl).mockImplementation(async (metadata: string | { name: string, description: string, publisher?: string }) => {
@@ -1332,6 +1333,7 @@ describe('Manual RSS Override Safeguard', () => {
           // Arrange: Mock getTitleSlug and getFeedUrl
       mockGetTitleSlug.mockResolvedValue({
         name: 'test show title',
+        originalName: 'Test Show Title',
         description: 'Test podcast description',
         publisher: 'Test Publisher',
         spotifyShowId: 'test-show-123',
@@ -1399,6 +1401,7 @@ describe('Manual RSS Override Safeguard', () => {
           // Arrange: Mock getTitleSlug and getFeedUrl returning different feed
       mockGetTitleSlug.mockResolvedValue({
         name: 'test show title',
+        originalName: 'Test Show Title',
         description: 'Test podcast description',
         publisher: 'Test Publisher',
         spotifyShowId: 'test-show-123',
@@ -1465,6 +1468,7 @@ describe('Manual RSS Override Safeguard', () => {
           // Arrange: Mock getTitleSlug and getFeedUrl returning real feed
       mockGetTitleSlug.mockResolvedValue({
         name: 'test show title',
+        originalName: 'Test Show Title',
         description: 'Test podcast description',
         publisher: 'Test Publisher',
         spotifyShowId: 'test-show-123',

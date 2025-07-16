@@ -76,6 +76,7 @@ describe('PodcastService', () => {
       // Arrange
       mockGetTitleSlug.mockResolvedValue({
         name: 'test-slug',
+        originalName: 'Test Slug',
         description: 'Test podcast description',
         publisher: 'Test Publisher',
         spotifyShowId: 'test-show-id',

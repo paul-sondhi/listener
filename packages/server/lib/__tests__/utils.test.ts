@@ -188,6 +188,7 @@ describe('Utility Functions', () => {
       )
       expect(result).toEqual({
         name: 'my awesome show',
+        originalName: 'My Awesome Show | Podcasts',
         description: 'This is a great podcast about technology',
         publisher: 'The New York Times',
         spotifyShowId: '12345ABC',
@@ -214,6 +215,7 @@ describe('Utility Functions', () => {
       // Assert
       expect(result).toEqual({
         name: 'my show title',
+        originalName: '🎉 My Show Title 😊 | Some Other Text',
         description: 'A fun podcast about life',
         publisher: 'Fun Media Co',
         spotifyShowId: '67890DEF',
@@ -260,6 +262,7 @@ describe('Utility Functions', () => {
       // Assert
       expect(result).toEqual({
         name: 'show without description',
+        originalName: 'Show Without Description',
         description: '',
         publisher: 'Test Publisher',
         spotifyShowId: 'noDescriptionShow',

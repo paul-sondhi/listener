@@ -406,7 +406,7 @@ async function updateSubscriptionStatus(
             try {
                 // Get the show title slug and description from Spotify
                 const showMetadata = await getTitleSlug(spotifyUrl);
-                showTitle = showMetadata.name; // Use the actual show title
+                showTitle = showMetadata.originalName; // Use the original show title with proper capitalization
                 
                 // Try to find the RSS feed URL using the enhanced metadata with episode probe support
                 const fetchedRssUrl = await getFeedUrl(showMetadata);
