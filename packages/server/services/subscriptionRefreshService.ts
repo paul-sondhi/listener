@@ -536,9 +536,9 @@ async function updateSubscriptionStatus(
                 upsertData.image_url = null; // Only set null if no existing data
             }
 
-            // Log data preservation decisions
-            if (existingShow) {
-                log.info('subscription_refresh', 'Data preservation during show upsert', {
+            // Log data preservation decisions only in debug mode
+            if (existingShow && process.env.DEBUG_SUBSCRIPTION_REFRESH === 'true') {
+                log.debug('subscription_refresh', 'Data preservation during show upsert', {
                     spotify_url: spotifyUrl,
                     preserved_fields: {
                         title: !showMetadata?.originalName && !!existingShow.title,
