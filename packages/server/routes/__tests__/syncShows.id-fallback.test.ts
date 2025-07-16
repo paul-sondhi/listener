@@ -70,9 +70,11 @@ describe('Sync Shows ID Fallback Logic', () => {
         error: null
       }),
       select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({
-          data: [],
-          error: null
+        eq: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({
+            data: [],
+            error: null
+          })
         })
       }),
       update: vi.fn().mockReturnValue({

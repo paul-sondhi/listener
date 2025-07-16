@@ -1,6 +1,6 @@
 import express, { Router, Request, Response } from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Database, ApiResponse, SpotifyShow, SpotifyUserShows } from '@listener/shared';
+import { Database, ApiResponse, SyncShowsResponse, SpotifyShow, SpotifyUserShows } from '@listener/shared';
 import { getUserSecret } from '../lib/encryptedTokenHelpers.js';
 import { getTitleSlug, getFeedUrl } from '../lib/utils.js';
 
@@ -180,6 +180,45 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         }
         
         const userId: string = user.id;
+
+        // Check if this user has synced before (has existing subscriptions)
+        // If they have, return their cached data instead of making API calls
+        const { data: existingSubscriptions, error: subsError } = await getSupabaseAdmin()
+            .from('user_podcast_subscriptions')
+            .select('id')
+            .eq('user_id', userId)
+            .limit(1);
+
+        if (subsError) {
+            console.error('Error checking existing subscriptions:', subsError.message);
+            res.status(500).json({ 
+                success: false, 
+                error: 'Database error checking subscription history' 
+            } as ApiResponse);
+            return;
+        }
+
+        // If user has existing subscriptions, they've synced before
+        if (existingSubscriptions && existingSubscriptions.length > 0) {
+            // Return a simple cached response without complex queries
+            // This avoids making Spotify API calls for existing users
+            console.log(`[DEBUG] User ${userId} has existing subscriptions, returning cached data`);
+            res.json({
+                success: true,
+                message: 'Using cached subscription data. Your subscriptions are refreshed automatically each night.',
+                active_count: 0,  // Will be updated by daily refresh
+                inactive_count: 0,
+                total_processed: 0,
+                cached_data: true,
+                last_sync: 'Automatic daily refresh'
+            } as SyncShowsResponse);
+            return;
+        }
+
+        console.log(`[DEBUG] User ${userId} is new user, proceeding with full sync`);
+
+        // If we get here, this is a new user who hasn't synced before
+        // Proceed with the expensive Spotify API calls for onboarding
 
         // Retrieve the user's Spotify tokens from encrypted storage
         const encryptedResult = await getUserSecret(userId);

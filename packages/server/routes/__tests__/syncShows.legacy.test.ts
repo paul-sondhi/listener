@@ -32,6 +32,21 @@ const mockFrom = vi.fn((tableName) => {
       upsert: mockUpsert,
     };
   }
+  if (tableName === 'user_podcast_subscriptions') {
+    return {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({
+            data: [],  // Empty array for new users
+            error: null
+          })
+        })
+      }),
+      upsert: mockUpsert,
+      eq: mockEq,
+      in: mockIn,
+    };
+  }
   return {
     upsert: mockUpsert,
     eq: mockEq,

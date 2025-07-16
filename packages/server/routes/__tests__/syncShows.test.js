@@ -164,7 +164,9 @@ describe('POST /sync-spotify-shows', () => {
       return {
         upsert: vi.fn().mockResolvedValue({ error: null }),
         select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: [], error: null })
+          eq: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({ data: [], error: null })
+          })
         }),
         update: vi.fn().mockReturnValue({
           in: vi.fn().mockResolvedValue({ error: null })
@@ -173,7 +175,9 @@ describe('POST /sync-spotify-shows', () => {
     });
     
     mockSelect.mockReturnValue({
-      eq: mockEq,
+      eq: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue({ data: [], error: null })  // Empty = new user
+      }),
     });
     
     mockUpdate.mockReturnValue({
@@ -268,7 +272,7 @@ describe('POST /sync-spotify-shows', () => {
     expect(response.body.inactive_count).toBe(0);
   });
 
-  it('should mark shows as inactive if not present in Spotify response', async () => {
+  it('should mark shows as inactive if not present in Spotify response (new user)', async () => {
     // Set up encrypted token storage to return valid Spotify tokens
     vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
@@ -293,21 +297,33 @@ describe('POST /sync-spotify-shows', () => {
     };
     mockFetch.mockResolvedValue({ ok: true, json: async () => spotifyResponse, headers: new Map() });
     
-    // Set up existing subscriptions data (5 existing, 3 from Spotify = 2 should be inactive)
-    // New schema uses show_id (UUID) instead of podcast_url
-    // Since our mock will generate show-uuid-1, show-uuid-2, show-uuid-3 for the 3 new shows,
-    // we need existing subscriptions that include some that match and some that don't
-    const existingSubscriptions = [
-      { id: 'subid_old1', show_id: 'old-show-uuid-1' },  // Will be marked inactive (not in new shows)
-      { id: 'subid_old2', show_id: 'old-show-uuid-2' },  // Will be marked inactive (not in new shows)
-      { id: 'subid1', show_id: 'show-uuid-1' },          // Will remain active (matches first new show)
-      { id: 'subid2', show_id: 'show-uuid-2' },          // Will remain active (matches second new show)
-      { id: 'subid3', show_id: 'show-uuid-3' }           // Will remain active (matches third new show)
-    ];
+    // For this test, we need to simulate a NEW user (no existing subscriptions)
+    // so the full sync flow runs and we can test the inactive marking logic
+    
+    // Reset and set up the mock chain for multiple select operations
+    const mockEqForFirstSelect = vi.fn().mockReturnValue({
+      limit: vi.fn().mockResolvedValue({ data: [], error: null })  // Empty = new user
+    });
+    
+    const mockEqForSecondSelect = vi.fn().mockResolvedValue({
+      // Return 5 existing subscriptions, 3 from Spotify = 2 should be inactive
+      data: [
+        { id: 'subid_old1', show_id: 'old-show-uuid-1' },  // Will be marked inactive (not in new shows)
+        { id: 'subid_old2', show_id: 'old-show-uuid-2' },  // Will be marked inactive (not in new shows)
+        { id: 'subid1', show_id: 'show-uuid-1' },          // Will remain active (matches first new show)
+        { id: 'subid2', show_id: 'show-uuid-2' },          // Will remain active (matches second new show)
+        { id: 'subid3', show_id: 'show-uuid-3' }           // Will remain active (matches third new show)
+      ], 
+      error: null 
+    });
+    
+    // Set up select to return different eq functions for each call
+    mockSelect
+      .mockReturnValueOnce({ eq: mockEqForFirstSelect })  // First select (existence check)
+      .mockReturnValueOnce({ eq: mockEqForSecondSelect }); // Second select (get all for comparison)
     
     // Ensure all operations succeed
     mockUpsert.mockResolvedValue({ error: null });
-    mockEq.mockResolvedValue({ data: existingSubscriptions, error: null });
     mockIn.mockResolvedValue({ error: null });
     
     const response = await request(app)
@@ -430,7 +446,7 @@ describe('POST /sync-spotify-shows', () => {
     expect(response.body.error).toMatch(/Error saving subscription to database: DB upsert error/i);
   });
 
-  it('should handle errors during Supabase select for existing subscriptions', async () => {
+  it('should handle errors during Supabase select for existing subscriptions (new user)', async () => {
     // Set up encrypted token storage to return valid Spotify tokens
     vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
@@ -454,8 +470,19 @@ describe('POST /sync-spotify-shows', () => {
     // Ensure upsert operations succeed first (3 shows from default Spotify response)
     mockUpsert.mockResolvedValue({ error: null }); // All upserts should succeed
     
-    // Then make the select operation fail
-    mockEq.mockResolvedValueOnce({ error: { message: 'DB select error for subs' } });
+    // First ensure user appears as new user (empty subscription check)
+    const mockEqForFirstSelect = vi.fn().mockReturnValue({
+      limit: vi.fn().mockResolvedValue({ data: [], error: null })  // Empty = new user
+    });
+    
+    // Then make the second select operation fail (during sync)
+    const mockEqForSecondSelect = vi.fn().mockResolvedValue({ 
+      error: { message: 'DB select error for subs' } 
+    });
+    
+    mockSelect
+      .mockReturnValueOnce({ eq: mockEqForFirstSelect })  // First select (existence check)
+      .mockReturnValueOnce({ eq: mockEqForSecondSelect }); // Second select (should fail)
     
     const response = await request(app)
       .post('/sync-spotify-shows')
@@ -464,7 +491,7 @@ describe('POST /sync-spotify-shows', () => {
     expect(response.body.error).toMatch(/Error saving shows to database: Failed to fetch existing subscriptions/i);
   });
 
-  it('should handle errors during Supabase update (for inactivation)', async () => {
+  it('should handle errors during Supabase update (for inactivation) (new user)', async () => {
     // Set up encrypted token storage to return valid Spotify tokens
     vi.mocked(encryptedTokenHelpers.getUserSecret).mockResolvedValue({
       success: true,
@@ -488,8 +515,20 @@ describe('POST /sync-spotify-shows', () => {
     // Ensure upsert operations succeed first (3 shows from default Spotify response)
     mockUpsert.mockResolvedValue({ error: null }); // All upserts should succeed
     
-    // Ensure some shows are fetched from Spotify, and some existing subs are present to attempt inactivation
-    mockEq.mockResolvedValueOnce({ data: [{ id: 'sub_to_inactivate', podcast_url: 'spotify:show:oldShowNotOnSpotify' }], error: null });
+    // First ensure user appears as new user (empty subscription check)
+    const mockEqForFirstSelect = vi.fn().mockReturnValue({
+      limit: vi.fn().mockResolvedValue({ data: [], error: null })  // Empty = new user
+    });
+    
+    // Then set up existing subscriptions for inactivation test
+    const mockEqForSecondSelect = vi.fn().mockResolvedValue({ 
+      data: [{ id: 'sub_to_inactivate', show_id: 'old-show-uuid-1' }], 
+      error: null 
+    });
+    
+    mockSelect
+      .mockReturnValueOnce({ eq: mockEqForFirstSelect })  // First select (existence check)
+      .mockReturnValueOnce({ eq: mockEqForSecondSelect }); // Second select (get subs for comparison)
     
     // Then make the update operation fail
     mockIn.mockResolvedValueOnce({ error: { message: 'DB update error during inactivation' } }); 
@@ -513,5 +552,32 @@ describe('POST /sync-spotify-shows', () => {
     const response = await request(app).post('/sync-spotify-shows').set('Cookie', `sb-access-token=${mockSupabaseToken}`);
     expect(response.status).toBe(500);
     expect(response.body.error).toBe('Internal server error');
+  });
+
+  it('should return cached data for existing users who have synced before', async () => {
+    // Mock user with existing subscriptions (simulates user who has synced before)
+    mockSelect.mockReturnValueOnce({
+      eq: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue({ 
+          data: [{ id: 'existing-sub-123' }], // Non-empty = existing user
+          error: null 
+        })
+      }),
+    });
+    
+    const response = await request(app)
+      .post('/sync-spotify-shows')
+      .set('Cookie', `sb-access-token=${mockSupabaseToken}`);
+    
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.cached_data).toBe(true);
+    expect(response.body.message).toContain('cached subscription data');
+    expect(response.body.active_count).toBe(0);
+    expect(response.body.inactive_count).toBe(0);
+    
+    // Should not call Spotify API or do expensive operations
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(vi.mocked(encryptedTokenHelpers.getUserSecret)).not.toHaveBeenCalled();
   });
 }); 

@@ -108,6 +108,10 @@ export interface SyncShowsResponse extends ApiResponse {
   total_processed: number
   skipped_count?: number
   errors?: string[]
+  cached_data?: boolean
+  last_sync?: string
+  active_subscriptions?: number
+  shows?: any[]
 }
 
 export interface SyncShowsError extends ApiErrorResponse {

@@ -115,9 +115,11 @@ describe('Sync Shows Database Schema Integration', () => {
         return {
           upsert: vi.fn().mockResolvedValue({ error: null }),
           select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({
-              data: [],
-              error: null
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({
+                data: [],  // Empty array = new user, will run full sync
+                error: null
+              })
             })
           }),
           update: vi.fn().mockReturnValue({
@@ -197,7 +199,9 @@ describe('Sync Shows Database Schema Integration', () => {
         return {
           upsert: vi.fn().mockResolvedValue({ error: null }),
           select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: [], error: null })
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null })  // Empty = new user
+            })
           })
         }
       }
@@ -265,7 +269,9 @@ describe('Sync Shows Database Schema Integration', () => {
             return Promise.resolve({ error: null })
           }),
           select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: [], error: null })
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null })  // Empty = new user
+            })
           })
         }
       }
@@ -370,9 +376,11 @@ describe('Sync Shows Database Schema Integration', () => {
             return Promise.resolve({ error: null })
           }),
           select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockImplementation(() => {
-              databaseOperations.push({ table: tableName, operation: 'select' })
-              return Promise.resolve({ data: [], error: null })
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockImplementation(() => {
+                databaseOperations.push({ table: tableName, operation: 'select' })
+                return Promise.resolve({ data: [], error: null })  // Empty = new user
+              })
             })
           }),
           update: vi.fn().mockImplementation((data) => {

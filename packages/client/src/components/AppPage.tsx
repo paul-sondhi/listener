@@ -18,6 +18,9 @@ interface ErrorResponse {
 interface SyncShowsResponse extends ApiResponse {
   active_count?: number
   inactive_count?: number
+  cached_data?: boolean
+  last_sync?: string
+  shows?: any[]
 }
 
 /**
@@ -162,7 +165,14 @@ const AppPage = (): React.JSX.Element => {
         }
 
         const result: SyncShowsResponse = await syncResponse.json()
-        logger.info('Successfully synced Spotify shows:', result)
+        
+        if (result.cached_data) {
+          logger.info('Retrieved cached Spotify shows:', result)
+          logger.info(`Showing ${result.active_count || 0} cached subscriptions. ${result.last_sync || 'Next refresh scheduled automatically.'}`)
+        } else {
+          logger.info('Successfully synced Spotify shows:', result)
+          logger.info(`Synced ${result.active_count || 0} active subscriptions`)
+        }
         
         // Mark as successfully synced for this session
         hasSynced.current = true
