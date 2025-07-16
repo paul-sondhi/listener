@@ -1,5 +1,5 @@
 // Utility to build the subject line for the daily edition email
-// Usage: buildSubject(new Date('2025-07-08')) => 'Listener Recap: July 8th, 2025'
+// Usage: buildSubject(new Date('2025-07-08')) => 'Your Podcast Newsletter: July 8, 2025'
 
 /**
  * Builds the subject line for the daily edition email.
@@ -12,10 +12,10 @@ export function buildSubject(editionDate: Date | string): string {
   
   // Check for invalid date
   if (isNaN(dateObj.getTime())) {
-    return 'Invalid Date';
+    return 'Your Podcast Newsletter: Invalid Date';
   }
   
-  // Format: July 8, 2025
+  // Format: Your Podcast Newsletter: July 8, 2025
   const options: Intl.DateTimeFormatOptions = { 
     year: 'numeric', 
     month: 'long', 
@@ -23,5 +23,5 @@ export function buildSubject(editionDate: Date | string): string {
     timeZone: 'UTC' // Use UTC to avoid timezone issues
   };
   const formattedDate = dateObj.toLocaleDateString('en-US', options);
-  return formattedDate;
+  return `Your Podcast Newsletter: ${formattedDate}`;
 } 

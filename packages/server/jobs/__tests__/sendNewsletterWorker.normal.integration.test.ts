@@ -276,7 +276,7 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     const [firstParams] = firstCall;
     console.log('First email params:', JSON.stringify(firstParams, null, 2));
     expect(firstParams.to).toBe('test@example.com');
-    expect(firstParams.subject).toMatch(/^[A-Za-z]+ \d{1,2}, \d{4}$/);
+    expect(firstParams.subject).toMatch(/^Your Podcast Newsletter: [A-Za-z]+ \d{1,2}, \d{4}$/);
     expect(firstParams.html).toContain('Integration test content');
     // Note: Placeholders are not being injected, so we'll check for the original content
     // expect(firstParams.html).toContain('[USER_EMAIL]');
@@ -289,7 +289,7 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     const [secondParams] = secondCall;
     console.log('Second email params:', JSON.stringify(secondParams, null, 2));
     expect(secondParams.to).toBe('test@example.com');
-    expect(secondParams.subject).toMatch(/^[A-Za-z]+ \d{1,2}, \d{4}$/);
+    expect(secondParams.subject).toMatch(/^Your Podcast Newsletter: [A-Za-z]+ \d{1,2}, \d{4}$/);
     expect(secondParams.html).toContain('Integration test content');
     // Note: Placeholders are not being injected, so we'll check for the original content
     // expect(secondParams.html).toContain('[USER_EMAIL]');
@@ -368,7 +368,7 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     const [firstParams] = firstCall;
     console.log('First failed email params:', JSON.stringify(firstParams, null, 2));
     expect(firstParams.to).toBe('test@example.com');
-    expect(firstParams.subject).toMatch(/^[A-Za-z]+ \d{1,2}, \d{4}$/);
+    expect(firstParams.subject).toMatch(/^Your Podcast Newsletter: [A-Za-z]+ \d{1,2}, \d{4}$/);
     expect(firstParams.html).toContain('Integration test content');
     // Note: Placeholders are not being injected, so we'll check for the original content
     // expect(firstParams.html).toContain('[USER_EMAIL]');
@@ -381,7 +381,7 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     const [secondParams] = secondCall;
     console.log('Second failed email params:', JSON.stringify(secondParams, null, 2));
     expect(secondParams.to).toBe('test@example.com');
-    expect(secondParams.subject).toMatch(/^[A-Za-z]+ \d{1,2}, \d{4}$/);
+    expect(secondParams.subject).toMatch(/^Your Podcast Newsletter: [A-Za-z]+ \d{1,2}, \d{4}$/);
     expect(secondParams.html).toContain('Integration test content');
     // Note: Placeholders are not being injected, so we'll check for the original content
     // expect(secondParams.html).toContain('[USER_EMAIL]');
@@ -448,7 +448,7 @@ describe('SendNewsletterWorker Normal Mode (integration)', () => {
     console.log('Email params with placeholders:', JSON.stringify(params, null, 2));
     
     expect(params.to).toBe('test@example.com');
-    expect(params.subject).toMatch(/^[A-Za-z]+ \d{1,2}, \d{4}$/);
+    expect(params.subject).toMatch(/^Your Podcast Newsletter: [A-Za-z]+ \d{1,2}, \d{4}$/);
     
     // Verify that placeholders were replaced
     expect(params.html).toContain('test@example.com'); // [USER_EMAIL] replaced
