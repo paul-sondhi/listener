@@ -400,48 +400,98 @@ async function updateSubscriptionStatus(
             const existingShow = (existingShowRes as any)?.data;
             const storedRss: string | null | undefined = existingShow?.rss_url;
 
-            // Try to fetch actual RSS feed URL for this Spotify show
+            // ---------------------------------------------------------
+            // ❷ Phase 2 Optimization: Show Exists Check
+            // ---------------------------------------------------------
+            // If the show exists with good data, skip expensive API calls
+            // Only make API calls for new shows or shows that need updates
             let rssUrl: string = spotifyUrl; // Default fallback to Spotify URL
             let showTitle: string = `Show ${showId}`; // Default placeholder title
             let showMetadata: any = null; // Will hold Spotify metadata if fetch succeeds
+            let shouldMakeApiCalls: boolean = false;
             
-            try {
-                // Get the show title slug and description from Spotify
-                showMetadata = await getTitleSlug(spotifyUrl);
-                // Only update showTitle if we successfully got metadata
-                if (showMetadata && showMetadata.originalName) {
-                    showTitle = showMetadata.originalName; // Use the original show title with proper capitalization
-                }
+            if (existingShow) {
+                // Show exists - determine if we need to make API calls
+                const hasGoodTitle = existingShow.title && !existingShow.title.startsWith('Show ');
+                const hasRssUrl = existingShow.rss_url && existingShow.rss_url !== spotifyUrl;
                 
-                // Try to find the RSS feed URL using the enhanced metadata with episode probe support
-                const fetchedRssUrl = await getFeedUrl(showMetadata);
-                const candidateRss = fetchedRssUrl ?? spotifyUrl;
-
-                // -----------------------------------------------------
-                // ❷ Safeguard: if we already have a non-null rss_url
-                //    that differs from what we are about to write AND
-                //    is not a fallback value, keep it (preserve manual overrides)
-                // -----------------------------------------------------
-                if (storedRss && storedRss !== candidateRss && storedRss !== spotifyUrl) {
-                    // Preserve manual override and emit structured log for observability
-                    rssUrl = storedRss;
-                    log.info('subscription_refresh', 'Preserved existing rss_url override', {
-                        manual_rss_override: true,
-                        stored: storedRss,
-                        candidate: candidateRss,
-                        show_spotify_url: spotifyUrl
+                if (hasGoodTitle && hasRssUrl) {
+                    // Show has good data, skip expensive API calls
+                    showTitle = existingShow.title;
+                    rssUrl = existingShow.rss_url;
+                    shouldMakeApiCalls = false;
+                    
+                    log.debug('subscription_refresh', `Skipping API calls for existing show with good data: ${spotifyUrl}`, {
+                        user_id: userId,
+                        show_id: showId,
+                        spotify_url: spotifyUrl,
+                        has_good_title: hasGoodTitle,
+                        has_rss_url: hasRssUrl,
+                        reason: 'show_exists_with_good_data'
                     });
-                } else if (fetchedRssUrl) {
-                    rssUrl = fetchedRssUrl; // use newly discovered feed
+                } else {
+                    // Show exists but needs updates
+                    shouldMakeApiCalls = true;
+                    log.debug('subscription_refresh', `Making API calls for existing show with incomplete data: ${spotifyUrl}`, {
+                        user_id: userId,
+                        show_id: showId,
+                        spotify_url: spotifyUrl,
+                        has_good_title: hasGoodTitle,
+                        has_rss_url: hasRssUrl,
+                        reason: 'show_exists_but_needs_updates'
+                    });
                 }
-            } catch (rssError) {
-                // If RSS lookup fails, we'll use the Spotify URL as fallback
-                const error = rssError as Error;
-                console.warn(`[SubscriptionRefresh] RSS lookup failed for ${spotifyUrl}:`, {
-                    message: error.message,
-                    showId: showId,
-                    stack: error.stack?.split('\n').slice(0, 3).join('\n') // First 3 lines of stack trace
+            } else {
+                // New show, make API calls
+                shouldMakeApiCalls = true;
+                log.debug('subscription_refresh', `Making API calls for new show: ${spotifyUrl}`, {
+                    user_id: userId,
+                    show_id: showId,
+                    spotify_url: spotifyUrl,
+                    reason: 'new_show'
                 });
+            }
+            
+            // Only make expensive API calls if needed
+            if (shouldMakeApiCalls) {
+                try {
+                    // Get the show title slug and description from Spotify
+                    showMetadata = await getTitleSlug(spotifyUrl);
+                    // Only update showTitle if we successfully got metadata
+                    if (showMetadata && showMetadata.originalName) {
+                        showTitle = showMetadata.originalName; // Use the original show title with proper capitalization
+                    }
+                    
+                    // Try to find the RSS feed URL using the enhanced metadata with episode probe support
+                    const fetchedRssUrl = await getFeedUrl(showMetadata);
+                    const candidateRss = fetchedRssUrl ?? spotifyUrl;
+
+                    // -----------------------------------------------------
+                    // ❸ Safeguard: if we already have a non-null rss_url
+                    //    that differs from what we are about to write AND
+                    //    is not a fallback value, keep it (preserve manual overrides)
+                    // -----------------------------------------------------
+                    if (storedRss && storedRss !== candidateRss && storedRss !== spotifyUrl) {
+                        // Preserve manual override and emit structured log for observability
+                        rssUrl = storedRss;
+                        log.info('subscription_refresh', 'Preserved existing rss_url override', {
+                            manual_rss_override: true,
+                            stored: storedRss,
+                            candidate: candidateRss,
+                            show_spotify_url: spotifyUrl
+                        });
+                    } else if (fetchedRssUrl) {
+                        rssUrl = fetchedRssUrl; // use newly discovered feed
+                    }
+                } catch (rssError) {
+                    // If RSS lookup fails, we'll use the Spotify URL as fallback
+                    const error = rssError as Error;
+                    console.warn(`[SubscriptionRefresh] RSS lookup failed for ${spotifyUrl}:`, {
+                        message: error.message,
+                        showId: showId,
+                        stack: error.stack?.split('\n').slice(0, 3).join('\n') // First 3 lines of stack trace
+                    });
+                }
             }
 
             // Build upsert data dynamically to preserve existing data
