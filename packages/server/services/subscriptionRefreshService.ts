@@ -369,6 +369,10 @@ async function updateSubscriptionStatus(
     }
     
     // First, upsert shows into podcast_shows table and collect their IDs
+    let skippedApiCallsCount = 0;
+    const skippedApiCallsShows: string[] = [];
+    let newShowsDiscovered = 0;
+    
     for (const podcastUrl of currentPodcastUrls) {
         const showId = podcastUrl.split('/').pop(); // Extract Spotify show ID from URL
         
@@ -421,18 +425,24 @@ async function updateSubscriptionStatus(
                     rssUrl = existingShow.rss_url;
                     shouldMakeApiCalls = false;
                     
-                    log.debug('subscription_refresh', `Skipping API calls for existing show with good data: ${spotifyUrl}`, {
-                        user_id: userId,
-                        show_id: showId,
-                        spotify_url: spotifyUrl,
-                        has_good_title: hasGoodTitle,
-                        has_rss_url: hasRssUrl,
-                        reason: 'show_exists_with_good_data'
-                    });
+                    // Track skipped shows for batch logging
+                    skippedApiCallsCount++;
+                    skippedApiCallsShows.push(existingShow.title || spotifyUrl);
+                    
+                    if (process.env.DEBUG_SUBSCRIPTION_REFRESH === 'true') {
+                        log.debug('subscription_refresh', `Skipping API calls for existing show with good data: ${spotifyUrl}`, {
+                            user_id: userId,
+                            show_id: showId,
+                            spotify_url: spotifyUrl,
+                            has_good_title: hasGoodTitle,
+                            has_rss_url: hasRssUrl,
+                            reason: 'show_exists_with_good_data'
+                        });
+                    }
                 } else {
                     // Show exists but needs updates
                     shouldMakeApiCalls = true;
-                    log.debug('subscription_refresh', `Making API calls for existing show with incomplete data: ${spotifyUrl}`, {
+                    log.info('subscription_refresh', `Making API calls for existing show with incomplete data: ${spotifyUrl}`, {
                         user_id: userId,
                         show_id: showId,
                         spotify_url: spotifyUrl,
@@ -444,7 +454,8 @@ async function updateSubscriptionStatus(
             } else {
                 // New show, make API calls
                 shouldMakeApiCalls = true;
-                log.debug('subscription_refresh', `Making API calls for new show: ${spotifyUrl}`, {
+                newShowsDiscovered++;
+                log.info('subscription_refresh', `🆕 NEW SHOW DISCOVERED: ${spotifyUrl}`, {
                     user_id: userId,
                     show_id: showId,
                     spotify_url: spotifyUrl,
@@ -562,6 +573,18 @@ async function updateSubscriptionStatus(
             }
             showIds.push(actualShowId);
 
+            // Log successful show processing, especially for new shows
+            if (!existingShow) {
+                log.info('subscription_refresh', `✅ NEW SHOW SUCCESSFULLY ADDED: ${showTitle}`, {
+                    user_id: userId,
+                    show_id: actualShowId,
+                    spotify_url: spotifyUrl,
+                    title: showTitle,
+                    has_rss_url: rssUrl !== spotifyUrl,
+                    had_spotify_metadata: !!showMetadata?.originalName
+                });
+            }
+
             // Now upsert the subscription into user_podcast_subscriptions table
             const subscriptionUpsertResult = await safeAwait(
                 getSupabaseAdmin()
@@ -622,6 +645,29 @@ async function updateSubscriptionStatus(
             throw new Error(`Failed to update inactive subscriptions: ${updateResult.error.message}`);
         }
         inactiveCount = inactiveIds.length;
+    }
+    
+    // Log summary of new shows discovered
+    if (newShowsDiscovered > 0) {
+        log.info('subscription_refresh', `🆕 DISCOVERED ${newShowsDiscovered} NEW SHOW(S) for user ${userId}`, {
+            user_id: userId,
+            new_shows_discovered: newShowsDiscovered,
+            total_shows_processed: currentPodcastUrls.length,
+            active_count: showIds.length,
+            inactive_count: inactiveCount
+        });
+    }
+    
+    // Log summary of API call optimizations
+    if (skippedApiCallsCount > 0) {
+        log.info('subscription_refresh', `Skipped API calls for ${skippedApiCallsCount} existing shows with good data for user ${userId}`, {
+            user_id: userId,
+            skipped_api_calls_count: skippedApiCallsCount,
+            sample_shows: skippedApiCallsShows.slice(0, 5), // Show first 5 as sample
+            total_shows_processed: currentPodcastUrls.length,
+            active_count: showIds.length,
+            inactive_count: inactiveCount
+        });
     }
     
     // Log summary of skipped audiobooks
