@@ -239,7 +239,7 @@ const AppPage = (): React.JSX.Element => {
         <>
           <div className="user-info">
             <h1>You're in!</h1>
-            <p>Look out for an email from Listener every day at 12p ET / 9a PT.</p>
+            <p>Look out for an email from Listener every day at 12p ET / 9a PT</p>
             <button 
               onClick={handleLogout} 
               className="logout-btn"
