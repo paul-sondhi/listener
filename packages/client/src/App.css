@@ -71,11 +71,12 @@ p, div, span, label {
   min-height: 100vh;
   text-align: center;
   padding: 2rem;
+  background-color: white;
 }
 
 .login-card h1 {
   font-size: 3rem;
-  color: white;
+  color: black;
   margin-bottom: 2rem;
 }
 
@@ -101,27 +102,28 @@ p, div, span, label {
   min-height: 100vh;
   text-align: center;
   padding: 2rem;
+  background-color: white;
 }
 
 .app-page h1 {
   font-size: 2.5rem;
-  color: white;
+  color: black;
   margin-bottom: 2rem;
 }
 
 .app-page .user-info {
-  color: white;
+  color: black;
   margin-bottom: 2rem;
 }
 
 .app-page .user-info h1 {
   font-size: 3rem;
-  color: white;
+  color: black;
   margin-bottom: 1rem;
 }
 
 .app-page .user-info p {
-  color: white;
+  color: black;
   margin-bottom: 2rem;
   font-size: 1.1rem;
 }
@@ -188,11 +190,11 @@ p, div, span, label {
 }
 
 .app-page .login-prompt {
-  color: white;
+  color: black;
 }
 
 .app-page .login-prompt p {
-  color: white;
+  color: black;
   margin-bottom: 0.5rem;
 }
 
