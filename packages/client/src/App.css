@@ -77,7 +77,13 @@ p, div, span, label {
 .login-card h1 {
   font-size: 3rem;
   color: black;
+  margin-bottom: 1rem;
+}
+
+.login-card p {
+  color: black;
   margin-bottom: 2rem;
+  font-size: 1.1rem;
 }
 
 .login-button {

@@ -60,6 +60,7 @@ export default function Login(): React.JSX.Element {
   return (
     <div className="login-card">
       <h1>Listener 1.0</h1>
+      <p>Your podcast feed in a newsletter</p>
       
       <button 
         onClick={handleLogin}
