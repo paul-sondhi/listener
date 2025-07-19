@@ -375,6 +375,11 @@ const editionDate = '2025-01-27'
 
 const mockHtml = '<h1>Newsletter</h1><p>Welcome!</p>'
 const sanitizedHtml = '<h1>Newsletter</h1><p>Welcome!</p>'
+const mockMetadata = [
+  { showTitle: 'AI Podcast', spotifyUrl: 'https://open.spotify.com/show/ai-podcast' },
+  { showTitle: 'Podcast Analytics Show', spotifyUrl: 'https://open.spotify.com/show/analytics' },
+  { showTitle: 'Creative Storytelling', spotifyUrl: 'https://open.spotify.com/show/storytelling' }
+]
 
 // --- Mock fetch globally ---
 let originalFetch: any
@@ -401,7 +406,7 @@ describe('generateNewsletterEdition', () => {
     const sanitizeSpy = vi.spyOn(promptBuilder, 'sanitizeNewsletterContent')
     sanitizeSpy.mockImplementation((_html) => sanitizedHtml)
 
-    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
+    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate, mockMetadata)
     expect(result.success).toBe(true)
     expect(result.htmlContent).toBe(mockHtml)
     expect(result.sanitizedContent).toBe(sanitizedHtml)
@@ -416,7 +421,7 @@ describe('generateNewsletterEdition', () => {
       status: 400,
       json: async () => ({ error: { message: 'Bad request' } })
     })
-    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
+    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate, mockMetadata)
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/Gemini API request failed/)
     expect(result.htmlContent).toBe('')
@@ -428,7 +433,7 @@ describe('generateNewsletterEdition', () => {
       ok: true,
       json: async () => ({ candidates: [] })
     })
-    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
+    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate, mockMetadata)
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/No candidates returned/)
   })
@@ -438,27 +443,27 @@ describe('generateNewsletterEdition', () => {
       ok: true,
       json: async () => ({ candidates: [{ content: { parts: [{}] } }] })
     })
-    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
+    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate, mockMetadata)
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/No HTML content found/)
   })
 
   it('returns error if input is invalid (empty notes)', async () => {
-    const result = await generateNewsletterEdition([], userEmail, editionDate)
+    const result = await generateNewsletterEdition([], userEmail, editionDate, [])
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/empty/)
   })
 
   it('returns error if input is invalid (bad email)', async () => {
     // @ts-expect-error - Testing invalid email parameter
-    const result = await generateNewsletterEdition(mockNotes, '', editionDate)
+    const result = await generateNewsletterEdition(mockNotes, '', editionDate, mockMetadata)
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/userEmail/)
   })
 
   it('returns error if input is invalid (bad date)', async () => {
     // @ts-expect-error - Testing invalid date parameter
-    const result = await generateNewsletterEdition(mockNotes, userEmail, 'bad-date')
+    const result = await generateNewsletterEdition(mockNotes, userEmail, 'bad-date', mockMetadata)
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/editionDate/)
   })
@@ -472,7 +477,7 @@ describe('generateNewsletterEdition', () => {
       success: false,
       error: 'Prompt builder failed!'
     })
-    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate)
+    const result = await generateNewsletterEdition(mockNotes, userEmail, editionDate, mockMetadata)
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/Prompt builder failed/)
   })

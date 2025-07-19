@@ -387,8 +387,8 @@ export async function generateNewsletterEdition(
   episodeNotes: string[],
   userEmail: string,
   editionDate: string,
-  promptOverrides?: Partial<PromptOverrides>,
-  episodeMetadata?: EpisodeMetadata[]
+  episodeMetadata: EpisodeMetadata[],
+  promptOverrides?: Partial<PromptOverrides>
 ): Promise<NewsletterEditionResult> {
   // Validate environment first
   validateEnvironment();

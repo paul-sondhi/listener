@@ -303,13 +303,20 @@ describe('Newsletter Edition Integration', () => {
 
     // Extract just the notes text for the prompt builder
     const episodeNotesText = notes!.map(note => note.notes!);
+    
+    // Extract metadata for each episode
+    const episodeMetadata = notes!.map(note => ({
+      showTitle: note.episodes?.podcast_shows?.title || 'Unknown Show',
+      spotifyUrl: 'https://open.spotify.com/show/test' // Using test URL since it's not in the query
+    }));
 
     // Step 3: Build newsletter prompt
-    const promptResult = await buildNewsletterEditionPrompt(
-      episodeNotesText,
-      testUserEmail,
-      testEditionDate
-    );
+    const promptResult = await buildNewsletterEditionPrompt({
+      episodeNotes: episodeNotesText,
+      userEmail: testUserEmail,
+      editionDate: testEditionDate,
+      episodeMetadata
+    });
     expect(promptResult.success).toBe(true);
     expect(promptResult.prompt).toContain('Newsletter Edition');
     expect(promptResult.prompt).toContain('Episode 1: Introduction to AI');
@@ -320,7 +327,8 @@ describe('Newsletter Edition Integration', () => {
     const newsletterResult = await geminiModule.generateNewsletterEdition(
       episodeNotesText,
       testUserEmail,
-      testEditionDate
+      testEditionDate,
+      episodeMetadata
     );
     expect(newsletterResult.success).toBe(true);
     expect(newsletterResult.htmlContent).toContain('<html>');
@@ -383,18 +391,20 @@ describe('Newsletter Edition Integration', () => {
   }, 30000);
 
   it('should handle empty episode notes gracefully', async () => {
-    const promptResult = await buildNewsletterEditionPrompt(
-      [],
-      testUserEmail,
-      testEditionDate
-    );
+    const promptResult = await buildNewsletterEditionPrompt({
+      episodeNotes: [],
+      userEmail: testUserEmail,
+      editionDate: testEditionDate,
+      episodeMetadata: []
+    });
     expect(promptResult.success).toBe(false);
     expect(promptResult.error).toContain('episodeNotes array cannot be empty');
 
     const newsletterResult = await geminiModule.generateNewsletterEdition(
       [],
       testUserEmail,
-      testEditionDate
+      testEditionDate,
+      []
     );
     expect(newsletterResult.success).toBe(false);
     expect(newsletterResult.error).toContain('episodeNotes array cannot be empty');
@@ -462,11 +472,18 @@ describe('Newsletter Edition Integration', () => {
 
     // Extract just the notes text for the newsletter generation
     const episodeNotesText = notes!.map(note => note.notes!);
+    
+    // Extract metadata for the single episode
+    const episodeMetadata = notes!.map(note => ({
+      showTitle: note.episodes?.podcast_shows?.title || 'Unknown Show',
+      spotifyUrl: 'https://open.spotify.com/show/single' // Using test URL
+    }));
 
     const newsletterResult = await geminiModule.generateNewsletterEdition(
       episodeNotesText,
       testUserEmail,
-      testEditionDate
+      testEditionDate,
+      episodeMetadata
     );
     expect(newsletterResult.success).toBe(true);
     expect(newsletterResult.htmlContent).toContain('Single Episode Show');

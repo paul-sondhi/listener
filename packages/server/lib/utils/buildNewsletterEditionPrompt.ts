@@ -93,11 +93,11 @@ export interface BuildNewsletterPromptParams {
   promptTemplatePath?: string;
   
   /**
-   * Optional metadata for each episode corresponding to the episodeNotes array.
-   * When provided, must have the same length as episodeNotes array.
+   * Required metadata for each episode corresponding to the episodeNotes array.
+   * Must have the same length as episodeNotes array.
    * Required for accurate podcast show names and Spotify URLs.
    */
-  episodeMetadata?: EpisodeMetadata[];
+  episodeMetadata: EpisodeMetadata[];
 }
 
 /**
@@ -266,29 +266,27 @@ export async function buildNewsletterEditionPrompt(
       throw new Error('episodeNotes array cannot be empty - at least one episode note is required');
     }
     
-    // Validate metadata if provided
-    if (params.episodeMetadata) {
-      if (!Array.isArray(params.episodeMetadata)) {
-        throw new Error('episodeMetadata must be an array when provided');
-      }
-      
-      if (params.episodeMetadata.length !== params.episodeNotes.length) {
-        throw new Error(`episodeMetadata length (${params.episodeMetadata.length}) must match episodeNotes length (${params.episodeNotes.length})`);
-      }
-      
-      // Validate each metadata entry
-      params.episodeMetadata.forEach((metadata, index) => {
-        if (!metadata || typeof metadata !== 'object') {
-          throw new Error(`episodeMetadata[${index}] must be an object`);
-        }
-        if (!metadata.showTitle || typeof metadata.showTitle !== 'string') {
-          throw new Error(`episodeMetadata[${index}].showTitle must be a non-empty string`);
-        }
-        if (!metadata.spotifyUrl || typeof metadata.spotifyUrl !== 'string') {
-          throw new Error(`episodeMetadata[${index}].spotifyUrl must be a non-empty string`);
-        }
-      });
+    // Validate required metadata
+    if (!params.episodeMetadata || !Array.isArray(params.episodeMetadata)) {
+      throw new Error('episodeMetadata must be an array');
     }
+    
+    if (params.episodeMetadata.length !== params.episodeNotes.length) {
+      throw new Error(`episodeMetadata length (${params.episodeMetadata.length}) must match episodeNotes length (${params.episodeNotes.length})`);
+    }
+    
+    // Validate each metadata entry
+    params.episodeMetadata.forEach((metadata, index) => {
+      if (!metadata || typeof metadata !== 'object') {
+        throw new Error(`episodeMetadata[${index}] must be an object`);
+      }
+      if (!metadata.showTitle || typeof metadata.showTitle !== 'string') {
+        throw new Error(`episodeMetadata[${index}].showTitle must be a non-empty string`);
+      }
+      if (!metadata.spotifyUrl || typeof metadata.spotifyUrl !== 'string') {
+        throw new Error(`episodeMetadata[${index}].spotifyUrl must be a non-empty string`);
+      }
+    });
 
     // Handle single note case (special validation)
     if (params.episodeNotes.length === 1) {
@@ -522,11 +520,10 @@ function buildFullPrompt(template: string, params: BuildNewsletterPromptParams):
     const singleNote = params.episodeNotes[0].trim();
     let noteContent = `**Episode Notes:**\n\n`;
     
-    // Add metadata if available
-    if (params.episodeMetadata && params.episodeMetadata[0]) {
-      noteContent += `**Show:** ${params.episodeMetadata[0].showTitle}\n`;
-      noteContent += `**Spotify URL:** ${params.episodeMetadata[0].spotifyUrl}\n\n`;
-    }
+    // Add metadata (always available as it's required)
+    const metadata = params.episodeMetadata[0];
+    noteContent += `**Show:** ${metadata.showTitle}\n`;
+    noteContent += `**Spotify URL:** ${metadata.spotifyUrl}\n\n`;
     
     noteContent += singleNote;
     episodeNotesContent = noteContent;
@@ -534,7 +531,7 @@ function buildFullPrompt(template: string, params: BuildNewsletterPromptParams):
     console.log('DEBUG: Built prompt for single episode note', {
       noteLength: singleNote.length,
       wordCount: countWords(singleNote),
-      hasMetadata: !!(params.episodeMetadata && params.episodeMetadata[0])
+      hasMetadata: true
     });
   } else {
     // Multiple episode notes - numbered format with separators
@@ -542,11 +539,10 @@ function buildFullPrompt(template: string, params: BuildNewsletterPromptParams):
       .map((notes, index) => {
         let noteContent = `**Episode ${index + 1} Notes:**\n\n`;
         
-        // Add metadata if available
-        if (params.episodeMetadata && params.episodeMetadata[index]) {
-          noteContent += `**Show:** ${params.episodeMetadata[index].showTitle}\n`;
-          noteContent += `**Spotify URL:** ${params.episodeMetadata[index].spotifyUrl}\n\n`;
-        }
+        // Add metadata (always available as it's required)
+        const metadata = params.episodeMetadata[index];
+        noteContent += `**Show:** ${metadata.showTitle}\n`;
+        noteContent += `**Spotify URL:** ${metadata.spotifyUrl}\n\n`;
         
         noteContent += notes.trim();
         return noteContent;
@@ -556,7 +552,7 @@ function buildFullPrompt(template: string, params: BuildNewsletterPromptParams):
     console.log('DEBUG: Built prompt for multiple episode notes', {
       episodeCount: params.episodeNotes.length,
       totalWordCount: params.episodeNotes.reduce((sum, note) => sum + countWords(note), 0),
-      hasMetadata: !!(params.episodeMetadata && params.episodeMetadata.length > 0)
+      hasMetadata: true
     });
   }
 

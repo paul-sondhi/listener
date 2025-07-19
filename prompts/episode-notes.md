@@ -33,8 +33,8 @@ This newsletter will be sent to the user every day, so it's more likely to be us
 
 Use this exact format:
 
-**Podcast Name and Episode Title**
-- Use the show name from the REQUIRED PODCAST INFORMATION section above: [Episode Title]
+**Podcast Name and Spotify URL**
+- Use the show name and the Spotify URL from the REQUIRED PODCAST INFORMATION section above
 
 **Biggest Topic**
 - Synthesis
