@@ -306,10 +306,23 @@ export async function executeEditionWorkflow(
 
     // Step 2: Process each user
     const results: UserProcessingResult[] = [];
+    let successfulNewslettersCount = 0;
     
     for (let i = 0; i < prepResult.candidates.length; i++) {
       const user = prepResult.candidates[i];
-      const isLastUser = i === prepResult.candidates.length - 1;
+      
+      // In L10 mode, stop after 3 successful newsletters
+      if (config.last10Mode && successfulNewslettersCount >= 3) {
+        debugSubscriptionRefresh('L10 mode: Reached 3 successful newsletters, stopping', {
+          processedUsers: i,
+          successfulNewsletters: successfulNewslettersCount,
+          totalCandidates: prepResult.candidates.length
+        });
+        break;
+      }
+      
+      const isLastUser = i === prepResult.candidates.length - 1 || 
+                         (config.last10Mode && successfulNewslettersCount === 2); // In L10 mode, check if this will be the last successful newsletter
       
       try {
         const result = await processUserForNewsletter(
@@ -321,13 +334,25 @@ export async function executeEditionWorkflow(
         );
         results.push(result);
         
+        // Count successful newsletters in L10 mode
+        if (config.last10Mode && result.status === 'done') {
+          successfulNewslettersCount++;
+          debugSubscriptionRefresh('L10 mode: Successful newsletter generated', {
+            userId: user.id,
+            userEmail: user.email,
+            successfulCount: successfulNewslettersCount,
+            targetCount: 3
+          });
+        }
+        
         // Log progress for each user
         debugSubscriptionRefresh('Processed user', {
           userId: user.id,
           userEmail: user.email,
           status: result.status,
           elapsedMs: result.elapsedMs,
-          episodeNotesCount: result.metadata.episodeNotesCount
+          episodeNotesCount: result.metadata.episodeNotesCount,
+          l10Progress: config.last10Mode ? `${successfulNewslettersCount}/3` : undefined
         });
         
         // Add 10-second delay between users (except for the last user and in test mode)

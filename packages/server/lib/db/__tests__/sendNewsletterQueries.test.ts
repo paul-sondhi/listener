@@ -128,7 +128,9 @@ describe('sendNewsletterQueries', () => {
       console.log('Query result:', result.map(e => ({ id: e.id, created_at: e.created_at })));
 
       expect(result).toHaveLength(3);
-      // Should return the 3 editions in reverse chronological order (newest first)
+      // Should return the 3 editions in chronological order (oldest first) after reverse
+      // Note: Since we're ordering by updated_at (which equals created_at for new records),
+      // the order should be the same as when ordering by created_at
       expect(result.map(e => e.id)).toEqual(['edition-3', 'edition-2', 'edition-1']);
     });
 

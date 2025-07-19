@@ -68,7 +68,7 @@ export async function queryLast3NewsletterEditionsForSending(
       .select('*')
       .eq('status', 'generated')
       .is('deleted_at', null)
-      .order('created_at', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(3);
 
     if (queryError) {
