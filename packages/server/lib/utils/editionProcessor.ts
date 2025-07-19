@@ -185,7 +185,7 @@ export async function processUserForNewsletter(
       // Wrap newsletter generation in retry logic
       retryResult = await retryWithBackoff(
         async () => {
-          const result = await generateNewsletterEdition(notesTexts, user.email, editionDate, undefined, episodeMetadata);
+          const result = await generateNewsletterEdition(notesTexts, user.email, editionDate, episodeMetadata);
           
           if (!result.success) {
             throw new Error(result.error || 'Newsletter generation failed');

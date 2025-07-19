@@ -366,7 +366,8 @@ ${transcript}`;
  *   const result = await generateNewsletterEdition(
  *     episodeNotes,
  *     'user@example.com',
- *     '2025-01-27'
+ *     '2025-01-27',
+ *     episodeMetadata
  *   );
  *   
  *   if (result.success) {
