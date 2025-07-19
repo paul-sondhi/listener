@@ -9,6 +9,16 @@ import { generateEpisodeNotes, EpisodeNotesResult, GeminiAPIError } from '../llm
 import { NotesWorkerConfig } from '../../config/notesWorkerConfig.js';
 
 /**
+ * Required podcast metadata for notes generation
+ */
+export interface PodcastMetadata {
+  /** The podcast show title (required) */
+  showTitle: string;
+  /** The podcast Spotify URL (required) */
+  spotifyUrl: string;
+}
+
+/**
  * Result of generating notes for a single episode
  */
 export interface NotesGenerationResult {
@@ -28,23 +38,27 @@ export interface NotesGenerationResult {
  * Generate episode notes using the configured prompt template
  * 
  * This function combines the custom prompt template from the config
- * with the transcript text and calls the Gemini API to generate
- * structured episode notes.
+ * with the transcript text and podcast metadata, then calls the Gemini API
+ * to generate structured episode notes.
  * 
  * @param transcript - The full episode transcript text
  * @param config - Notes worker configuration containing the prompt template
+ * @param metadata - Required podcast metadata (showTitle and spotifyUrl)
  * @returns Promise<NotesGenerationResult> - Generation result with notes or error
  */
 export async function generateNotesWithPrompt(
   transcript: string,
-  config: NotesWorkerConfig
+  config: NotesWorkerConfig,
+  metadata: PodcastMetadata
 ): Promise<NotesGenerationResult> {
   const startTime = Date.now();
   
   console.log('DEBUG: Generating episode notes', {
     transcriptLength: transcript.length,
     promptTemplateLength: config.promptTemplate.length,
-    model: 'gemini-1.5-flash'
+    model: 'gemini-1.5-flash',
+    showTitle: metadata.showTitle,
+    spotifyUrl: metadata.spotifyUrl
   });
 
   try {
@@ -57,8 +71,8 @@ export async function generateNotesWithPrompt(
       throw new Error('Prompt template is empty or null');
     }
 
-    // Create the full prompt by combining template with transcript
-    const fullPrompt = buildFullPrompt(config.promptTemplate, transcript);
+    // Create the full prompt by combining template with transcript and metadata
+    const fullPrompt = buildFullPrompt(config.promptTemplate, transcript, metadata);
     
     console.log('DEBUG: Built full prompt', {
       promptLength: fullPrompt.length,
@@ -125,17 +139,21 @@ export async function generateNotesWithPrompt(
 }
 
 /**
- * Build the full prompt by combining the template with the transcript
+ * Build the full prompt by combining the template with the transcript and metadata
  * 
  * @param promptTemplate - The loaded prompt template from the markdown file
  * @param transcript - The episode transcript text
+ * @param metadata - Required podcast metadata
  * @returns The complete prompt to send to Gemini
  */
-function buildFullPrompt(promptTemplate: string, transcript: string): string {
-  // Simple approach: append the transcript to the prompt template
-  // The template should already contain instructions on how to handle the transcript
+function buildFullPrompt(promptTemplate: string, transcript: string, metadata: PodcastMetadata): string {
+  // Replace metadata placeholders in the template
+  let prompt = promptTemplate
+    .replace(/\[SHOW_TITLE\]/g, metadata.showTitle)
+    .replace(/\[SPOTIFY_URL\]/g, metadata.spotifyUrl);
   
-  return `${promptTemplate.trim()}
+  // Append the transcript to the prompt
+  return `${prompt.trim()}
 
 ---
 
