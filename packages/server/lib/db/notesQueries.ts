@@ -24,6 +24,7 @@ export interface TranscriptWithEpisode {
       id: string;
       title: string;
       rss_url: string;
+      spotify_url?: string;
     };
   };
 }
@@ -74,7 +75,8 @@ export async function queryTranscriptsNeedingNotes(
           podcast_shows!inner (
             id,
             title,
-            rss_url
+            rss_url,
+            spotify_url
           )
         )
       `)
@@ -164,18 +166,20 @@ export async function queryTranscriptsNeedingNotes(
           const ep = episodeJoin[0];
           const showJoin: any = ep.podcast_shows;
           
-          let show: { id: string; title: string; rss_url: string } | undefined;
+          let show: { id: string; title: string; rss_url: string; spotify_url?: string } | undefined;
           if (Array.isArray(showJoin) && showJoin.length > 0) {
             show = {
               id: showJoin[0].id,
               title: showJoin[0].title,
-              rss_url: showJoin[0].rss_url
+              rss_url: showJoin[0].rss_url,
+              spotify_url: showJoin[0].spotify_url
             };
           } else if (showJoin && typeof showJoin === 'object') {
             show = {
               id: showJoin.id,
               title: showJoin.title,
-              rss_url: showJoin.rss_url
+              rss_url: showJoin.rss_url,
+              spotify_url: showJoin.spotify_url
             };
           }
           
@@ -191,18 +195,20 @@ export async function queryTranscriptsNeedingNotes(
       } else if (episodeJoin && typeof episodeJoin === 'object') {
         const showJoin: any = episodeJoin.podcast_shows;
         
-        let show: { id: string; title: string; rss_url: string } | undefined;
+        let show: { id: string; title: string; rss_url: string; spotify_url?: string } | undefined;
         if (Array.isArray(showJoin) && showJoin.length > 0) {
           show = {
             id: showJoin[0].id,
             title: showJoin[0].title,
-            rss_url: showJoin[0].rss_url
+            rss_url: showJoin[0].rss_url,
+            spotify_url: showJoin[0].spotify_url
           };
         } else if (showJoin && typeof showJoin === 'object') {
           show = {
             id: showJoin.id,
             title: showJoin.title,
-            rss_url: showJoin.rss_url
+            rss_url: showJoin.rss_url,
+            spotify_url: showJoin.spotify_url
           };
         }
         
