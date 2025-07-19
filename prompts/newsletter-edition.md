@@ -78,6 +78,10 @@ You must follow this format for generating content suitable for email newsletter
 
 **Now, please analyze the following episode notes and generate a newsletter edition following the format and guidelines above:**
 
+**IMPORTANT REMINDER:** Each episode note below includes metadata with the correct podcast show name and Spotify URL. You MUST use these exact show names when referring to podcasts. Look for:
+- **Show:** [This is the exact podcast name you must use]
+- **Spotify URL:** [This is the Spotify link for the podcast]
+
 [EPISODE_NOTES_CONTENT] 
 
 --

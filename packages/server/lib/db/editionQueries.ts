@@ -26,6 +26,7 @@ export interface EpisodeNoteWithEpisode {
       id: string;
       title: string;
       rss_url: string;
+      spotify_url: string;
     };
   };
 }
@@ -42,6 +43,7 @@ export interface UserWithSubscriptions {
       id: string;
       title: string;
       rss_url: string;
+      spotify_url: string;
     };
   }[];
 }
@@ -70,7 +72,8 @@ export async function queryUsersWithActiveSubscriptions(
           podcast_shows!inner (
             id,
             title,
-            rss_url
+            rss_url,
+            spotify_url
           )
         )
       `)
@@ -102,18 +105,20 @@ export async function queryUsersWithActiveSubscriptions(
         subscriptions = subscriptionsJoin.map((sub: any) => {
           const showJoin: any = sub.podcast_shows;
           
-          let show: { id: string; title: string; rss_url: string } | undefined;
+          let show: { id: string; title: string; rss_url: string; spotify_url: string } | undefined;
           if (Array.isArray(showJoin) && showJoin.length > 0) {
             show = {
               id: showJoin[0].id,
               title: showJoin[0].title,
-              rss_url: showJoin[0].rss_url
+              rss_url: showJoin[0].rss_url,
+              spotify_url: showJoin[0].spotify_url
             };
           } else if (showJoin && typeof showJoin === 'object') {
             show = {
               id: showJoin.id,
               title: showJoin.title,
-              rss_url: showJoin.rss_url
+              rss_url: showJoin.rss_url,
+              spotify_url: showJoin.spotify_url
             };
           }
           
@@ -127,18 +132,20 @@ export async function queryUsersWithActiveSubscriptions(
       } else if (subscriptionsJoin && typeof subscriptionsJoin === 'object') {
         const showJoin: any = subscriptionsJoin.podcast_shows;
         
-        let show: { id: string; title: string; rss_url: string } | undefined;
+        let show: { id: string; title: string; rss_url: string; spotify_url: string } | undefined;
         if (Array.isArray(showJoin) && showJoin.length > 0) {
           show = {
             id: showJoin[0].id,
             title: showJoin[0].title,
-            rss_url: showJoin[0].rss_url
+            rss_url: showJoin[0].rss_url,
+            spotify_url: showJoin[0].spotify_url
           };
         } else if (showJoin && typeof showJoin === 'object') {
           show = {
             id: showJoin.id,
             title: showJoin.title,
-            rss_url: showJoin.rss_url
+            rss_url: showJoin.rss_url,
+            spotify_url: showJoin.spotify_url
           };
         }
         
@@ -227,7 +234,8 @@ export async function queryEpisodeNotesForUser(
           podcast_shows!inner (
             id,
             title,
-            rss_url
+            rss_url,
+            spotify_url
           )
         )
       `)
@@ -271,18 +279,20 @@ export async function queryEpisodeNotesForUser(
           const ep = episodeJoin[0];
           const showJoin: any = ep.podcast_shows;
           
-          let show: { id: string; title: string; rss_url: string } | undefined;
+          let show: { id: string; title: string; rss_url: string; spotify_url: string } | undefined;
           if (Array.isArray(showJoin) && showJoin.length > 0) {
             show = {
               id: showJoin[0].id,
               title: showJoin[0].title,
-              rss_url: showJoin[0].rss_url
+              rss_url: showJoin[0].rss_url,
+              spotify_url: showJoin[0].spotify_url
             };
           } else if (showJoin && typeof showJoin === 'object') {
             show = {
               id: showJoin.id,
               title: showJoin.title,
-              rss_url: showJoin.rss_url
+              rss_url: showJoin.rss_url,
+              spotify_url: showJoin.spotify_url
             };
           }
           
@@ -298,18 +308,20 @@ export async function queryEpisodeNotesForUser(
       } else if (episodeJoin && typeof episodeJoin === 'object') {
         const showJoin: any = episodeJoin.podcast_shows;
         
-        let show: { id: string; title: string; rss_url: string } | undefined;
+        let show: { id: string; title: string; rss_url: string; spotify_url: string } | undefined;
         if (Array.isArray(showJoin) && showJoin.length > 0) {
           show = {
             id: showJoin[0].id,
             title: showJoin[0].title,
-            rss_url: showJoin[0].rss_url
+            rss_url: showJoin[0].rss_url,
+            spotify_url: showJoin[0].spotify_url
           };
         } else if (showJoin && typeof showJoin === 'object') {
           show = {
             id: showJoin.id,
             title: showJoin.title,
-            rss_url: showJoin.rss_url
+            rss_url: showJoin.rss_url,
+            spotify_url: showJoin.spotify_url
           };
         }
         
