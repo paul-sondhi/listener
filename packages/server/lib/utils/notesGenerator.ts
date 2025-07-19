@@ -148,7 +148,7 @@ export async function generateNotesWithPrompt(
  */
 function buildFullPrompt(promptTemplate: string, transcript: string, metadata: PodcastMetadata): string {
   // Replace metadata placeholders in the template
-  let prompt = promptTemplate
+  const prompt = promptTemplate
     .replace(/\[SHOW_TITLE\]/g, metadata.showTitle)
     .replace(/\[SPOTIFY_URL\]/g, metadata.spotifyUrl);
   

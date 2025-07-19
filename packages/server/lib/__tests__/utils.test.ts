@@ -241,7 +241,7 @@ describe('Utility Functions', () => {
         json: async () => ({}),
         text: async () => 'Internal Server Error',
         headers: {
-          get: (key: string) => null
+          get: (_key: string) => null
         }
       }
       mockFetch.mockResolvedValueOnce(mockResponse)

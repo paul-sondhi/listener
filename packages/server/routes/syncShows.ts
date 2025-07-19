@@ -119,13 +119,6 @@ async function safeAwait<T = any>(maybeBuilder: any): Promise<T> {
     return maybeBuilder;
 }
 
-// Interface for sync response
-interface SyncShowsResponse {
-    success: boolean;
-    active_count: number;
-    inactive_count: number;
-}
-
 // -----------------------------------------------------------------------------
 // 🧪 In-Memory Subscription Store (Test-Only)
 // -----------------------------------------------------------------------------

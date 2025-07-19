@@ -49,7 +49,7 @@ const supabase = createClient<Database>(
 
 // Mock Gemini notes generation for integration test
 vi.spyOn(notesGen, 'generateNotesWithPrompt').mockImplementation(
-  async (transcript: string, config: any, metadata: notesGen.PodcastMetadata) => ({
+  async (_transcript: string, _config: any, _metadata: notesGen.PodcastMetadata) => ({
     notes: 'Mock episode notes for testing.',
     model: 'gemini-mock',
     elapsedMs: 123,
