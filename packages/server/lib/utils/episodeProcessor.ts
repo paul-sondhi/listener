@@ -69,6 +69,39 @@ export async function processEpisodeForNotes(
   const startTime = Date.now();
   const timing = { downloadMs: 0, generationMs: 0, databaseMs: 0 };
   
+  // Validate required podcast metadata early
+  if (!transcript.episode?.podcast_shows?.title || !transcript.episode?.podcast_shows?.spotify_url) {
+    const errorMessage = 'Missing required podcast metadata: title and spotify_url must be present';
+    console.error('DEBUG: Failed to process episode - missing metadata', {
+      episodeId: transcript.episode_id,
+      hasEpisode: !!transcript.episode,
+      hasPodcastShows: !!transcript.episode?.podcast_shows,
+      hasTitle: !!transcript.episode?.podcast_shows?.title,
+      hasSpotifyUrl: !!transcript.episode?.podcast_shows?.spotify_url
+    });
+    
+    // Record the error and return early
+    await recordErrorResult(supabase, transcript, errorMessage, timing);
+    
+    return {
+      episodeId: transcript.episode_id,
+      transcriptId: transcript.id,
+      status: 'error',
+      error: errorMessage,
+      elapsedMs: Date.now() - startTime,
+      timing,
+      metadata: {
+        storagePath: transcript.storage_path,
+        episodeTitle: transcript.episode?.title,
+        showTitle: transcript.episode?.podcast_shows?.title
+      }
+    };
+  }
+  
+  // Extract required metadata
+  const showTitle = transcript.episode.podcast_shows.title;
+  const spotifyUrl = transcript.episode.podcast_shows.spotify_url;
+  
   const baseResult: Omit<EpisodeProcessingResult, 'status' | 'elapsedMs'> = {
     episodeId: transcript.episode_id,
     transcriptId: transcript.id,
@@ -76,7 +109,7 @@ export async function processEpisodeForNotes(
     metadata: {
       storagePath: transcript.storage_path,
       episodeTitle: transcript.episode?.title,
-      showTitle: transcript.episode?.podcast_shows?.title
+      showTitle: showTitle
     }
   };
 
@@ -85,7 +118,8 @@ export async function processEpisodeForNotes(
     transcriptId: transcript.id,
     storagePath: transcript.storage_path,
     episodeTitle: transcript.episode?.title,
-    showTitle: transcript.episode?.podcast_shows?.title
+    showTitle: showTitle,
+    spotifyUrl: spotifyUrl
   });
 
   try {
@@ -147,7 +181,10 @@ export async function processEpisodeForNotes(
     let notesResult: NotesGenerationResult;
 
     try {
-      notesResult = await generateNotesWithPrompt(transcriptText, config);
+      notesResult = await generateNotesWithPrompt(transcriptText, config, {
+        showTitle: showTitle,
+        spotifyUrl: spotifyUrl
+      });
       timing.generationMs = Date.now() - generationStart;
       
       if (!notesResult.success) {
@@ -409,6 +446,10 @@ export function aggregateProcessingResults(results: EpisodeProcessingResult[]): 
  */
 function extractErrorType(errorMessage: string): string {
   const lowerMessage = errorMessage.toLowerCase();
+  
+  if (lowerMessage.includes('metadata') && (lowerMessage.includes('missing') || lowerMessage.includes('required'))) {
+    return 'metadata_error';
+  }
   
   if (lowerMessage.includes('download') || lowerMessage.includes('storage') || lowerMessage.includes('file')) {
     return 'download_error';

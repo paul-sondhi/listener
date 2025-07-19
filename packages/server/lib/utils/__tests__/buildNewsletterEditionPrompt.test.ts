@@ -14,6 +14,12 @@ const mockNotes = [
   'Episode 3: Interview with Jane Doe about podcast storytelling and creative workflows.'
 ];
 
+const mockMetadata = [
+  { showTitle: 'AI Podcast', spotifyUrl: 'https://open.spotify.com/show/ai-podcast' },
+  { showTitle: 'Podcast Analytics Show', spotifyUrl: 'https://open.spotify.com/show/analytics' },
+  { showTitle: 'Creative Storytelling', spotifyUrl: 'https://open.spotify.com/show/storytelling' }
+];
+
 const userEmail = 'testuser@example.com';
 const editionDate = '2025-01-27';
 const defaultTemplatePath = resolve('prompts/newsletter-edition.md');
@@ -36,7 +42,12 @@ describe('buildNewsletterEditionPrompt', () => {
   });
 
   it('throws on empty episodeNotes array', async () => {
-    const result = await buildNewsletterEditionPrompt([], userEmail, editionDate);
+    const result = await buildNewsletterEditionPrompt({
+      episodeNotes: [],
+      userEmail,
+      editionDate,
+      episodeMetadata: []
+    });
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/empty/);
   });
@@ -49,7 +60,12 @@ describe('buildNewsletterEditionPrompt', () => {
   });
 
   it('builds prompt for a single episode note', async () => {
-    const result = await buildNewsletterEditionPrompt([mockNotes[0]], userEmail, editionDate);
+    const result = await buildNewsletterEditionPrompt({
+      episodeNotes: [mockNotes[0]],
+      userEmail,
+      editionDate,
+      episodeMetadata: [mockMetadata[0]]
+    });
     expect(result.success).toBe(true);
     expect(result.prompt).toContain(mockNotes[0]);
     expect(result.prompt).toContain(userEmail);
@@ -58,7 +74,12 @@ describe('buildNewsletterEditionPrompt', () => {
   });
 
   it('builds prompt for multiple episode notes', async () => {
-    const result = await buildNewsletterEditionPrompt(mockNotes, userEmail, editionDate);
+    const result = await buildNewsletterEditionPrompt({
+      episodeNotes: mockNotes,
+      userEmail,
+      editionDate,
+      episodeMetadata: mockMetadata
+    });
     expect(result.success).toBe(true);
     expect(result.prompt).toContain(mockNotes[0]);
     expect(result.prompt).toContain(mockNotes[1]);
@@ -68,7 +89,13 @@ describe('buildNewsletterEditionPrompt', () => {
 
   it('filters out empty/invalid notes in multiple notes', async () => {
     const notes = [mockNotes[0], '', '   ', mockNotes[1]];
-    const result = await buildNewsletterEditionPrompt(notes, userEmail, editionDate);
+    const metadata = [mockMetadata[0], mockMetadata[1], mockMetadata[2], mockMetadata[1]]; // matching length
+    const result = await buildNewsletterEditionPrompt({
+      episodeNotes: notes,
+      userEmail,
+      editionDate,
+      episodeMetadata: metadata
+    });
     expect(result.success).toBe(true);
     expect(result.episodeCount).toBe(2);
     expect(result.prompt).toContain(mockNotes[0]);
@@ -77,7 +104,13 @@ describe('buildNewsletterEditionPrompt', () => {
 
   it('returns error if all notes are empty/invalid', async () => {
     const notes = ['', '   ', null as any];
-    const result = await buildNewsletterEditionPrompt(notes, userEmail, editionDate);
+    const metadata = [mockMetadata[0], mockMetadata[1], mockMetadata[2]]; // matching length
+    const result = await buildNewsletterEditionPrompt({
+      episodeNotes: notes,
+      userEmail,
+      editionDate,
+      episodeMetadata: metadata
+    });
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/valid note/);
   });
@@ -89,6 +122,7 @@ describe('buildNewsletterEditionPrompt', () => {
       episodeNotes: mockNotes,
       userEmail,
       editionDate,
+      episodeMetadata: mockMetadata,
       promptTemplatePath: customTemplatePath
     });
     expect(result.success).toBe(true);
@@ -99,7 +133,12 @@ describe('buildNewsletterEditionPrompt', () => {
     const customContent = readFileSync(defaultTemplatePath, 'utf-8').replace('Newsletter', 'Env Newsletter');
     writeCustomTemplate(customContent);
     process.env.NEWSLETTER_PROMPT_PATH = customTemplatePath;
-    const result = await buildNewsletterEditionPrompt(mockNotes, userEmail, editionDate);
+    const result = await buildNewsletterEditionPrompt({
+      episodeNotes: mockNotes,
+      userEmail,
+      editionDate,
+      episodeMetadata: mockMetadata
+    });
     expect(result.success).toBe(true);
     expect(result.template).toContain('Env Newsletter');
   });
@@ -110,6 +149,7 @@ describe('buildNewsletterEditionPrompt', () => {
       episodeNotes: mockNotes,
       userEmail,
       editionDate,
+      episodeMetadata: mockMetadata,
       promptTemplatePath: customTemplatePath
     });
     expect(result.success).toBe(false);
@@ -124,6 +164,7 @@ describe('buildNewsletterEditionPrompt', () => {
       episodeNotes: mockNotes,
       userEmail,
       editionDate,
+      episodeMetadata: mockMetadata,
       promptTemplatePath: customTemplatePath
     });
     expect(result.success).toBe(false);
@@ -135,6 +176,7 @@ describe('buildNewsletterEditionPrompt', () => {
       episodeNotes: mockNotes,
       userEmail,
       editionDate,
+      episodeMetadata: mockMetadata,
       promptTemplatePath: 'does-not-exist.md'
     });
     expect(result.success).toBe(false);

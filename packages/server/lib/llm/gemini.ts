@@ -12,7 +12,8 @@
 
 import { 
   buildNewsletterEditionPrompt, 
-  sanitizeNewsletterContent
+  sanitizeNewsletterContent,
+  EpisodeMetadata
 } from '../utils/buildNewsletterEditionPrompt';
 
 // ===================================================================
@@ -386,6 +387,7 @@ export async function generateNewsletterEdition(
   episodeNotes: string[],
   userEmail: string,
   editionDate: string,
+  episodeMetadata: EpisodeMetadata[],
   promptOverrides?: Partial<PromptOverrides>
 ): Promise<NewsletterEditionResult> {
   // Validate environment first
@@ -423,7 +425,8 @@ export async function generateNewsletterEdition(
     const promptResult = await buildNewsletterEditionPrompt({
       episodeNotes,
       userEmail,
-      editionDate
+      editionDate,
+      episodeMetadata
     });
 
     if (!promptResult.success) {

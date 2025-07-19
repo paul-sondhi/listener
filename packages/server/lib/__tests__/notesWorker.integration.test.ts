@@ -48,12 +48,14 @@ const supabase = createClient<Database>(
 );
 
 // Mock Gemini notes generation for integration test
-vi.spyOn(notesGen, 'generateNotesWithPrompt').mockResolvedValue({
-  notes: 'Mock episode notes for testing.',
-  model: 'gemini-mock',
-  elapsedMs: 123,
-  success: true
-});
+vi.spyOn(notesGen, 'generateNotesWithPrompt').mockImplementation(
+  async (transcript: string, config: any, metadata: notesGen.PodcastMetadata) => ({
+    notes: 'Mock episode notes for testing.',
+    model: 'gemini-mock',
+    elapsedMs: 123,
+    success: true
+  })
+);
 
 describe('Notes Worker Integration', () => {
   // Test data - will be unique per test
@@ -201,7 +203,11 @@ describe('Notes Worker Integration', () => {
       const config = getNotesWorkerConfig();
       const notesResult = await notesGen.generateNotesWithPrompt(
         'This is a mock transcript for testing. It contains sample content that should be processed into episode notes.',
-        config
+        config,
+        {
+          showTitle: 'Test Podcast Show',
+          spotifyUrl: 'https://open.spotify.com/show/test123'
+        }
       );
       expect(notesResult.success).toBe(true);
       expect(notesResult.notes).toBeDefined();
@@ -749,7 +755,11 @@ describe('Notes Worker Integration', () => {
       const testConfig = { ...config, geminiApiKey: 'invalid-api-key' };
       const notesResult = await notesGen.generateNotesWithPrompt(
         'Test transcript content',
-        testConfig
+        testConfig,
+        {
+          showTitle: 'Test Podcast Show',
+          spotifyUrl: 'https://open.spotify.com/show/test123'
+        }
       );
       
       expect(notesResult.success).toBe(false);

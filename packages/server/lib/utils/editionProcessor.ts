@@ -162,6 +162,10 @@ export async function processUserForNewsletter(
 
     // Update metadata with query results
     const notesTexts = episodeNotes.map(note => note.notes);
+    const episodeMetadata = episodeNotes.map(note => ({
+      showTitle: note.episode?.podcast_shows?.title || 'Unknown Show',
+      spotifyUrl: note.episode?.podcast_shows?.spotify_url || ''
+    }));
     const totalWordCount = notesTexts.reduce((sum, notes) => sum + countWords(notes), 0);
     const averageWordCount = episodeNotes.length > 0 ? totalWordCount / episodeNotes.length : 0;
     
@@ -181,7 +185,7 @@ export async function processUserForNewsletter(
       // Wrap newsletter generation in retry logic
       retryResult = await retryWithBackoff(
         async () => {
-          const result = await generateNewsletterEdition(notesTexts, user.email, editionDate);
+          const result = await generateNewsletterEdition(notesTexts, user.email, editionDate, undefined, episodeMetadata);
           
           if (!result.success) {
             throw new Error(result.error || 'Newsletter generation failed');
