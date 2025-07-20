@@ -17,6 +17,7 @@ export interface SendEmailParams {
   subject: string;
   html: string;
   text?: string; // Optional plain text alternative
+  replyTo?: string; // Optional reply-to email address
 }
 
 export interface SendEmailResult {
@@ -49,7 +50,7 @@ export class EmailClient {
    * @returns Promise<SendEmailResult> Result of the email send operation
    */
   async sendEmail(params: SendEmailParams, jobId: string): Promise<SendEmailResult> {
-    const { to, subject, html, text } = params;
+    const { to, subject, html, text, replyTo } = params;
 
     this.logger.info('email', 'Sending email via Resend', {
       metadata: {
@@ -58,7 +59,8 @@ export class EmailClient {
         subject: subject,
         has_html: !!html,
         has_text: !!text,
-        from_email: this.fromEmail
+        from_email: this.fromEmail,
+        reply_to: replyTo || 'not set'
       }
     });
 
@@ -66,7 +68,7 @@ export class EmailClient {
       // Format the from field: "Sender Name <email@domain.com>" or just "email@domain.com"
       const fromField = this.fromName ? `${this.fromName} <${this.fromEmail}>` : this.fromEmail;
       
-      const result = await this.resend.emails.send({
+      const emailData: any = {
         from: fromField,
         to: [to],
         subject: subject,
@@ -75,7 +77,14 @@ export class EmailClient {
         headers: {
           'X-Job-Id': jobId
         }
-      });
+      };
+      
+      // Add reply_to field if provided
+      if (replyTo) {
+        emailData.reply_to = replyTo;
+      }
+      
+      const result = await this.resend.emails.send(emailData);
 
       if (result.error) {
         const errorMessage = `Resend API error: ${result.error.message}`;

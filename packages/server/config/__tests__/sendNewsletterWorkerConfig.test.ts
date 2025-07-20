@@ -199,6 +199,50 @@ describe('Send Newsletter Worker Configuration', () => {
       expect(config.sendFromEmail).toBe('test@example.com');
       expect(config.testReceiverEmail).toBe('paulsondhi1@gmail.com');
     });
+
+    it('should accept valid REPLY_TO_EMAIL when provided', () => {
+      process.env.REPLY_TO_EMAIL = 'feedback@example.com';
+
+      const config = getSendNewsletterWorkerConfig();
+
+      expect(config.replyToEmail).toBe('feedback@example.com');
+    });
+
+    it('should use undefined for REPLY_TO_EMAIL when not provided', () => {
+      delete process.env.REPLY_TO_EMAIL;
+
+      const config = getSendNewsletterWorkerConfig();
+
+      expect(config.replyToEmail).toBeUndefined();
+    });
+
+    it('should validate REPLY_TO_EMAIL format when provided', () => {
+      process.env.REPLY_TO_EMAIL = 'invalid-email';
+
+      expect(() => getSendNewsletterWorkerConfig()).toThrow('Invalid REPLY_TO_EMAIL');
+
+      process.env.REPLY_TO_EMAIL = 'test@';
+      expect(() => getSendNewsletterWorkerConfig()).toThrow('Invalid REPLY_TO_EMAIL');
+
+      process.env.REPLY_TO_EMAIL = '@example.com';
+      expect(() => getSendNewsletterWorkerConfig()).toThrow('Invalid REPLY_TO_EMAIL');
+    });
+
+    it('should trim whitespace from REPLY_TO_EMAIL', () => {
+      process.env.REPLY_TO_EMAIL = '  feedback@example.com  ';
+
+      const config = getSendNewsletterWorkerConfig();
+
+      expect(config.replyToEmail).toBe('feedback@example.com');
+    });
+
+    it('should ignore empty REPLY_TO_EMAIL', () => {
+      process.env.REPLY_TO_EMAIL = '   ';
+
+      const config = getSendNewsletterWorkerConfig();
+
+      expect(config.replyToEmail).toBeUndefined();
+    });
   });
 
   describe('getConfigSummary', () => {
@@ -210,7 +254,9 @@ describe('Send Newsletter Worker Configuration', () => {
         last10Mode: false,
         resendApiKey: 're_test_key_123456789',
         sendFromEmail: 'test@example.com',
+        sendFromName: '',
         testReceiverEmail: 'paulsondhi1@gmail.com',
+        replyToEmail: 'feedback@example.com',
       };
 
       const summary = getConfigSummary(config);
@@ -221,11 +267,30 @@ describe('Send Newsletter Worker Configuration', () => {
       expect(summary.last10_mode).toBe(false);
       expect(summary.send_from_email).toBe('test@example.com');
       expect(summary.test_receiver_email).toBe('paulsondhi1@gmail.com');
+      expect(summary.reply_to_email).toBe('feedback@example.com');
       expect(summary.resend_api_key_configured).toBe(true);
       expect(summary.resend_api_key_prefix).toBe('re_tes...');
       
       // Should not include the full API key
       expect(summary).not.toHaveProperty('resendApiKey');
+    });
+
+    it('should show default message when replyToEmail is not set', () => {
+      const config: SendNewsletterWorkerConfig = {
+        enabled: true,
+        cronSchedule: '0 5 * * 1-5',
+        lookbackHours: 24,
+        last10Mode: false,
+        resendApiKey: 're_test_key_123456789',
+        sendFromEmail: 'test@example.com',
+        sendFromName: '',
+        testReceiverEmail: 'paulsondhi1@gmail.com',
+        // replyToEmail is not set
+      };
+
+      const summary = getConfigSummary(config);
+
+      expect(summary.reply_to_email).toBe('not set (defaults to send_from_email)');
     });
   });
 
@@ -330,6 +395,38 @@ describe('Send Newsletter Worker Configuration', () => {
       };
 
       expect(() => validateDependencies(config)).toThrow('Invalid cron schedule');
+    });
+
+    it('should throw error for invalid REPLY_TO_EMAIL format when provided', () => {
+      const config: SendNewsletterWorkerConfig = {
+        enabled: true,
+        cronSchedule: '0 5 * * 1-5',
+        lookbackHours: 24,
+        last10Mode: false,
+        resendApiKey: 're_test_key_123456789',
+        sendFromEmail: 'test@example.com',
+        sendFromName: '',
+        testReceiverEmail: 'paulsondhi1@gmail.com',
+        replyToEmail: 'invalid-email',
+      };
+
+      expect(() => validateDependencies(config)).toThrow('REPLY_TO_EMAIL is not a valid email address');
+    });
+
+    it('should not throw error when REPLY_TO_EMAIL is not provided', () => {
+      const config: SendNewsletterWorkerConfig = {
+        enabled: true,
+        cronSchedule: '0 5 * * 1-5',
+        lookbackHours: 24,
+        last10Mode: false,
+        resendApiKey: 're_test_key_123456789',
+        sendFromEmail: 'test@example.com',
+        sendFromName: '',
+        testReceiverEmail: 'paulsondhi1@gmail.com',
+        // replyToEmail not provided
+      };
+
+      expect(() => validateDependencies(config)).not.toThrow();
     });
   });
 }); 

@@ -127,6 +127,46 @@ describe('EmailClient', () => {
       });
     });
 
+    it('should send email with reply-to address when provided', async () => {
+      const emailParamsWithReplyTo: SendEmailParams = {
+        ...testEmailParams,
+        replyTo: 'feedback@example.com'
+      };
+
+      mockResendSend.mockResolvedValue({
+        data: { id: 'test-message-id-789' },
+        error: null
+      });
+
+      const result = await emailClient.sendEmail(emailParamsWithReplyTo, testJobId);
+
+      expect(result.success).toBe(true);
+      expect(mockResendSend).toHaveBeenCalledWith({
+        from: testFromEmail,
+        to: [emailParamsWithReplyTo.to],
+        subject: emailParamsWithReplyTo.subject,
+        html: emailParamsWithReplyTo.html,
+        text: undefined,
+        reply_to: 'feedback@example.com',
+        headers: {
+          'X-Job-Id': testJobId
+        }
+      });
+    });
+
+    it('should not include reply_to field when not provided', async () => {
+      mockResendSend.mockResolvedValue({
+        data: { id: 'test-message-id-no-reply' },
+        error: null
+      });
+
+      const result = await emailClient.sendEmail(testEmailParams, testJobId);
+
+      expect(result.success).toBe(true);
+      const callArgs = mockResendSend.mock.calls[0][0];
+      expect(callArgs).not.toHaveProperty('reply_to');
+    });
+
     it('should format sender name correctly when provided', async () => {
       // Create EmailClient with sender name
       const emailClientWithName = new EmailClient(testApiKey, testFromEmail, testFromName, {

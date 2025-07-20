@@ -179,7 +179,12 @@ export class SendNewsletterWorker {
           // Send email
           console.log(`About to send email for edition ${edition.id} to ${to}`);
           
-          const sendResult = await emailClient.sendEmail({ to, subject, html }, jobId);
+          const sendResult = await emailClient.sendEmail({ 
+            to, 
+            subject, 
+            html,
+            replyTo: config.replyToEmail || config.sendFromEmail
+          }, jobId);
 
           if (sendResult.success) {
             successfulSends++;

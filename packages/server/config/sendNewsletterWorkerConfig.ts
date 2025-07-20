@@ -20,6 +20,8 @@ export interface SendNewsletterWorkerConfig {
   sendFromName: string;
   /** Email address to send test emails to when in L10 mode (required) */
   testReceiverEmail: string;
+  /** Email address for replies (optional, defaults to sendFromEmail) */
+  replyToEmail?: string;
 }
 
 /**
@@ -84,6 +86,17 @@ export function getSendNewsletterWorkerConfig(): SendNewsletterWorkerConfig {
     throw new Error(`Invalid TEST_RECEIVER_EMAIL: "${testReceiverEmail}". Must be a valid email address.`);
   }
 
+  // Parse reply-to email (optional, defaults to sendFromEmail if not set)
+  let replyToEmail: string | undefined;
+  const rawReplyToEmail = process.env.REPLY_TO_EMAIL;
+  if (rawReplyToEmail && rawReplyToEmail.trim().length > 0) {
+    const trimmedReplyToEmail = rawReplyToEmail.trim();
+    if (!isValidEmail(trimmedReplyToEmail)) {
+      throw new Error(`Invalid REPLY_TO_EMAIL: "${rawReplyToEmail}". Must be a valid email address.`);
+    }
+    replyToEmail = trimmedReplyToEmail;
+  }
+
   return {
     enabled,
     cronSchedule,
@@ -93,6 +106,7 @@ export function getSendNewsletterWorkerConfig(): SendNewsletterWorkerConfig {
     sendFromEmail: trimmedSendFromEmail,
     sendFromName,
     testReceiverEmail: trimmedTestReceiverEmail,
+    replyToEmail,
   };
 }
 
@@ -155,6 +169,7 @@ export function getConfigSummary(config: SendNewsletterWorkerConfig): Record<str
     send_from_email: config.sendFromEmail,
     send_from_name: config.sendFromName,
     test_receiver_email: config.testReceiverEmail,
+    reply_to_email: config.replyToEmail || 'not set (defaults to send_from_email)',
     resend_api_key_configured: config.resendApiKey.length > 0,
     resend_api_key_prefix: config.resendApiKey.substring(0, 6) + '...',
   };
@@ -186,6 +201,11 @@ export function validateDependencies(config: SendNewsletterWorkerConfig): void {
 
   if (!isValidEmail(config.testReceiverEmail)) {
     throw new Error(`TEST_RECEIVER_EMAIL is not a valid email address: ${config.testReceiverEmail}`);
+  }
+
+  // Validate reply-to email if provided
+  if (config.replyToEmail && !isValidEmail(config.replyToEmail)) {
+    throw new Error(`REPLY_TO_EMAIL is not a valid email address: ${config.replyToEmail}`);
   }
 
   // Validate cron schedule

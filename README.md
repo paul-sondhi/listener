@@ -68,6 +68,7 @@ A podcast transcription service that integrates with Spotify.
    # Email Service (Resend)
    RESEND_API_KEY=your_resend_api_key      # For sending newsletter emails
    SEND_FROM_EMAIL=your_sender_email       # Email address to send from
+   REPLY_TO_EMAIL=feedback@example.com     # Email address for replies (optional, defaults to SEND_FROM_EMAIL)
    TEST_RECEIVER_EMAIL=test@example.com    # Test email for L10 mode
    
    # Security
@@ -465,6 +466,7 @@ The `SendNewsletterWorker` sends daily email newsletters to users containing syn
 # Email Service (Required)
 RESEND_API_KEY=your_resend_api_key      # Resend API key
 SEND_FROM_EMAIL=your_sender_email       # Email address to send from
+REPLY_TO_EMAIL=feedback@example.com     # Email address for replies (optional, defaults to SEND_FROM_EMAIL)
 TEST_RECEIVER_EMAIL=test@example.com    # Test email for L10 mode
 
 # Worker Configuration (Optional - defaults provided)
