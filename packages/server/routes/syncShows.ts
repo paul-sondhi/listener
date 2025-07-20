@@ -444,18 +444,28 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                     //      *minimal* Supabase response.
                     // -----------------------------------------------------
 
+                    // Build upsert data dynamically to preserve existing titles
+                    const upsertData: any = {
+                        spotify_url: spotifyUrl,
+                        rss_url: rssUrl, // Use actual RSS URL if found, otherwise Spotify URL as fallback
+                        last_updated: now,
+                    };
+
+                    // Only set title if show doesn't exist or has a placeholder title
+                    if (!existingShow || !existingShow.title || existingShow.title.startsWith('Show ')) {
+                        upsertData.title = show.name || 'Unknown Show';
+                    } else {
+                        // Existing show has a good title - preserve it by not including title in upsert
+                        console.log(`[SyncShows] Preserving existing title for ${show.name}: "${existingShow.title}" (not overwriting with Spotify title)`);
+                    }
+
+                    // Always include description and image_url from Spotify
+                    upsertData.description = show.description || null;
+                    upsertData.image_url = show.images?.[0]?.url || null;
+
                     const upsertStage: any = getSupabaseAdmin()
                         .from('podcast_shows')
-                        .upsert([
-                            {
-                                spotify_url: spotifyUrl,
-                                rss_url: rssUrl, // Use actual RSS URL if found, otherwise Spotify URL as fallback
-                                title: show.name || 'Unknown Show',
-                                description: show.description || null,
-                                image_url: show.images?.[0]?.url || null,
-                                last_updated: now,
-                            },
-                        ], {
+                        .upsert([upsertData], {
                             onConflict: 'spotify_url',
                             ignoreDuplicates: false,
                         });
@@ -476,18 +486,25 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                             console.warn('[SYNC_SHOWS] Detected legacy rss_url NOT NULL constraint – falling back to include rss_url in upsert. This message will appear only once per sync.');
                             legacyRssWarningEmitted = true;
                         }
+                        // Build retry upsert data with same title preservation logic
+                        const retryUpsertData: any = {
+                            spotify_url: spotifyUrl,
+                            rss_url: rssUrl, // Use the same RSS URL logic as the main upsert
+                            last_updated: now,
+                        };
+
+                        // Only set title if show doesn't exist or has a placeholder title
+                        if (!existingShow || !existingShow.title || existingShow.title.startsWith('Show ')) {
+                            retryUpsertData.title = show.name || 'Unknown Show';
+                        }
+
+                        // Always include description and image_url from Spotify
+                        retryUpsertData.description = show.description || null;
+                        retryUpsertData.image_url = show.images?.[0]?.url || null;
+
                         const retryUpsertStage = getSupabaseAdmin()
                             .from('podcast_shows')
-                            .upsert([
-                                {
-                                    spotify_url: spotifyUrl,
-                                    rss_url: rssUrl, // Use the same RSS URL logic as the main upsert
-                                    title: show.name || 'Unknown Show',
-                                    description: show.description || null,
-                                    image_url: show.images?.[0]?.url || null,
-                                    last_updated: now,
-                                },
-                            ], {
+                            .upsert([retryUpsertData], {
                                 onConflict: 'spotify_url',
                                 ignoreDuplicates: false,
                             });

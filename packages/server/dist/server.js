@@ -37,8 +37,14 @@ async function getSpotifyAccessToken() {
   });
   if (!res.ok) {
     const errorBody = await res.text();
-    console.error("Spotify Access Token Request Failed - Status:", res.status);
-    console.error("Spotify Access Token Request Failed - Body:", errorBody);
+    console.error("[Spotify Token Error]", {
+      status: res.status,
+      statusText: res.statusText,
+      body: errorBody,
+      clientIdPresent: !!process.env.SPOTIFY_CLIENT_ID,
+      clientSecretPresent: !!process.env.SPOTIFY_CLIENT_SECRET,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
     throw new Error(`Failed to get Spotify access token. Status: ${res.status}. Response: ${errorBody}`);
   }
   const data = await res.json();
@@ -55,6 +61,189 @@ var init_spotify = __esm({
   }
 });
 
+// lib/episodeProbe.ts
+import { XMLParser } from "fast-xml-parser";
+function debugLog(...args) {
+  if (DEBUG_RSS_MATCHING) {
+    console.log(...args);
+  }
+}
+function levenshteinDistance(a, b) {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          // substitution
+          matrix[i][j - 1] + 1,
+          // insertion
+          matrix[i - 1][j] + 1
+          // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+function levenshteinSimilarity(a, b) {
+  const maxLength = Math.max(a.length, b.length);
+  if (maxLength === 0) return 1;
+  const distance = levenshteinDistance(a, b);
+  return 1 - distance / maxLength;
+}
+function normalizeEpisodeTitle(title) {
+  return title.toLowerCase().trim().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+function parsePublicationDate(dateStr) {
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return null;
+    return date;
+  } catch {
+    return null;
+  }
+}
+async function fetchLatestSpotifyEpisode(spotifyShowId, accessToken) {
+  try {
+    const response = await fetch(
+      `https://api.spotify.com/v1/shows/${spotifyShowId}/episodes?limit=1&market=US`,
+      {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+    if (!response.ok) {
+      console.warn(`[EpisodeProbe] Spotify API error: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    const data = await response.json();
+    if (data.items && data.items.length > 0) {
+      return data.items[0];
+    }
+    return null;
+  } catch (error) {
+    console.warn(`[EpisodeProbe] Error fetching Spotify episode:`, error.message);
+    return null;
+  }
+}
+async function fetchLatestRssEpisode(feedUrl) {
+  try {
+    const response = await fetch(feedUrl, {
+      headers: {
+        "Range": "bytes=0-25000",
+        "User-Agent": "Mozilla/5.0 (compatible; PodcastMatcher/1.0)"
+      }
+    });
+    if (!response.ok && response.status !== 206) {
+      console.warn(`[EpisodeProbe] RSS fetch error: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    const rssText = await response.text();
+    const parser = new XMLParser({ ignoreAttributes: false });
+    const rssData = parser.parse(rssText);
+    if (!rssData.rss?.channel?.item) {
+      return null;
+    }
+    const items = Array.isArray(rssData.rss.channel.item) ? rssData.rss.channel.item : [rssData.rss.channel.item];
+    return items[0] || null;
+  } catch (error) {
+    console.warn(`[EpisodeProbe] Error fetching RSS episode:`, error.message);
+    return null;
+  }
+}
+async function verifyLatestEpisodeMatch(spotifyShowId, candidateFeedUrl, accessToken) {
+  const cacheKey = `${spotifyShowId}:${candidateFeedUrl}`;
+  const cached = probeCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.result;
+  }
+  try {
+    const [spotifyEpisode, rssEpisode] = await Promise.all([
+      accessToken ? fetchLatestSpotifyEpisode(spotifyShowId, accessToken) : null,
+      fetchLatestRssEpisode(candidateFeedUrl)
+    ]);
+    debugLog("[EpisodeProbe] Data fetch", {
+      spotifyShowId,
+      candidateFeedUrl,
+      spotifyEpisodeAvailable: !!spotifyEpisode,
+      rssEpisodeAvailable: !!rssEpisode
+    });
+    if (!spotifyEpisode || !rssEpisode) {
+      const result = 0.5;
+      debugLog("[EpisodeProbe] Missing episode data \u2013 returning neutral score", {
+        spotifyShowId,
+        candidateFeedUrl,
+        spotifyEpisodeAvailable: !!spotifyEpisode,
+        rssEpisodeAvailable: !!rssEpisode,
+        result
+      });
+      probeCache.set(cacheKey, { result, timestamp: Date.now() });
+      return result;
+    }
+    const spotifyTitle = normalizeEpisodeTitle(spotifyEpisode.name);
+    const rssTitle = normalizeEpisodeTitle(rssEpisode.title || "");
+    const jaccardScore = jaccardSimilarity(spotifyTitle, rssTitle);
+    const levenshteinScore = levenshteinSimilarity(spotifyTitle, rssTitle);
+    const titleScore = jaccardScore * 0.7 + levenshteinScore * 0.3;
+    let dateScore = 0.5;
+    if (spotifyEpisode.release_date && rssEpisode.pubDate) {
+      const spotifyDate = parsePublicationDate(spotifyEpisode.release_date);
+      const rssDate = parsePublicationDate(rssEpisode.pubDate);
+      if (spotifyDate && rssDate) {
+        const timeDiffMs = Math.abs(spotifyDate.getTime() - rssDate.getTime());
+        const timeDiffHours = timeDiffMs / (1e3 * 60 * 60);
+        if (timeDiffHours <= 2) {
+          dateScore = 1;
+        } else if (timeDiffHours <= 48) {
+          dateScore = Math.max(0, 1 - (timeDiffHours - 2) / 46);
+        } else {
+          dateScore = 0;
+        }
+      }
+    }
+    const finalScore = titleScore * 0.8 + dateScore * 0.2;
+    debugLog("[EpisodeProbe] Scoring details", {
+      spotifyShowId,
+      candidateFeedUrl,
+      jaccardScore,
+      levenshteinScore,
+      titleScore,
+      dateScore,
+      finalScore
+    });
+    probeCache.set(cacheKey, { result: finalScore, timestamp: Date.now() });
+    return finalScore;
+  } catch (error) {
+    console.warn(`[EpisodeProbe] Error during episode verification:`, error.message);
+    const result = 0.5;
+    probeCache.set(cacheKey, { result, timestamp: Date.now() });
+    return result;
+  }
+}
+var DEBUG_RSS_MATCHING, probeCache, CACHE_TTL_MS;
+var init_episodeProbe = __esm({
+  "lib/episodeProbe.ts"() {
+    "use strict";
+    init_utils();
+    DEBUG_RSS_MATCHING = process.env.DEBUG_RSS_MATCHING === "true";
+    probeCache = /* @__PURE__ */ new Map();
+    CACHE_TTL_MS = 30 * 60 * 1e3;
+  }
+});
+
 // lib/utils.ts
 var utils_exports = {};
 __export(utils_exports, {
@@ -65,6 +254,11 @@ __export(utils_exports, {
   verifyTaddyApiKey: () => verifyTaddyApiKey
 });
 import crypto from "crypto";
+function debugLog2(...args) {
+  if (DEBUG_RSS_MATCHING2) {
+    console.log(...args);
+  }
+}
 function getAuthHeaders() {
   const apiKey = process.env.PODCASTINDEX_KEY;
   const apiSecret = process.env.PODCASTINDEX_SECRET;
@@ -87,7 +281,7 @@ async function getTitleSlug(spotifyUrl) {
   const cleanUrl = spotifyUrl.split("?")[0];
   const { pathname } = new URL(cleanUrl);
   const [, type, id] = pathname.split("/");
-  if (type !== "show") {
+  if (type !== "show" || !id) {
     throw new Error("getTitleSlug: URL is not a Spotify show link");
   }
   const token = await getSpotifyAccessToken();
@@ -95,19 +289,59 @@ async function getTitleSlug(spotifyUrl) {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!apiRes.ok) {
-    throw new Error("Failed to fetch show from Spotify API");
+    const errorBody = await apiRes.text();
+    const errorDetails = {
+      status: apiRes.status,
+      statusText: apiRes.statusText,
+      headers: {
+        "x-rate-limit-remaining": apiRes.headers.get("x-rate-limit-remaining"),
+        "x-rate-limit-reset": apiRes.headers.get("x-rate-limit-reset"),
+        "retry-after": apiRes.headers.get("retry-after")
+      },
+      body: errorBody,
+      showId: id,
+      url: `https://api.spotify.com/v1/shows/${id}`
+    };
+    console.error("[Spotify API Error]", JSON.stringify(errorDetails, null, 2));
+    let errorMessage = `Failed to fetch show from Spotify API: ${apiRes.status} ${apiRes.statusText}`;
+    if (apiRes.status === 401) {
+      errorMessage += " (Authentication failed - token may be expired)";
+    } else if (apiRes.status === 429) {
+      errorMessage += " (Rate limit exceeded)";
+    } else if (apiRes.status === 404) {
+      errorMessage += " (Show not found)";
+    }
+    throw new Error(errorMessage);
   }
   const showData = await apiRes.json();
-  const { name } = showData;
+  const { name, description, publisher } = showData;
   if (!name) {
     throw new Error("No show name returned from Spotify API");
   }
-  return name.toLowerCase().replace(/\|.*$/, "").replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
+  const originalName = name;
+  const normalizedName = name.toLowerCase().replace(/\|.*$/, "").replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
+  const normalizedDescription = description || "";
+  const normalizedPublisher = publisher?.trim() || "";
+  return {
+    name: normalizedName,
+    originalName,
+    // Return the original name with proper capitalization
+    description: normalizedDescription,
+    publisher: normalizedPublisher,
+    spotifyShowId: id,
+    accessToken: token
+  };
 }
-async function getFeedUrl(slug) {
+async function getFeedUrl(metadata) {
+  const searchTerm = typeof metadata === "string" ? metadata : metadata.name;
+  const description = typeof metadata === "string" ? "" : metadata.description;
+  const publisher = typeof metadata === "string" ? "" : metadata.publisher || "";
+  const spotifyShowId = typeof metadata === "string" ? void 0 : metadata.spotifyShowId;
+  const accessToken = typeof metadata === "string" ? void 0 : metadata.accessToken;
   const authHeaders = getAuthHeaders();
-  const searchUrl = `https://api.podcastindex.org/api/1.0/search/byterm?q=${encodeURIComponent(slug)}`;
-  const searchRes = await fetch(searchUrl, {
+  let searchUrl = `https://api.podcastindex.org/api/1.0/search/bytitle?q=${encodeURIComponent(searchTerm)}`;
+  debugLog2("[getFeedUrl] Trying bytitle search first", { searchTerm, searchUrl });
+  let searchRes = await fetch(searchUrl, {
     headers: {
       ...authHeaders,
       "User-Agent": process.env.USER_AGENT || "Listener-App/1.0"
@@ -118,24 +352,103 @@ async function getFeedUrl(slug) {
     console.error("PodcastIndex API Error Response:", errorText);
     throw new Error(`PodcastIndex search failed with status ${searchRes.status}`);
   }
-  const searchData = await searchRes.json();
-  const { feeds } = searchData;
+  let searchData = await searchRes.json();
+  let { feeds } = searchData;
+  if (!feeds || feeds.length === 0) {
+    debugLog2("[getFeedUrl] No bytitle results, falling back to byterm search", { searchTerm });
+    searchUrl = `https://api.podcastindex.org/api/1.0/search/byterm?q=${encodeURIComponent(searchTerm)}`;
+    searchRes = await fetch(searchUrl, {
+      headers: {
+        ...authHeaders,
+        "User-Agent": process.env.USER_AGENT || "Listener-App/1.0"
+      }
+    });
+    if (!searchRes.ok) {
+      const errorText = await searchRes.text().catch(() => "Could not read response");
+      console.error("PodcastIndex API Error Response:", errorText);
+      throw new Error(`PodcastIndex search failed with status ${searchRes.status}`);
+    }
+    searchData = await searchRes.json();
+    feeds = searchData.feeds;
+  }
+  debugLog2("[getFeedUrl] PodcastIndex search completed", { searchTerm, feedCount: feeds?.length || 0, searchType: feeds?.length ? "bytitle" : "byterm" });
   let feedUrl = null;
   if (feeds && feeds.length > 0) {
-    for (const feed of feeds) {
-      if (jaccardSimilarity(feed.title.toLowerCase(), slug) >= 0.8) {
-        feedUrl = feed.url;
-        break;
+    let bestMatch = null;
+    let bestScore = 0;
+    const titleWeight = parseFloat(process.env.RSS_MATCH_TITLE_WEIGHT || "0.4");
+    const descriptionWeight = parseFloat(process.env.RSS_MATCH_DESCRIPTION_WEIGHT || "0.4");
+    const publisherWeight = parseFloat(process.env.RSS_MATCH_PUBLISHER_WEIGHT || "0.2");
+    const scoredFeeds = feeds.map((feed) => {
+      const titleSimilarity = jaccardSimilarity(feed.title.toLowerCase(), searchTerm);
+      let descriptionSimilarity = 0;
+      if (description && feed.description) {
+        descriptionSimilarity = jaccardSimilarity(feed.description.toLowerCase(), description.toLowerCase());
       }
+      let publisherSimilarity = 0;
+      if (publisher && feed.author) {
+        publisherSimilarity = jaccardSimilarity(feed.author.toLowerCase(), publisher.toLowerCase());
+      }
+      const combinedScore = titleSimilarity * titleWeight + descriptionSimilarity * descriptionWeight + publisherSimilarity * publisherWeight;
+      return { feed, score: combinedScore };
+    });
+    scoredFeeds.sort((a, b) => b.score - a.score);
+    debugLog2("[getFeedUrl] Scored feeds (top 5)", scoredFeeds.slice(0, 5).map(({ feed, score }) => ({ url: feed.url, title: feed.title, score })));
+    if (spotifyShowId && accessToken && scoredFeeds.length > 0) {
+      const topCandidates = scoredFeeds.slice(0, Math.min(3, scoredFeeds.length));
+      const probePromises = topCandidates.map(async ({ feed, score }) => {
+        try {
+          const probeScore = await verifyLatestEpisodeMatch(spotifyShowId, feed.url, accessToken);
+          let adjustedScore = score;
+          if (probeScore >= 0.9) {
+            adjustedScore += 0.15;
+          } else if (probeScore <= 0.2) {
+            adjustedScore -= 0.25;
+          }
+          return { feed, score: adjustedScore, probeScore };
+        } catch (error) {
+          console.warn(`[getFeedUrl] Episode probe failed for ${feed.url}:`, error.message);
+          return { feed, score, probeScore: 0.5 };
+        }
+      });
+      const probeResults = await Promise.all(probePromises);
+      debugLog2("[getFeedUrl] Probe results", probeResults.map((r) => ({ url: r.feed.url, probeScore: r.probeScore, adjustedScore: r.score })));
+      if (probeResults.length > 0) {
+        let bestProbeResult = probeResults[0];
+        for (const result of probeResults) {
+          if (result.score > bestProbeResult.score) {
+            bestProbeResult = result;
+          }
+        }
+        bestMatch = bestProbeResult.feed;
+        bestScore = bestProbeResult.score;
+      } else {
+        bestMatch = scoredFeeds[0]?.feed || null;
+        bestScore = scoredFeeds[0]?.score || 0;
+      }
+    } else {
+      bestMatch = scoredFeeds[0]?.feed || null;
+      bestScore = scoredFeeds[0]?.score || 0;
     }
-    if (!feedUrl && feeds[0]) {
+    const threshold = parseFloat(process.env.RSS_MATCH_THRESHOLD || "0.8");
+    if (bestMatch && bestScore >= threshold) {
+      feedUrl = bestMatch.url;
+    } else if (feeds[0]) {
       feedUrl = feeds[0].url;
     }
+    debugLog2("[getFeedUrl] Final selection before iTunes fallback", {
+      searchTerm,
+      selectedFeed: feedUrl,
+      bestScore,
+      threshold,
+      usedEpisodeProbe: Boolean(spotifyShowId && accessToken)
+    });
   }
   if (!feedUrl) {
     const itunesRes = await fetch(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(slug)}&media=podcast&limit=1`
+      `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&media=podcast&limit=1`
     );
+    debugLog2("[getFeedUrl] Falling back to iTunes lookup", { searchTerm });
     if (itunesRes.ok) {
       const itunesData = await itunesRes.json();
       if (itunesData.results && itunesData.results.length > 0 && itunesData.results[0]?.feedUrl) {
@@ -143,6 +456,7 @@ async function getFeedUrl(slug) {
       }
     }
   }
+  debugLog2("[getFeedUrl] Returning feed URL", { searchTerm, feedUrl });
   return feedUrl;
 }
 function jaccardSimilarity(a, b) {
@@ -167,10 +481,13 @@ function verifyTaddyApiKey() {
   }
   return true;
 }
+var DEBUG_RSS_MATCHING2;
 var init_utils = __esm({
   "lib/utils.ts"() {
     "use strict";
     init_spotify();
+    init_episodeProbe();
+    DEBUG_RSS_MATCHING2 = process.env.DEBUG_RSS_MATCHING === "true";
   }
 });
 
@@ -658,7 +975,7 @@ async function transcribe(filePath) {
 
 // services/podcastService.ts
 init_utils();
-import { XMLParser } from "fast-xml-parser";
+import { XMLParser as XMLParser2 } from "fast-xml-parser";
 var PodcastError = class extends Error {
   constructor(message, statusCode = 500) {
     super(message);
@@ -684,7 +1001,8 @@ var PodcastService = class {
    */
   async getPodcastSlug(url) {
     try {
-      return await getTitleSlug(url);
+      const showMetadata = await getTitleSlug(url);
+      return showMetadata.name;
     } catch (error) {
       const err = error;
       throw new PodcastError(`Failed to get podcast slug: ${err.message}`, 500);
@@ -734,7 +1052,7 @@ var PodcastService = class {
    */
   parseRssFeed(rssText) {
     try {
-      const parser = new XMLParser({ ignoreAttributes: false });
+      const parser = new XMLParser2({ ignoreAttributes: false });
       return parser.parse(rssText);
     } catch (error) {
       const err = error;
@@ -1085,6 +1403,30 @@ router3.post("/", async (req, res) => {
       return;
     }
     const userId = user.id;
+    const { data: existingSubscriptions, error: subsError } = await getSupabaseAdmin3().from("user_podcast_subscriptions").select("id").eq("user_id", userId).limit(1);
+    if (subsError) {
+      console.error("Error checking existing subscriptions:", subsError.message);
+      res.status(500).json({
+        success: false,
+        error: "Database error checking subscription history"
+      });
+      return;
+    }
+    if (existingSubscriptions && existingSubscriptions.length > 0) {
+      console.log(`[DEBUG] User ${userId} has existing subscriptions, returning cached data`);
+      res.json({
+        success: true,
+        message: "Using cached subscription data. Your subscriptions are refreshed automatically each night.",
+        active_count: 0,
+        // Will be updated by daily refresh
+        inactive_count: 0,
+        total_processed: 0,
+        cached_data: true,
+        last_sync: "Automatic daily refresh"
+      });
+      return;
+    }
+    console.log(`[DEBUG] User ${userId} is new user, proceeding with full sync`);
     const encryptedResult = await getUserSecret(userId);
     if (!encryptedResult.success) {
       console.error("Could not retrieve user Spotify tokens from encrypted storage:", encryptedResult.error);
@@ -1180,34 +1522,72 @@ router3.post("/", async (req, res) => {
         const show = showObj.show;
         const spotifyUrl = `https://open.spotify.com/show/${show.id}`;
         try {
+          const existingShowRes = await safeAwait(
+            getSupabaseAdmin3().from("podcast_shows").select("id,rss_url,title").eq("spotify_url", spotifyUrl).maybeSingle()
+          );
+          const existingShow = existingShowRes?.data;
+          const storedRss = existingShow?.rss_url;
           let rssUrl = spotifyUrl;
-          try {
-            const titleSlug = await getTitleSlug(spotifyUrl);
-            const fetchedRssUrl = await getFeedUrl(titleSlug);
-            if (fetchedRssUrl) {
-              rssUrl = fetchedRssUrl;
+          let shouldMakeApiCalls = false;
+          if (existingShow) {
+            const hasGoodTitle = existingShow.title && !existingShow.title.startsWith("Show ");
+            const hasRssUrl = existingShow.rss_url && existingShow.rss_url !== spotifyUrl;
+            if (hasGoodTitle && hasRssUrl) {
+              rssUrl = existingShow.rss_url;
+              shouldMakeApiCalls = false;
               if (process.env.DEBUG_SYNC === "true") {
-                console.log(`[SyncShows] Found RSS feed for ${show.name}: ${rssUrl}`);
+                console.log(`[SyncShows] Skipping API calls for existing show with good data: ${show.name}`);
               }
             } else {
+              shouldMakeApiCalls = true;
               if (process.env.DEBUG_SYNC === "true") {
-                console.log(`[SyncShows] No RSS feed found for ${show.name}, using Spotify URL as fallback`);
+                console.log(`[SyncShows] Making API calls for existing show with incomplete data: ${show.name}`);
               }
             }
-          } catch (rssError) {
-            console.warn(`[SyncShows] RSS lookup failed for ${show.name}:`, rssError.message);
-          }
-          const upsertStage = getSupabaseAdmin3().from("podcast_shows").upsert([
-            {
-              spotify_url: spotifyUrl,
-              rss_url: rssUrl,
-              // Use actual RSS URL if found, otherwise Spotify URL as fallback
-              title: show.name || "Unknown Show",
-              description: show.description || null,
-              image_url: show.images?.[0]?.url || null,
-              last_updated: now
+          } else {
+            shouldMakeApiCalls = true;
+            if (process.env.DEBUG_SYNC === "true") {
+              console.log(`[SyncShows] Making API calls for new show: ${show.name}`);
             }
-          ], {
+          }
+          if (shouldMakeApiCalls) {
+            try {
+              const showMetadata = await getTitleSlug(spotifyUrl);
+              const fetchedRssUrl = await getFeedUrl(showMetadata);
+              const candidateRss = fetchedRssUrl ?? spotifyUrl;
+              if (storedRss && storedRss !== candidateRss && storedRss !== spotifyUrl) {
+                rssUrl = storedRss;
+                console.log(`[SyncShows] Preserved existing rss_url override for ${show.name}: ${storedRss}`);
+              } else if (fetchedRssUrl) {
+                rssUrl = fetchedRssUrl;
+                if (process.env.DEBUG_SYNC === "true") {
+                  console.log(`[SyncShows] Found RSS feed for ${show.name}: ${rssUrl}`);
+                }
+              } else {
+                if (process.env.DEBUG_SYNC === "true") {
+                  console.log(`[SyncShows] No RSS feed found for ${show.name}, using Spotify URL as fallback`);
+                }
+              }
+            } catch (rssError) {
+              console.warn(`[SyncShows] RSS lookup failed for ${show.name}:`, rssError.message);
+            }
+          }
+          const upsertData = {
+            spotify_url: spotifyUrl,
+            rss_url: rssUrl,
+            // Use actual RSS URL if found, otherwise Spotify URL as fallback
+            last_updated: now
+          };
+          if (!existingShow || !existingShow.title || existingShow.title.startsWith("Show ")) {
+            upsertData.title = show.name || "Unknown Show";
+          } else {
+            if (process.env.DEBUG_SYNC === "true") {
+              console.log(`[SyncShows] Preserving existing title for ${show.name}: "${existingShow.title}"`);
+            }
+          }
+          upsertData.description = show.description || null;
+          upsertData.image_url = show.images?.[0]?.url || null;
+          const upsertStage = getSupabaseAdmin3().from("podcast_shows").upsert([upsertData], {
             onConflict: "spotify_url",
             ignoreDuplicates: false
           });
@@ -1222,17 +1602,18 @@ router3.post("/", async (req, res) => {
               console.warn("[SYNC_SHOWS] Detected legacy rss_url NOT NULL constraint \u2013 falling back to include rss_url in upsert. This message will appear only once per sync.");
               legacyRssWarningEmitted = true;
             }
-            const retryUpsertStage = getSupabaseAdmin3().from("podcast_shows").upsert([
-              {
-                spotify_url: spotifyUrl,
-                rss_url: rssUrl,
-                // Use the same RSS URL logic as the main upsert
-                title: show.name || "Unknown Show",
-                description: show.description || null,
-                image_url: show.images?.[0]?.url || null,
-                last_updated: now
-              }
-            ], {
+            const retryUpsertData = {
+              spotify_url: spotifyUrl,
+              rss_url: rssUrl,
+              // Use the same RSS URL logic as the main upsert
+              last_updated: now
+            };
+            if (!existingShow || !existingShow.title || existingShow.title.startsWith("Show ")) {
+              retryUpsertData.title = show.name || "Unknown Show";
+            }
+            retryUpsertData.description = show.description || null;
+            retryUpsertData.image_url = show.images?.[0]?.url || null;
+            const retryUpsertStage = getSupabaseAdmin3().from("podcast_shows").upsert([retryUpsertData], {
               onConflict: "spotify_url",
               ignoreDuplicates: false
             });
@@ -2454,15 +2835,41 @@ async function makeRateLimitedSpotifyRequest(url, accessToken, userId, maxRetrie
 async function fetchUserSpotifySubscriptionsWithRateLimit(spotifyAccessToken, userId) {
   const shows = [];
   let nextUrl = "https://api.spotify.com/v1/me/shows?limit=50";
+  let lastPageTotal = void 0;
+  let pageCount = 0;
+  let incrementSpotifyApiCalls = void 0;
+  if (typeof globalThis.emitMetric === "function") {
+    incrementSpotifyApiCalls = () => globalThis.emitMetric("spotify_api_calls", 1, { user_id: userId });
+  }
   while (nextUrl) {
+    pageCount++;
     try {
-      console.log(`[SubscriptionRefresh] Fetching shows from: ${nextUrl}`);
+      if (process.env.NODE_ENV !== "test") {
+        console.log(`[SubscriptionRefresh] Fetching shows from: ${nextUrl}`);
+      }
       const data = await makeRateLimitedSpotifyRequest(nextUrl, spotifyAccessToken, userId);
       const spotifyData = data;
       if (Array.isArray(spotifyData.items)) {
         shows.push(...spotifyData.items);
-        console.log(`[SubscriptionRefresh] Fetched ${spotifyData.items.length} shows, total: ${shows.length}`);
+        if (process.env.NODE_ENV !== "test") {
+          console.log(`[SubscriptionRefresh] Fetched ${spotifyData.items.length} shows, total: ${shows.length}`);
+        }
       }
+      if (process.env.NODE_ENV !== "test") {
+        console.log(JSON.stringify({
+          context: "subscription_refresh",
+          message: "Spotify paging info",
+          user_id: userId,
+          page: pageCount,
+          total: spotifyData.total,
+          offset: spotifyData.offset,
+          limit: spotifyData.limit,
+          next: spotifyData.next,
+          previous: spotifyData.previous
+        }));
+      }
+      if (incrementSpotifyApiCalls) incrementSpotifyApiCalls();
+      lastPageTotal = spotifyData.total;
       nextUrl = spotifyData.next || null;
       if (nextUrl) {
         await sleep(SCHEDULED_RATE_LIMIT_CONFIG.min_request_interval_ms);
@@ -2471,6 +2878,19 @@ async function fetchUserSpotifySubscriptionsWithRateLimit(spotifyAccessToken, us
       const err = error;
       console.error("[SubscriptionRefresh] Failed to fetch shows with enhanced rate limiting:", err.message);
       throw new Error(`Failed to fetch shows from Spotify: ${err.message}`);
+    }
+  }
+  if (process.env.NODE_ENV !== "test") {
+    const showList = shows.map((item) => ({ id: item.show.id, name: item.show.name }));
+    console.log(JSON.stringify({
+      context: "subscription_refresh",
+      message: "Fetched all Spotify shows for user",
+      user_id: userId,
+      total_shows: showList.length,
+      shows: showList
+    }));
+    if (typeof lastPageTotal === "number" && showList.length !== lastPageTotal) {
+      console.warn(`[SubscriptionRefresh] WARNING: shows.length (${showList.length}) !== Spotify reported total (${lastPageTotal}) for user ${userId}`);
     }
   }
   return shows;
@@ -2486,6 +2906,9 @@ async function updateSubscriptionStatus(userId, currentPodcastUrls) {
       skip_list_count: skipListCount
     });
   }
+  let skippedApiCallsCount = 0;
+  const skippedApiCallsShows = [];
+  let newShowsDiscovered = 0;
   for (const podcastUrl of currentPodcastUrls) {
     const showId = podcastUrl.split("/").pop();
     if (showId && shouldSkipAudiobook(showId)) {
@@ -2501,42 +2924,119 @@ async function updateSubscriptionStatus(userId, currentPodcastUrls) {
     const spotifyUrl = podcastUrl;
     try {
       const existingShowRes = await safeAwait2(
-        getSupabaseAdmin5().from("podcast_shows").select("id,rss_url").eq("spotify_url", spotifyUrl).maybeSingle()
+        getSupabaseAdmin5().from("podcast_shows").select("id,rss_url,title,description,image_url").eq("spotify_url", spotifyUrl).maybeSingle()
       );
-      const storedRss = existingShowRes?.data?.rss_url;
+      const existingShow = existingShowRes?.data;
+      const storedRss = existingShow?.rss_url;
       let rssUrl = spotifyUrl;
       let showTitle = `Show ${showId}`;
-      try {
-        const titleSlug = await getTitleSlug(spotifyUrl);
-        showTitle = titleSlug;
-        const fetchedRssUrl = await getFeedUrl(titleSlug);
-        const candidateRss = fetchedRssUrl ?? spotifyUrl;
-        if (storedRss && storedRss !== candidateRss && storedRss !== spotifyUrl) {
-          rssUrl = storedRss;
-          log.info("subscription_refresh", "Preserved existing rss_url override", {
-            manual_rss_override: true,
-            stored: storedRss,
-            candidate: candidateRss,
-            show_spotify_url: spotifyUrl
+      let showMetadata = null;
+      let shouldMakeApiCalls = false;
+      if (existingShow) {
+        const hasGoodTitle = existingShow.title && !existingShow.title.startsWith("Show ");
+        const hasRssUrl = existingShow.rss_url && existingShow.rss_url !== spotifyUrl;
+        if (hasGoodTitle && hasRssUrl) {
+          showTitle = existingShow.title;
+          rssUrl = existingShow.rss_url;
+          shouldMakeApiCalls = false;
+          skippedApiCallsCount++;
+          skippedApiCallsShows.push(existingShow.title || spotifyUrl);
+          if (process.env.DEBUG_SUBSCRIPTION_REFRESH === "true") {
+            log.debug("subscription_refresh", `Skipping API calls for existing show with good data: ${spotifyUrl}`, {
+              user_id: userId,
+              show_id: showId,
+              spotify_url: spotifyUrl,
+              has_good_title: hasGoodTitle,
+              has_rss_url: hasRssUrl,
+              reason: "show_exists_with_good_data"
+            });
+          }
+        } else {
+          shouldMakeApiCalls = true;
+          log.info("subscription_refresh", `Making API calls for existing show with incomplete data: ${spotifyUrl}`, {
+            user_id: userId,
+            show_id: showId,
+            spotify_url: spotifyUrl,
+            has_good_title: hasGoodTitle,
+            has_rss_url: hasRssUrl,
+            reason: "show_exists_but_needs_updates"
           });
-        } else if (fetchedRssUrl) {
-          rssUrl = fetchedRssUrl;
         }
-      } catch (rssError) {
-        console.warn(`[SubscriptionRefresh] RSS lookup failed for ${spotifyUrl}:`, rssError.message);
+      } else {
+        shouldMakeApiCalls = true;
+        newShowsDiscovered++;
+        log.info("subscription_refresh", `\u{1F195} NEW SHOW DISCOVERED: ${spotifyUrl}`, {
+          user_id: userId,
+          show_id: showId,
+          spotify_url: spotifyUrl,
+          reason: "new_show"
+        });
+      }
+      if (shouldMakeApiCalls) {
+        try {
+          showMetadata = await getTitleSlug(spotifyUrl);
+          if (showMetadata && showMetadata.originalName) {
+            showTitle = showMetadata.originalName;
+          }
+          const fetchedRssUrl = await getFeedUrl(showMetadata);
+          const candidateRss = fetchedRssUrl ?? spotifyUrl;
+          if (storedRss && storedRss !== candidateRss && storedRss !== spotifyUrl) {
+            rssUrl = storedRss;
+            log.info("subscription_refresh", "Preserved existing rss_url override", {
+              manual_rss_override: true,
+              stored: storedRss,
+              candidate: candidateRss,
+              show_spotify_url: spotifyUrl
+            });
+          } else if (fetchedRssUrl) {
+            rssUrl = fetchedRssUrl;
+          }
+        } catch (rssError) {
+          const error = rssError;
+          console.warn(`[SubscriptionRefresh] RSS lookup failed for ${spotifyUrl}:`, {
+            message: error.message,
+            showId,
+            stack: error.stack?.split("\n").slice(0, 3).join("\n")
+            // First 3 lines of stack trace
+          });
+        }
+      }
+      const upsertData = {
+        spotify_url: spotifyUrl,
+        last_updated: now
+      };
+      if (showMetadata && showMetadata.originalName) {
+        upsertData.title = showMetadata.originalName;
+      } else if (existingShow?.title) {
+        upsertData.title = existingShow.title;
+      } else {
+        upsertData.title = showTitle;
+      }
+      upsertData.rss_url = rssUrl;
+      if (existingShow?.description) {
+        upsertData.description = existingShow.description;
+      } else {
+        upsertData.description = null;
+      }
+      if (existingShow?.image_url) {
+        upsertData.image_url = existingShow.image_url;
+      } else {
+        upsertData.image_url = null;
+      }
+      if (existingShow && process.env.DEBUG_SUBSCRIPTION_REFRESH === "true") {
+        log.debug("subscription_refresh", "Data preservation during show upsert", {
+          spotify_url: spotifyUrl,
+          preserved_fields: {
+            title: !showMetadata?.originalName && !!existingShow.title,
+            description: !!existingShow.description,
+            image_url: !!existingShow.image_url,
+            rss_url: storedRss === rssUrl && storedRss !== spotifyUrl
+          },
+          had_spotify_metadata: !!showMetadata?.originalName
+        });
       }
       const showUpsertResult = await safeAwait2(
-        getSupabaseAdmin5().from("podcast_shows").upsert([
-          {
-            spotify_url: spotifyUrl,
-            rss_url: rssUrl,
-            // Use actual RSS URL if found, otherwise Spotify URL as fallback
-            title: showTitle,
-            description: null,
-            image_url: null,
-            last_updated: now
-          }
-        ], {
+        getSupabaseAdmin5().from("podcast_shows").upsert([upsertData], {
           onConflict: "spotify_url",
           ignoreDuplicates: false
         }).select("id")
@@ -2550,6 +3050,16 @@ async function updateSubscriptionStatus(userId, currentPodcastUrls) {
         throw new Error("Failed to get show ID after upsert");
       }
       showIds.push(actualShowId);
+      if (!existingShow) {
+        log.info("subscription_refresh", `\u2705 NEW SHOW SUCCESSFULLY ADDED: ${showTitle}`, {
+          user_id: userId,
+          show_id: actualShowId,
+          spotify_url: spotifyUrl,
+          title: showTitle,
+          has_rss_url: rssUrl !== spotifyUrl,
+          had_spotify_metadata: !!showMetadata?.originalName
+        });
+      }
       const subscriptionUpsertResult = await safeAwait2(
         getSupabaseAdmin5().from("user_podcast_subscriptions").upsert([
           {
@@ -2592,6 +3102,26 @@ async function updateSubscriptionStatus(userId, currentPodcastUrls) {
       throw new Error(`Failed to update inactive subscriptions: ${updateResult.error.message}`);
     }
     inactiveCount = inactiveIds.length;
+  }
+  if (newShowsDiscovered > 0) {
+    log.info("subscription_refresh", `\u{1F195} DISCOVERED ${newShowsDiscovered} NEW SHOW(S) for user ${userId}`, {
+      user_id: userId,
+      new_shows_discovered: newShowsDiscovered,
+      total_shows_processed: currentPodcastUrls.length,
+      active_count: showIds.length,
+      inactive_count: inactiveCount
+    });
+  }
+  if (skippedApiCallsCount > 0) {
+    log.info("subscription_refresh", `Skipped API calls for ${skippedApiCallsCount} existing shows with good data for user ${userId}`, {
+      user_id: userId,
+      skipped_api_calls_count: skippedApiCallsCount,
+      sample_shows: skippedApiCallsShows.slice(0, 5),
+      // Show first 5 as sample
+      total_shows_processed: currentPodcastUrls.length,
+      active_count: showIds.length,
+      inactive_count: inactiveCount
+    });
   }
   if (skippedAudiobooks.length > 0) {
     log.info("subscription_refresh", `Skipped ${skippedAudiobooks.length} audiobook(s) for user ${userId}`, {
@@ -3021,13 +3551,45 @@ async function safeAwait2(maybeBuilder) {
 
 // services/episodeSyncService.ts
 import { createClient as createClient7 } from "@supabase/supabase-js";
-import { XMLParser as XMLParser2 } from "fast-xml-parser";
+import { XMLParser as XMLParser3 } from "fast-xml-parser";
 var EPISODE_CUTOFF_HOURS = (() => {
   const parsed = parseInt(process.env.EPISODE_CUTOFF_HOURS || "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 48;
 })();
 function getEpisodeCutoffDate() {
   return new Date(Date.now() - EPISODE_CUTOFF_HOURS * 60 * 60 * 1e3);
+}
+function parseRssDate(dateStr) {
+  if (!dateStr) {
+    return null;
+  }
+  const decodedDateStr = dateStr.replace(/&#43;/g, "+");
+  let date = new Date(decodedDateStr);
+  if (!isNaN(date.getTime())) {
+    return date;
+  }
+  const normalizedDateStr = decodedDateStr.replace(/(\d{2}:\d{2}:\d{2})\s*\+0000/, "$1 -0000");
+  if (normalizedDateStr !== decodedDateStr) {
+    date = new Date(normalizedDateStr);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
+  const dateWithoutTimezone = decodedDateStr.replace(/\s*[+-]\d{4}\s*$/, "");
+  if (dateWithoutTimezone !== decodedDateStr) {
+    date = new Date(dateWithoutTimezone);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
+  if (decodedDateStr.includes("GMT") || decodedDateStr.includes("UTC")) {
+    const utcDateStr = decodedDateStr.replace(/\s*GMT\s*/, " ").replace(/\s*UTC\s*/, " ");
+    date = new Date(utcDateStr);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
+  return null;
 }
 var defaultLogger = {
   info: (message, meta) => {
@@ -3258,7 +3820,7 @@ var EpisodeSyncService = class {
    */
   async parseEpisodes(rssText, showId) {
     try {
-      const parser = new XMLParser2({ ignoreAttributes: false });
+      const parser = new XMLParser3({ ignoreAttributes: false });
       const rssData = parser.parse(rssText);
       if (!rssData.rss?.channel) {
         throw new Error("Invalid RSS feed structure");
@@ -3302,13 +3864,25 @@ var EpisodeSyncService = class {
     const pubDateStr = item.pubDate;
     let pubDate = null;
     if (pubDateStr) {
-      pubDate = new Date(pubDateStr);
-      if (isNaN(pubDate.getTime())) {
-        pubDate = null;
+      pubDate = parseRssDate(pubDateStr);
+      if (!pubDate && pubDateStr) {
+        this.logger.warn("Failed to parse RSS publication date", {
+          pubDateStr,
+          guid,
+          showId
+        });
       }
     }
+    if (!pubDate) {
+      this.logger.debug("Skipping episode with null publication date", {
+        guid,
+        showId,
+        title: item.title
+      });
+      return null;
+    }
     const cutoffDate = getEpisodeCutoffDate();
-    if (pubDate && pubDate < cutoffDate) {
+    if (pubDate < cutoffDate) {
       return null;
     }
     const episodeUrl = item.enclosure?.["@_url"];
@@ -3325,7 +3899,7 @@ var EpisodeSyncService = class {
       episode_url: episodeUrl,
       title: item.title || null,
       description: item.description || null,
-      pub_date: pubDate?.toISOString() || null,
+      pub_date: pubDate.toISOString(),
       duration_sec: durationSec
     };
   }
@@ -3726,10 +4300,23 @@ var TaddyBusinessClient = class {
         () => this.queryPodcastSeries(feedUrl),
         { maxAttempts: 2 }
       );
+      globalLogger.debug("Taddy Business: Step 1 - Podcast series lookup", {
+        rssUrl: feedUrl,
+        result: podcastResult ? "found" : "not_found",
+        seriesUuid: podcastResult?.uuid,
+        seriesName: podcastResult?.name,
+        totalEpisodes: podcastResult?.totalEpisodesCount
+      });
       if (!podcastResult) {
         globalLogger.debug("No podcast series found for RSS URL", {
           feedUrl,
           context: "This would result in no_match status"
+        });
+        globalLogger.info("Taddy Business lookup failed - Step 1: Podcast series not found", {
+          rss_url: feedUrl,
+          episode_guid: episodeGuid,
+          failed_step: "podcast_series_lookup",
+          result_kind: "no_match"
         });
         return { kind: "no_match", creditsConsumed: 1 };
       }
@@ -3737,6 +4324,17 @@ var TaddyBusinessClient = class {
         () => this.queryPodcastEpisode(podcastResult.uuid, episodeGuid),
         { maxAttempts: 2 }
       );
+      globalLogger.debug("Taddy Business: Step 2 - Episode lookup", {
+        episodeGuid,
+        podcastUuid: podcastResult.uuid,
+        podcastName: podcastResult.name,
+        result: episodeResult ? "found" : "not_found",
+        episodeUuid: episodeResult?.uuid,
+        episodeName: episodeResult?.name,
+        transcribeStatus: episodeResult?.taddyTranscribeStatus,
+        datePublished: episodeResult?.datePublished,
+        duration: episodeResult?.duration
+      });
       if (!episodeResult) {
         globalLogger.debug("No episode found for GUID", {
           episodeGuid,
@@ -3744,18 +4342,36 @@ var TaddyBusinessClient = class {
           podcastName: podcastResult.name,
           context: "This would result in no_match status"
         });
+        globalLogger.info("Taddy Business lookup failed - Step 2: Episode not found", {
+          rss_url: feedUrl,
+          episode_guid: episodeGuid,
+          podcast_uuid: podcastResult.uuid,
+          podcast_name: podcastResult.name,
+          failed_step: "episode_lookup",
+          result_kind: "no_match"
+        });
         return { kind: "no_match", creditsConsumed: 1 };
       }
       const transcriptResult = await withHttpRetry(
         () => this.queryEpisodeTranscript(episodeResult.uuid),
         { maxAttempts: 2 }
       );
+      globalLogger.debug("Taddy Business: Step 3 - Transcript lookup", {
+        episodeUuid: episodeResult.uuid,
+        episodeName: episodeResult.name,
+        result: transcriptResult ? "found" : "not_found",
+        transcriptSegments: transcriptResult?.length || 0,
+        hasText: transcriptResult && transcriptResult.length > 0,
+        firstSegmentText: transcriptResult && transcriptResult.length > 0 ? transcriptResult[0].text.substring(0, 100) + "..." : void 0
+      });
       const result = this.classifyBusinessTranscriptResult(transcriptResult, episodeResult);
+      const failureReason = !podcastResult ? "series_not_found" : !episodeResult ? "episode_not_found" : !transcriptResult ? "transcript_not_found" : transcriptResult && transcriptResult.length === 0 ? "transcript_empty" : "unknown";
       const duration = Date.now() - startTime;
       globalLogger.info("Taddy Business transcript lookup completed", {
         feedUrl,
         episodeGuid,
         result: result.kind,
+        failure_reason: result.kind === "no_match" ? failureReason : void 0,
         duration,
         creditsConsumed: result.creditsConsumed,
         // Estimated - may not reflect actual API usage
@@ -4073,6 +4689,13 @@ var TaddyBusinessClient = class {
       globalLogger.debug("No transcript items found for episode", {
         episodeUuid: episodeInfo.uuid
       });
+      globalLogger.info("Taddy Business lookup failed - Step 3: Transcript not available", {
+        episode_uuid: episodeInfo.uuid,
+        episode_name: episodeInfo.name,
+        transcribe_status: episodeInfo.taddyTranscribeStatus,
+        failed_step: "transcript_lookup",
+        result_kind: "not_found"
+      });
       return {
         kind: "not_found",
         creditsConsumed: estimatedCredits
@@ -4247,8 +4870,8 @@ function getTranscriptWorkerConfig() {
     throw new Error(`Invalid TRANSCRIPT_LOOKBACK: "${process.env.TRANSCRIPT_LOOKBACK}". Must be a number between 1 and 168 (hours).`);
   }
   const maxRequests = parseInt(process.env.TRANSCRIPT_MAX_REQUESTS || "15", 10);
-  if (isNaN(maxRequests) || maxRequests < 1 || maxRequests > 100) {
-    throw new Error(`Invalid TRANSCRIPT_MAX_REQUESTS: "${process.env.TRANSCRIPT_MAX_REQUESTS}". Must be a number between 1 and 100.`);
+  if (isNaN(maxRequests) || maxRequests < 1 || maxRequests > 1e3) {
+    throw new Error(`Invalid TRANSCRIPT_MAX_REQUESTS: "${process.env.TRANSCRIPT_MAX_REQUESTS}". Must be a number between 1 and 1000.`);
   }
   const concurrency = parseInt(process.env.TRANSCRIPT_CONCURRENCY || "10", 10);
   if (isNaN(concurrency) || concurrency < 1 || concurrency > 50) {
@@ -4259,6 +4882,12 @@ function getTranscriptWorkerConfig() {
   }
   const useAdvisoryLock = process.env.TRANSCRIPT_ADVISORY_LOCK !== "false";
   const last10Mode = process.env.TRANSCRIPT_WORKER_L10D === "true";
+  const last10CountEnv = process.env.TRANSCRIPT_WORKER_L10_COUNT;
+  const last10CountValue = last10CountEnv === "" ? "10" : last10CountEnv || "10";
+  const last10Count = parseInt(last10CountValue, 10);
+  if (isNaN(last10Count) || last10Count < 1 || last10Count > 100) {
+    throw new Error(`Invalid TRANSCRIPT_WORKER_L10_COUNT: "${last10CountEnv || ""}". Must be a number between 1 and 100.`);
+  }
   return {
     enabled,
     cronSchedule,
@@ -4267,7 +4896,8 @@ function getTranscriptWorkerConfig() {
     maxRequests,
     concurrency,
     useAdvisoryLock,
-    last10Mode
+    last10Mode,
+    last10Count
   };
 }
 function isValidCronExpression(cronExpression) {
@@ -4964,7 +5594,7 @@ var TranscriptWorker = class {
         return !episodesWithTranscripts.has(episode.id);
       });
       if (this.config.last10Mode) {
-        episodesNeedingTranscripts = episodesNeedingTranscripts.slice(0, 10);
+        episodesNeedingTranscripts = episodesNeedingTranscripts.slice(0, this.config.last10Count);
       }
       const episodesMissingShowInfo = episodesNeedingTranscripts.filter((ep) => !ep.podcast_shows);
       if (episodesMissingShowInfo.length > 0) {
@@ -5509,7 +6139,7 @@ var TranscriptWorker = class {
 };
 
 // lib/db/notesQueries.ts
-async function queryTranscriptsNeedingNotes(supabase4, lookbackHours, last10Mode, nowOverride) {
+async function queryTranscriptsNeedingNotes(supabase4, lookbackHours, last10Mode, last10Count = 10, nowOverride) {
   const now = nowOverride ?? Date.now();
   const startTime = now;
   console.log("DEBUG: Starting transcript notes query", {
@@ -5532,7 +6162,8 @@ async function queryTranscriptsNeedingNotes(supabase4, lookbackHours, last10Mode
           podcast_shows!inner (
             id,
             title,
-            rss_url
+            rss_url,
+            spotify_url
           )
         )
       `).not("storage_path", "is", null).not("storage_path", "eq", "").is("deleted_at", null).order("created_at", { ascending: false });
@@ -5540,7 +6171,7 @@ async function queryTranscriptsNeedingNotes(supabase4, lookbackHours, last10Mode
       const cutoffTime = new Date(now - lookbackHours * 60 * 60 * 1e3).toISOString();
       baseQuery = baseQuery.gte("created_at", cutoffTime);
     }
-    const limit = last10Mode ? 10 : 100;
+    const limit = last10Mode ? last10Count : 1e3;
     baseQuery = baseQuery.limit(limit);
     const { data: rawTranscripts, error: queryError } = await baseQuery;
     console.log("DEBUG: Transcript query completed", {
@@ -5594,13 +6225,15 @@ async function queryTranscriptsNeedingNotes(supabase4, lookbackHours, last10Mode
             show = {
               id: showJoin[0].id,
               title: showJoin[0].title,
-              rss_url: showJoin[0].rss_url
+              rss_url: showJoin[0].rss_url,
+              spotify_url: showJoin[0].spotify_url
             };
           } else if (showJoin && typeof showJoin === "object") {
             show = {
               id: showJoin.id,
               title: showJoin.title,
-              rss_url: showJoin.rss_url
+              rss_url: showJoin.rss_url,
+              spotify_url: showJoin.spotify_url
             };
           }
           episode = {
@@ -5619,13 +6252,15 @@ async function queryTranscriptsNeedingNotes(supabase4, lookbackHours, last10Mode
           show = {
             id: showJoin[0].id,
             title: showJoin[0].title,
-            rss_url: showJoin[0].rss_url
+            rss_url: showJoin[0].rss_url,
+            spotify_url: showJoin[0].spotify_url
           };
         } else if (showJoin && typeof showJoin === "object") {
           show = {
             id: showJoin.id,
             title: showJoin.title,
-            rss_url: showJoin.rss_url
+            rss_url: showJoin.rss_url,
+            spotify_url: showJoin.spotify_url
           };
         }
         episode = {
@@ -5811,7 +6446,8 @@ async function prepareTranscriptsForNotes(supabase4, config) {
     const candidates = await queryTranscriptsNeedingNotes(
       supabase4,
       config.lookbackHours,
-      config.last10Mode
+      config.last10Mode,
+      config.last10Count
     );
     console.log("DEBUG: Found candidate transcripts", {
       candidateCount: candidates.length,
@@ -5862,7 +6498,7 @@ async function prepareTranscriptsForNotes(supabase4, config) {
 }
 function validateL10Mode(candidates, config) {
   const warnings = [];
-  const expectedCount = config.last10Mode ? 10 : -1;
+  const expectedCount = config.last10Mode ? config.last10Count : -1;
   const actualCount = candidates.length;
   if (!config.last10Mode) {
     return {
@@ -5874,10 +6510,10 @@ function validateL10Mode(candidates, config) {
   }
   if (actualCount === 0) {
     warnings.push("L10 mode is active but no transcripts were found - this may indicate no transcripts exist in the database");
-  } else if (actualCount < 10) {
-    warnings.push(`L10 mode is active but only ${actualCount} transcripts were found (expected up to 10) - this may be normal if fewer transcripts exist`);
-  } else if (actualCount > 10) {
-    warnings.push(`L10 mode returned ${actualCount} transcripts but should be limited to 10 - this indicates a query logic issue`);
+  } else if (actualCount < config.last10Count) {
+    warnings.push(`L10 mode is active but only ${actualCount} transcripts were found (expected up to ${config.last10Count}) - this may be normal if fewer transcripts exist`);
+  } else if (actualCount > config.last10Count) {
+    warnings.push(`L10 mode returned ${actualCount} transcripts but should be limited to ${config.last10Count} - this indicates a query logic issue`);
   }
   if (actualCount > 1) {
     const isProperlyOrdered = candidates.every((candidate, index) => {
@@ -5890,7 +6526,7 @@ function validateL10Mode(candidates, config) {
       warnings.push("L10 mode transcripts are not properly ordered by creation date (most recent first)");
     }
   }
-  const isValid = actualCount <= 10 && (actualCount > 0 || warnings.length === 1);
+  const isValid = actualCount <= config.last10Count && (actualCount > 0 || warnings.length === 1);
   return {
     isValid,
     warnings,
@@ -6250,6 +6886,23 @@ async function buildNewsletterEditionPrompt(episodeNotesOrParams, userEmail, edi
     if (params.episodeNotes.length === 0) {
       throw new Error("episodeNotes array cannot be empty - at least one episode note is required");
     }
+    if (!params.episodeMetadata || !Array.isArray(params.episodeMetadata)) {
+      throw new Error("episodeMetadata must be an array");
+    }
+    if (params.episodeMetadata.length !== params.episodeNotes.length) {
+      throw new Error(`episodeMetadata length (${params.episodeMetadata.length}) must match episodeNotes length (${params.episodeNotes.length})`);
+    }
+    params.episodeMetadata.forEach((metadata, index) => {
+      if (!metadata || typeof metadata !== "object") {
+        throw new Error(`episodeMetadata[${index}] must be an object`);
+      }
+      if (!metadata.showTitle || typeof metadata.showTitle !== "string") {
+        throw new Error(`episodeMetadata[${index}].showTitle must be a non-empty string`);
+      }
+      if (!metadata.spotifyUrl || typeof metadata.spotifyUrl !== "string") {
+        throw new Error(`episodeMetadata[${index}].spotifyUrl must be a non-empty string`);
+      }
+    });
     if (params.episodeNotes.length === 1) {
       const singleNote = params.episodeNotes[0];
       if (!singleNote || typeof singleNote !== "string" || singleNote.trim().length === 0) {
@@ -6382,20 +7035,40 @@ function buildFullPrompt(template, params) {
   let episodeNotesContent;
   if (params.episodeNotes.length === 1) {
     const singleNote = params.episodeNotes[0].trim();
-    episodeNotesContent = `**Episode Notes:**
+    let noteContent = `**Episode Notes:**
 
-${singleNote}`;
+`;
+    const metadata = params.episodeMetadata[0];
+    noteContent += `**Show:** ${metadata.showTitle}
+`;
+    noteContent += `**Spotify URL:** ${metadata.spotifyUrl}
+
+`;
+    noteContent += singleNote;
+    episodeNotesContent = noteContent;
     console.log("DEBUG: Built prompt for single episode note", {
       noteLength: singleNote.length,
-      wordCount: countWords2(singleNote)
+      wordCount: countWords2(singleNote),
+      hasMetadata: true
     });
   } else {
-    episodeNotesContent = params.episodeNotes.map((notes, index) => `**Episode ${index + 1} Notes:**
+    episodeNotesContent = params.episodeNotes.map((notes, index) => {
+      let noteContent = `**Episode ${index + 1} Notes:**
 
-${notes.trim()}`).join("\n\n---\n\n");
+`;
+      const metadata = params.episodeMetadata[index];
+      noteContent += `**Show:** ${metadata.showTitle}
+`;
+      noteContent += `**Spotify URL:** ${metadata.spotifyUrl}
+
+`;
+      noteContent += notes.trim();
+      return noteContent;
+    }).join("\n\n---\n\n");
     console.log("DEBUG: Built prompt for multiple episode notes", {
       episodeCount: params.episodeNotes.length,
-      totalWordCount: params.episodeNotes.reduce((sum, note) => sum + countWords2(note), 0)
+      totalWordCount: params.episodeNotes.reduce((sum, note) => sum + countWords2(note), 0),
+      hasMetadata: true
     });
   }
   prompt = prompt.replace(/\[EPISODE_NOTES_CONTENT\]/g, episodeNotesContent);
@@ -6405,42 +7078,62 @@ function sanitizeNewsletterContent(htmlContent) {
   const sanitized = sanitizeHtml(htmlContent, {
     // Allow safe HTML elements for newsletter formatting
     allowedTags: [
+      // HTML document structure (for complete HTML documents)
+      "html",
+      "head",
+      "body",
+      "meta",
+      "style",
+      // Table structure for email layout
+      "table",
+      "tr",
+      "td",
+      // Headings
       "h1",
       "h2",
       "h3",
       "h4",
       "h5",
       "h6",
-      // Headings
+      // Paragraphs and line breaks
       "p",
       "br",
       "hr",
-      // Paragraphs and line breaks
+      // Lists
       "ul",
       "ol",
       "li",
-      // Lists
+      // Text formatting
       "strong",
       "b",
       "em",
       "i",
       "u",
-      // Text formatting
+      // Quotes
       "blockquote",
       "q",
-      // Quotes
+      // Containers
       "div",
       "span",
-      // Containers
-      "a",
       // Links (with restrictions)
-      "img"
+      "a",
       // Images (with restrictions)
+      "img"
     ],
     // Allow safe attributes
     allowedAttributes: {
       // Global attributes
       "*": ["class", "id", "style"],
+      // HTML document structure attributes
+      "html": ["lang"],
+      "head": [],
+      "body": ["style"],
+      "meta": ["charset", "name", "content"],
+      "style": [],
+      // Table attributes for email layout
+      "table": ["role", "cellpadding", "cellspacing", "border", "align", "width", "style"],
+      "tr": ["style"],
+      "td": ["style"],
       // Link attributes
       "a": ["href", "title", "target"],
       // Image attributes
@@ -6477,7 +7170,11 @@ function sanitizeNewsletterContent(htmlContent) {
         "padding-top": [/^\d+(?:px|em|%)?$/],
         "padding-bottom": [/^\d+(?:px|em|%)?$/],
         "padding-left": [/^\d+(?:px|em|%)?$/],
-        "padding-right": [/^\d+(?:px|em|%)?$/]
+        "padding-right": [/^\d+(?:px|em|%)?$/],
+        // Additional styles for table layout
+        "width": [/^\d+(?:px|em|%)?$/],
+        "font-family": [/^[a-zA-Z\s,]+$/],
+        "background": [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/]
       }
     },
     // Allow safe URL schemes
@@ -6521,7 +7218,6 @@ function getModelName() {
   const raw = process.env.GEMINI_MODEL_NAME || "gemini-1.5-flash-latest";
   return raw.replace(/^models\//, "");
 }
-validateEnvironment();
 var GeminiAPIError = class _GeminiAPIError extends Error {
   /**
    * Create a new GeminiAPIError
@@ -6539,15 +7235,48 @@ var GeminiAPIError = class _GeminiAPIError extends Error {
     }
   }
 };
-function debugLog(message, data) {
+var GeminiRateLimiter = class _GeminiRateLimiter {
+  constructor() {
+    this.nextAvailableTime = 0;
+    this.requestInterval = 2e3;
+    // 2 seconds between requests
+    this.idleResetThreshold = 3e5;
+  }
+  // 5 minutes - reset scheduler after idle period
+  static getInstance() {
+    if (!_GeminiRateLimiter.instance) {
+      _GeminiRateLimiter.instance = new _GeminiRateLimiter();
+    }
+    return _GeminiRateLimiter.instance;
+  }
+  async throttleRequest() {
+    const now = Date.now();
+    if (now - this.nextAvailableTime > this.idleResetThreshold) {
+      this.nextAvailableTime = now;
+    }
+    const myScheduledTime = Math.max(this.nextAvailableTime, now);
+    this.nextAvailableTime = myScheduledTime + this.requestInterval;
+    const waitTime = myScheduledTime - now;
+    if (waitTime > 0) {
+      console.log(`[Gemini] Throttling request - waiting ${waitTime}ms before API call`);
+      await this.sleep(waitTime);
+    }
+  }
+  sleep(ms) {
+    return new Promise((resolve4) => setTimeout(resolve4, ms));
+  }
+};
+function debugLog3(message, data) {
   if (process.env.DEBUG_API === "true") {
     console.log(`[Gemini] ${message}`, data || "");
   }
 }
 async function generateEpisodeNotes(transcript, promptOverrides) {
+  validateEnvironment();
   if (!transcript || typeof transcript !== "string") {
     throw new Error("transcript must be a non-empty string");
   }
+  await GeminiRateLimiter.getInstance().throttleRequest();
   const model = getModelName();
   const apiKey = process.env.GEMINI_API_KEY;
   const overrides = promptOverrides || {};
@@ -6576,13 +7305,13 @@ ${transcript}`;
     ],
     generationConfig: {
       temperature: overrides.temperature || 0.3,
-      maxOutputTokens: overrides.maxTokens || 2048,
+      maxOutputTokens: overrides.maxOutputTokens ?? 8192,
       topP: 0.8,
       topK: 40
     }
   };
   try {
-    debugLog("Making request to Gemini API", { endpoint, model });
+    debugLog3("Making request to Gemini API", { endpoint, model });
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -6593,7 +7322,7 @@ ${transcript}`;
     });
     const responseData = await response.json();
     if (!response.ok) {
-      debugLog("Gemini API error response", {
+      debugLog3("Gemini API error response", {
         status: response.status,
         data: responseData
       });
@@ -6619,7 +7348,7 @@ ${transcript}`;
         JSON.stringify(responseData)
       );
     }
-    debugLog("Successfully generated episode notes", {
+    debugLog3("Successfully generated episode notes", {
       model,
       notesLength: content.length
     });
@@ -6631,7 +7360,7 @@ ${transcript}`;
     if (error instanceof GeminiAPIError) {
       throw error;
     }
-    debugLog("Unexpected error in generateEpisodeNotes", { error });
+    debugLog3("Unexpected error in generateEpisodeNotes", { error });
     throw new GeminiAPIError(
       `Unexpected error calling Gemini API: ${error instanceof Error ? error.message : "Unknown error"}`,
       0,
@@ -6639,14 +7368,16 @@ ${transcript}`;
     );
   }
 }
-async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, promptOverrides) {
+async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, episodeMetadata, promptOverrides) {
+  validateEnvironment();
   const startTime = Date.now();
-  debugLog("Starting newsletter edition generation", {
+  debugLog3("Starting newsletter edition generation", {
     episodeCount: episodeNotes.length,
     userEmail: userEmail ? "***" + userEmail.slice(-4) : "undefined",
     editionDate
   });
   try {
+    await GeminiRateLimiter.getInstance().throttleRequest();
     if (!episodeNotes || !Array.isArray(episodeNotes)) {
       throw new Error("episodeNotes must be a non-empty array");
     }
@@ -6662,12 +7393,13 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, p
     const promptResult = await buildNewsletterEditionPrompt({
       episodeNotes,
       userEmail,
-      editionDate
+      editionDate,
+      episodeMetadata
     });
     if (!promptResult.success) {
       throw new Error(`Failed to build newsletter prompt: ${promptResult.error}`);
     }
-    debugLog("Built newsletter prompt", {
+    debugLog3("Built newsletter prompt", {
       promptLength: promptResult.prompt.length,
       episodeCount: promptResult.episodeCount
     });
@@ -6688,13 +7420,13 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, p
       generationConfig: {
         temperature: overrides.temperature || 0.4,
         // Slightly higher for creative newsletter content
-        maxOutputTokens: overrides.maxTokens || 4096,
+        maxOutputTokens: overrides.maxOutputTokens ?? 8192,
         // Higher token limit for newsletter content
         topP: 0.9,
         topK: 40
       }
     };
-    debugLog("Making newsletter request to Gemini API", {
+    debugLog3("Making newsletter request to Gemini API", {
       endpoint,
       model,
       temperature: requestBody.generationConfig.temperature,
@@ -6710,7 +7442,7 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, p
     });
     const responseData = await response.json();
     if (!response.ok) {
-      debugLog("Gemini API error response for newsletter", {
+      debugLog3("Gemini API error response for newsletter", {
         status: response.status,
         data: responseData
       });
@@ -6737,7 +7469,7 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, p
       );
     }
     const sanitizedContent = sanitizeNewsletterContent(htmlContent);
-    debugLog("Successfully generated newsletter edition", {
+    debugLog3("Successfully generated newsletter edition", {
       model,
       htmlContentLength: htmlContent.length,
       sanitizedContentLength: sanitizedContent.length,
@@ -6754,7 +7486,7 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, p
   } catch (error) {
     const elapsedMs = Date.now() - startTime;
     if (error instanceof GeminiAPIError) {
-      debugLog("Gemini API error in newsletter generation", {
+      debugLog3("Gemini API error in newsletter generation", {
         error: error.message,
         statusCode: error.statusCode,
         elapsedMs
@@ -6768,7 +7500,7 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, p
         error: error.message
       };
     }
-    debugLog("Unexpected error in generateNewsletterEdition", {
+    debugLog3("Unexpected error in generateNewsletterEdition", {
       error: error instanceof Error ? error.message : "Unknown error",
       elapsedMs
     });
@@ -6784,12 +7516,14 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, p
 }
 
 // lib/utils/notesGenerator.ts
-async function generateNotesWithPrompt(transcript, config) {
+async function generateNotesWithPrompt(transcript, config, metadata) {
   const startTime = Date.now();
   console.log("DEBUG: Generating episode notes", {
     transcriptLength: transcript.length,
     promptTemplateLength: config.promptTemplate.length,
-    model: "gemini-1.5-flash"
+    model: "gemini-1.5-flash",
+    showTitle: metadata.showTitle,
+    spotifyUrl: metadata.spotifyUrl
   });
   try {
     if (!transcript || transcript.trim().length === 0) {
@@ -6798,7 +7532,7 @@ async function generateNotesWithPrompt(transcript, config) {
     if (!config.promptTemplate || config.promptTemplate.trim().length === 0) {
       throw new Error("Prompt template is empty or null");
     }
-    const fullPrompt = buildFullPrompt2(config.promptTemplate, transcript);
+    const fullPrompt = buildFullPrompt2(config.promptTemplate, transcript, metadata);
     console.log("DEBUG: Built full prompt", {
       promptLength: fullPrompt.length,
       transcriptWordCount: countWords3(transcript)
@@ -6856,8 +7590,9 @@ async function generateNotesWithPrompt(transcript, config) {
     };
   }
 }
-function buildFullPrompt2(promptTemplate, transcript) {
-  return `${promptTemplate.trim()}
+function buildFullPrompt2(promptTemplate, transcript, metadata) {
+  const prompt = promptTemplate.replace(/\[SHOW_TITLE\]/g, metadata.showTitle).replace(/\[SPOTIFY_URL\]/g, metadata.spotifyUrl);
+  return `${prompt.trim()}
 
 ---
 
@@ -6876,6 +7611,32 @@ function countWords3(text) {
 async function processEpisodeForNotes(supabase4, transcript, config) {
   const startTime = Date.now();
   const timing = { downloadMs: 0, generationMs: 0, databaseMs: 0 };
+  if (!transcript.episode?.podcast_shows?.title || !transcript.episode?.podcast_shows?.spotify_url) {
+    const errorMessage = "Missing required podcast metadata: title and spotify_url must be present";
+    console.error("DEBUG: Failed to process episode - missing metadata", {
+      episodeId: transcript.episode_id,
+      hasEpisode: !!transcript.episode,
+      hasPodcastShows: !!transcript.episode?.podcast_shows,
+      hasTitle: !!transcript.episode?.podcast_shows?.title,
+      hasSpotifyUrl: !!transcript.episode?.podcast_shows?.spotify_url
+    });
+    await recordErrorResult(supabase4, transcript, errorMessage, timing);
+    return {
+      episodeId: transcript.episode_id,
+      transcriptId: transcript.id,
+      status: "error",
+      error: errorMessage,
+      elapsedMs: Date.now() - startTime,
+      timing,
+      metadata: {
+        storagePath: transcript.storage_path,
+        episodeTitle: transcript.episode?.title,
+        showTitle: transcript.episode?.podcast_shows?.title
+      }
+    };
+  }
+  const showTitle = transcript.episode.podcast_shows.title;
+  const spotifyUrl = transcript.episode.podcast_shows.spotify_url;
   const baseResult = {
     episodeId: transcript.episode_id,
     transcriptId: transcript.id,
@@ -6883,7 +7644,7 @@ async function processEpisodeForNotes(supabase4, transcript, config) {
     metadata: {
       storagePath: transcript.storage_path,
       episodeTitle: transcript.episode?.title,
-      showTitle: transcript.episode?.podcast_shows?.title
+      showTitle
     }
   };
   console.log("DEBUG: Processing episode for notes", {
@@ -6891,7 +7652,8 @@ async function processEpisodeForNotes(supabase4, transcript, config) {
     transcriptId: transcript.id,
     storagePath: transcript.storage_path,
     episodeTitle: transcript.episode?.title,
-    showTitle: transcript.episode?.podcast_shows?.title
+    showTitle,
+    spotifyUrl
   });
   try {
     const downloadStart = Date.now();
@@ -6938,7 +7700,10 @@ async function processEpisodeForNotes(supabase4, transcript, config) {
     const generationStart = Date.now();
     let notesResult;
     try {
-      notesResult = await generateNotesWithPrompt(transcriptText, config);
+      notesResult = await generateNotesWithPrompt(transcriptText, config, {
+        showTitle,
+        spotifyUrl
+      });
       timing.generationMs = Date.now() - generationStart;
       if (!notesResult.success) {
         throw new Error(notesResult.error || "Notes generation failed");
@@ -7107,6 +7872,9 @@ function aggregateProcessingResults(results) {
 }
 function extractErrorType(errorMessage) {
   const lowerMessage = errorMessage.toLowerCase();
+  if (lowerMessage.includes("metadata") && (lowerMessage.includes("missing") || lowerMessage.includes("required"))) {
+    return "metadata_error";
+  }
   if (lowerMessage.includes("download") || lowerMessage.includes("storage") || lowerMessage.includes("file")) {
     return "download_error";
   }
@@ -7132,6 +7900,10 @@ function getNotesWorkerConfig() {
     throw new Error(`Invalid NOTES_LOOKBACK_HOURS: "${process.env.NOTES_LOOKBACK_HOURS}". Must be a number between 1 and 168 (hours).`);
   }
   const last10Mode = process.env.NOTES_WORKER_L10 === "true";
+  const last10Count = parseInt(process.env.NOTES_WORKER_L10_COUNT || "10", 10);
+  if (isNaN(last10Count) || last10Count < 1 || last10Count > 1e3) {
+    throw new Error(`Invalid NOTES_WORKER_L10_COUNT: "${process.env.NOTES_WORKER_L10_COUNT}". Must be a number between 1 and 1000.`);
+  }
   const maxConcurrency = parseInt(process.env.NOTES_MAX_CONCURRENCY || "30", 10);
   if (isNaN(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 100) {
     throw new Error(`Invalid NOTES_MAX_CONCURRENCY: "${process.env.NOTES_MAX_CONCURRENCY}". Must be a number between 1 and 100.`);
@@ -7164,6 +7936,7 @@ function getNotesWorkerConfig() {
     enabled,
     lookbackHours,
     last10Mode,
+    last10Count,
     maxConcurrency,
     promptPath,
     promptTemplate,
@@ -7210,6 +7983,7 @@ var EpisodeNotesWorker = class {
         lookback_hours: config.lookbackHours,
         max_concurrency: config.maxConcurrency,
         last10_mode: config.last10Mode,
+        last10_count: config.last10Count,
         prompt_template_length: config.promptTemplate.length
       }
     });
@@ -7341,7 +8115,7 @@ if (process.env.NOTES_WORKER_CLI === "true" && import.meta.url === `file://${pro
 var debugLogger = new Logger({
   minLevel: process.env.NODE_ENV === "test" ? "warn" : "debug"
 });
-function debugLog2(context, message, metadata) {
+function debugLog4(context, message, metadata) {
   if (process.env.NODE_ENV === "test") {
     const debugEnabled = process.env.LOG_LEVEL === "debug" || process.env.DEBUG_LOGGING === "true";
     if (!debugEnabled) {
@@ -7351,10 +8125,10 @@ function debugLog2(context, message, metadata) {
   debugLogger.debug(context, message, { metadata });
 }
 function debugDatabase(message, metadata) {
-  debugLog2("database", message, metadata);
+  debugLog4("database", message, metadata);
 }
 function debugSubscriptionRefresh(message, metadata) {
-  debugLog2("subscription_refresh", message, metadata);
+  debugLog4("subscription_refresh", message, metadata);
 }
 
 // lib/db/editionQueries.ts
@@ -7371,7 +8145,8 @@ async function queryUsersWithActiveSubscriptions(supabase4) {
           podcast_shows!inner (
             id,
             title,
-            rss_url
+            rss_url,
+            spotify_url
           )
         )
       `).eq("user_podcast_subscriptions.status", "active").is("user_podcast_subscriptions.deleted_at", null).order("id", { ascending: true });
@@ -7398,13 +8173,15 @@ async function queryUsersWithActiveSubscriptions(supabase4) {
             show = {
               id: showJoin[0].id,
               title: showJoin[0].title,
-              rss_url: showJoin[0].rss_url
+              rss_url: showJoin[0].rss_url,
+              spotify_url: showJoin[0].spotify_url
             };
           } else if (showJoin && typeof showJoin === "object") {
             show = {
               id: showJoin.id,
               title: showJoin.title,
-              rss_url: showJoin.rss_url
+              rss_url: showJoin.rss_url,
+              spotify_url: showJoin.spotify_url
             };
           }
           return {
@@ -7421,13 +8198,15 @@ async function queryUsersWithActiveSubscriptions(supabase4) {
           show = {
             id: showJoin[0].id,
             title: showJoin[0].title,
-            rss_url: showJoin[0].rss_url
+            rss_url: showJoin[0].rss_url,
+            spotify_url: showJoin[0].spotify_url
           };
         } else if (showJoin && typeof showJoin === "object") {
           show = {
             id: showJoin.id,
             title: showJoin.title,
-            rss_url: showJoin.rss_url
+            rss_url: showJoin.rss_url,
+            spotify_url: showJoin.spotify_url
           };
         }
         subscriptions = [{
@@ -7482,7 +8261,8 @@ async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOve
           podcast_shows!inner (
             id,
             title,
-            rss_url
+            rss_url,
+            spotify_url
           )
         )
       `).in("podcast_episodes.show_id", subscribedShowIds).gte("created_at", cutoffTime).eq("status", "done").is("deleted_at", null).order("created_at", { ascending: false });
@@ -7517,13 +8297,15 @@ async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOve
             show = {
               id: showJoin[0].id,
               title: showJoin[0].title,
-              rss_url: showJoin[0].rss_url
+              rss_url: showJoin[0].rss_url,
+              spotify_url: showJoin[0].spotify_url
             };
           } else if (showJoin && typeof showJoin === "object") {
             show = {
               id: showJoin.id,
               title: showJoin.title,
-              rss_url: showJoin.rss_url
+              rss_url: showJoin.rss_url,
+              spotify_url: showJoin.spotify_url
             };
           }
           episode = {
@@ -7542,13 +8324,15 @@ async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOve
           show = {
             id: showJoin[0].id,
             title: showJoin[0].title,
-            rss_url: showJoin[0].rss_url
+            rss_url: showJoin[0].rss_url,
+            spotify_url: showJoin[0].spotify_url
           };
         } else if (showJoin && typeof showJoin === "object") {
           show = {
             id: showJoin.id,
             title: showJoin.title,
-            rss_url: showJoin.rss_url
+            rss_url: showJoin.rss_url,
+            spotify_url: showJoin.spotify_url
           };
         }
         episode = {
@@ -7574,30 +8358,29 @@ async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOve
     throw error;
   }
 }
-async function queryLast10NewsletterEditions(supabase4) {
-  debugDatabase("Starting L10 newsletter editions query");
+async function queryLast3NewsletterEditionsForUpdate(supabase4) {
+  debugDatabase("Starting L10 newsletter editions query for updates");
   try {
-    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("id").order("created_at", { ascending: false }).limit(10);
-    debugDatabase("L10 newsletter editions query completed", {
+    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("id, user_id, edition_date, user_email").order("created_at", { ascending: false }).limit(3);
+    debugDatabase("L10 newsletter editions query for updates completed", {
       error: !!queryError,
       dataLength: editions?.length || 0,
       errorMessage: queryError?.message || "none"
     });
     if (queryError) {
-      throw new Error(`Failed to query last 10 newsletter editions: ${queryError.message}`);
+      throw new Error(`Failed to query last 3 newsletter editions for updates: ${queryError.message}`);
     }
     if (!editions || editions.length === 0) {
-      debugDatabase("No newsletter editions found for L10 mode");
+      debugDatabase("No newsletter editions found for L10 mode updates");
       return [];
     }
-    const editionIds = editions.map((edition) => edition.id);
-    debugDatabase("L10 mode - found editions to overwrite", {
-      count: editionIds.length,
-      editionIds
+    debugDatabase("L10 mode - found editions to update", {
+      count: editions.length,
+      editions: editions.map((e) => ({ id: e.id, user_id: e.user_id, edition_date: e.edition_date, user_email: e.user_email }))
     });
-    return editionIds;
+    return editions;
   } catch (error) {
-    console.error("ERROR: Failed to query last 10 newsletter editions:", error);
+    console.error("ERROR: Failed to query last 3 newsletter editions for updates:", error);
     throw error;
   }
 }
@@ -7659,7 +8442,7 @@ function getSupabaseClient3() {
   }
   return supabase3;
 }
-async function insertNewsletterEdition(params) {
+async function upsertNewsletterEdition(params) {
   if (!params.user_id || typeof params.user_id !== "string" || params.user_id.trim() === "") {
     throw new Error("user_id is required and must be a non-empty string");
   }
@@ -7673,7 +8456,7 @@ async function insertNewsletterEdition(params) {
   if (!user || !user.email) {
     throw new Error(`No user found with id: ${params.user_id}`);
   }
-  const insertData = {
+  const upsertData = {
     user_id: params.user_id,
     edition_date: params.edition_date,
     status: params.status,
@@ -7681,32 +8464,147 @@ async function insertNewsletterEdition(params) {
     content: params.content ?? null,
     model: params.model ?? null,
     error_message: params.error_message ?? null,
-    deleted_at: null,
-    id: randomUUID()
+    deleted_at: null
   };
-  const { data, error } = await getSupabaseClient3().from("newsletter_editions").insert(insertData).select().single();
-  if (error) {
-    throw new Error(`Failed to insert newsletter edition: ${error.message}`);
+  const { data: existingEdition, error: findError } = await getSupabaseClient3().from("newsletter_editions").select("id").eq("user_id", params.user_id).eq("edition_date", params.edition_date).is("deleted_at", null).single();
+  if (findError && findError.code !== "PGRST116") {
+    throw new Error(`Failed to check for existing newsletter edition: ${findError.message}`);
   }
-  if (!data) {
-    throw new Error("No data returned from newsletter edition insertion");
-  }
-  if (params.episode_ids && params.episode_ids.length > 0) {
-    try {
-      await insertNewsletterEditionEpisodes({
-        newsletter_edition_id: data.id,
-        episode_ids: params.episode_ids
-      });
-    } catch (episodeError) {
-      await getSupabaseClient3().from("newsletter_editions").delete().eq("id", data.id);
-      throw new Error(`Failed to link episodes to newsletter edition: ${episodeError instanceof Error ? episodeError.message : "Unknown error"}`);
+  let result;
+  if (existingEdition || params.edition_id) {
+    const editionId = params.edition_id || existingEdition?.id;
+    const { data, error } = await getSupabaseClient3().from("newsletter_editions").update(upsertData).eq("id", editionId).select().single();
+    if (error) {
+      throw new Error(`Failed to update newsletter edition: ${error.message}`);
     }
+    result = data;
+  } else {
+    const { data, error } = await getSupabaseClient3().from("newsletter_editions").insert({ ...upsertData, id: randomUUID() }).select().single();
+    if (error) {
+      throw new Error(`Failed to insert newsletter edition: ${error.message}`);
+    }
+    result = data;
   }
-  return data;
+  if (!result) {
+    throw new Error("No data returned from newsletter edition operation");
+  }
+  return result;
 }
 
+// lib/utils/retryWithBackoff.ts
+function isRetryableError(error) {
+  const message = error.message.toLowerCase();
+  const retryablePatterns = [
+    "no html content found",
+    "the model is overloaded",
+    "rate limit",
+    "timeout",
+    "network error",
+    "connection reset",
+    "econnreset",
+    "enotfound",
+    "etimedout",
+    "socket hang up",
+    "internal server error",
+    "bad gateway",
+    "service unavailable",
+    "gateway timeout"
+  ];
+  const nonRetryablePatterns = [
+    "api key",
+    "unauthorized",
+    "forbidden",
+    "not found for api version",
+    "invalid request",
+    "quota exceeded",
+    "request too large",
+    "invalid model"
+  ];
+  if (nonRetryablePatterns.some((pattern) => message.includes(pattern))) {
+    return false;
+  }
+  return retryablePatterns.some((pattern) => message.includes(pattern));
+}
+function calculateDelay2(attempt, baseDelayMs, maxDelayMs) {
+  const exponentialDelay = baseDelayMs * Math.pow(2, attempt - 1);
+  const cappedDelay = Math.min(exponentialDelay, maxDelayMs);
+  const jitterRange = cappedDelay * 0.25;
+  const jitter = (Math.random() - 0.5) * 2 * jitterRange;
+  return Math.max(0, cappedDelay + jitter);
+}
+function sleep3(ms) {
+  return new Promise((resolve4) => setTimeout(resolve4, ms));
+}
+async function retryWithBackoff(fn, options) {
+  const { maxRetries, baseDelayMs, maxDelayMs, shouldRetry, context = "operation" } = options;
+  const startTime = Date.now();
+  let lastError;
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    const attemptStart = Date.now();
+    try {
+      debugSubscriptionRefresh(`Starting ${context} attempt`, {
+        attempt,
+        maxAttempts: maxRetries + 1,
+        totalElapsedMs: Date.now() - startTime
+      });
+      const result = await fn();
+      const totalElapsedMs = Date.now() - startTime;
+      debugSubscriptionRefresh(`${context} succeeded`, {
+        attempt,
+        attemptsUsed: attempt,
+        attemptElapsedMs: Date.now() - attemptStart,
+        totalElapsedMs
+      });
+      return {
+        result,
+        attemptsUsed: attempt,
+        totalElapsedMs
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const attemptElapsedMs = Date.now() - attemptStart;
+      debugSubscriptionRefresh(`${context} attempt failed`, {
+        attempt,
+        maxAttempts: maxRetries + 1,
+        error: lastError.message,
+        attemptElapsedMs,
+        totalElapsedMs: Date.now() - startTime,
+        isRetryable: shouldRetry(lastError)
+      });
+      if (attempt > maxRetries || !shouldRetry(lastError)) {
+        debugSubscriptionRefresh(`${context} failed permanently`, {
+          finalAttempt: attempt,
+          totalAttempts: maxRetries + 1,
+          finalError: lastError.message,
+          totalElapsedMs: Date.now() - startTime,
+          reason: attempt > maxRetries ? "max_retries_exceeded" : "non_retryable_error"
+        });
+        throw lastError;
+      }
+      const delayMs = calculateDelay2(attempt, baseDelayMs, maxDelayMs);
+      debugSubscriptionRefresh(`${context} retrying after delay`, {
+        attempt,
+        nextAttempt: attempt + 1,
+        delayMs: Math.round(delayMs),
+        totalElapsedMs: Date.now() - startTime
+      });
+      await sleep3(delayMs);
+    }
+  }
+  throw lastError;
+}
+var DEFAULT_NEWSLETTER_RETRY_OPTIONS = {
+  maxRetries: 3,
+  baseDelayMs: 5e3,
+  // 5 seconds
+  maxDelayMs: 3e4,
+  // 30 seconds
+  shouldRetry: isRetryableError,
+  context: "newsletter generation"
+};
+
 // lib/utils/editionProcessor.ts
-async function processUserForNewsletter(supabase4, user, config, nowOverride) {
+async function processUserForNewsletter(supabase4, user, config, nowOverride, existingEditionsToUpdate) {
   const startTime = Date.now();
   const timing = { queryMs: 0, generationMs: 0, databaseMs: 0 };
   const baseResult = {
@@ -7770,6 +8668,10 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
       };
     }
     const notesTexts = episodeNotes.map((note) => note.notes);
+    const episodeMetadata = episodeNotes.map((note) => ({
+      showTitle: note.episode?.podcast_shows?.title || "Unknown Show",
+      spotifyUrl: note.episode?.podcast_shows?.spotify_url || ""
+    }));
     const totalWordCount = notesTexts.reduce((sum, notes) => sum + countWords4(notes), 0);
     const averageWordCount = episodeNotes.length > 0 ? totalWordCount / episodeNotes.length : 0;
     baseResult.metadata.episodeNotesCount = episodeNotes.length;
@@ -7778,19 +8680,33 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
     const generationStart = Date.now();
     let newsletterContent;
     let generationResult;
+    let retryResult;
     try {
       const editionDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      generationResult = await generateNewsletterEdition(notesTexts, user.email, editionDate);
+      retryResult = await retryWithBackoff(
+        async () => {
+          const result = await generateNewsletterEdition(notesTexts, user.email, editionDate, episodeMetadata);
+          if (!result.success) {
+            throw new Error(result.error || "Newsletter generation failed");
+          }
+          return result;
+        },
+        {
+          ...DEFAULT_NEWSLETTER_RETRY_OPTIONS,
+          context: `newsletter generation for user ${user.email}`
+        }
+      );
+      generationResult = retryResult.result;
       timing.generationMs = Date.now() - generationStart;
-      if (!generationResult.success) {
-        throw new Error(generationResult.error || "Newsletter generation failed");
-      }
       newsletterContent = generationResult.sanitizedContent;
       debugSubscriptionRefresh("Successfully generated newsletter content", {
         userId: user.id,
         contentLength: newsletterContent.length,
         model: generationResult.model,
-        generationMs: timing.generationMs
+        generationMs: timing.generationMs,
+        attemptsUsed: retryResult.attemptsUsed,
+        wasRetried: retryResult.attemptsUsed > 1,
+        totalRetryTimeMs: retryResult.totalElapsedMs
       });
     } catch (error) {
       timing.generationMs = Date.now() - generationStart;
@@ -7799,13 +8715,20 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
         userId: user.id,
         episodeNotesCount: episodeNotes.length,
         error: errorMessage,
-        generationMs: timing.generationMs
+        generationMs: timing.generationMs,
+        attemptsUsed: retryResult?.attemptsUsed || 0,
+        totalRetryTimeMs: retryResult?.totalElapsedMs || 0
       });
       return {
         ...baseResult,
         status: "error",
         error: errorMessage,
-        elapsedMs: Date.now() - startTime
+        elapsedMs: Date.now() - startTime,
+        retryInfo: retryResult ? {
+          attemptsUsed: retryResult.attemptsUsed,
+          totalRetryTimeMs: retryResult.totalElapsedMs,
+          wasRetried: retryResult.attemptsUsed > 1
+        } : void 0
       };
     }
     const databaseStart = Date.now();
@@ -7816,29 +8739,55 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
     let episodeCount = 0;
     try {
       const editionDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      const editionResult = await insertNewsletterEdition({
+      let targetEditionDate = editionDate;
+      let targetEditionId;
+      if (config.last10Mode && existingEditionsToUpdate) {
+        const userExistingEdition = existingEditionsToUpdate.find((edition) => edition.user_id === user.id);
+        if (userExistingEdition) {
+          targetEditionDate = userExistingEdition.edition_date;
+          targetEditionId = userExistingEdition.id;
+          debugSubscriptionRefresh("Using existing edition date for L10 mode update", {
+            userId: user.id,
+            originalDate: editionDate,
+            existingDate: targetEditionDate,
+            editionId: targetEditionId
+          });
+        }
+      }
+      const editionResult = await upsertNewsletterEdition({
         user_id: user.id,
-        edition_date: editionDate,
+        edition_date: targetEditionDate,
         content: newsletterContent,
         status: "generated",
         model: generationResult.model,
-        error_message: null
+        error_message: null,
+        edition_id: targetEditionId
       });
       debugSubscriptionRefresh("editionResult", { editionResult });
       debugSubscriptionRefresh("editionResult type", { type: typeof editionResult });
       debugSubscriptionRefresh("editionResult keys", { keys: editionResult ? Object.keys(editionResult) : "undefined" });
       debugSubscriptionRefresh("editionResult.id", { id: editionResult?.id });
       if (!editionResult) {
-        throw new Error(`Database save failed: insertNewsletterEdition returned undefined`);
+        throw new Error(`Database save failed: upsertNewsletterEdition returned undefined`);
       }
       newsletterEditionId = editionResult.id;
       episodeIds = episodeNotes.map((note) => note.episode_id);
-      const episodeLinksResult = await insertNewsletterEditionEpisodes({
-        newsletter_edition_id: newsletterEditionId,
-        episode_ids: episodeIds
-      });
-      if (!episodeLinksResult) {
-        throw new Error(`Database save failed: insertNewsletterEditionEpisodes returned undefined`);
+      let episodeLinksResult;
+      if (config.last10Mode && targetEditionId) {
+        debugSubscriptionRefresh("Skipping episode linking for L10 mode update", {
+          userId: user.id,
+          newsletterEditionId,
+          episodeCount: episodeIds.length
+        });
+        episodeLinksResult = [];
+      } else {
+        episodeLinksResult = await insertNewsletterEditionEpisodes({
+          newsletter_edition_id: newsletterEditionId,
+          episode_ids: episodeIds
+        });
+        if (!episodeLinksResult) {
+          throw new Error(`Database save failed: insertNewsletterEditionEpisodes returned undefined`);
+        }
       }
       htmlContent = newsletterContent;
       sanitizedContent = sanitizeNewsletterContent(newsletterContent);
@@ -7859,7 +8808,8 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
         userId: user.id,
         newsletterEditionId,
         episodeCount: episodeIds.length,
-        databaseMs: timing.databaseMs
+        databaseMs: timing.databaseMs,
+        wasL10Mode: config.last10Mode && targetEditionId
       });
     } catch (error) {
       timing.databaseMs = Date.now() - databaseStart;
@@ -7893,7 +8843,12 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride) {
       html_content: htmlContent,
       sanitized_content: sanitizedContent,
       episode_count: episodeCount,
-      elapsedMs
+      elapsedMs,
+      retryInfo: retryResult ? {
+        attemptsUsed: retryResult.attemptsUsed,
+        totalRetryTimeMs: retryResult.totalElapsedMs,
+        wasRetried: retryResult.attemptsUsed > 1
+      } : void 0
     };
   } catch (error) {
     const errorMessage = `Unexpected error processing user: ${error instanceof Error ? error.message : "Unknown error"}`;
@@ -7945,6 +8900,20 @@ function aggregateUserProcessingResults(results) {
     averageLength: contentLengths.length > 0 ? contentLengths.reduce((sum, length) => sum + length, 0) / contentLengths.length : 0,
     totalLength: contentLengths.reduce((sum, length) => sum + length, 0)
   };
+  const resultsWithRetryInfo = results.filter((r) => r.retryInfo);
+  const usersWhoRetried = resultsWithRetryInfo.filter((r) => r.retryInfo.wasRetried).length;
+  const totalAttempts = resultsWithRetryInfo.reduce((sum, r) => sum + (r.retryInfo.attemptsUsed || 1), 0);
+  const maxAttempts = resultsWithRetryInfo.length > 0 ? Math.max(...resultsWithRetryInfo.map((r) => r.retryInfo.attemptsUsed)) : 0;
+  const retriedResults = resultsWithRetryInfo.filter((r) => r.retryInfo.wasRetried);
+  const retrySuccessRate = retriedResults.length > 0 ? retriedResults.filter((r) => r.status === "done").length / retriedResults.length * 100 : 0;
+  const retryStats = {
+    totalRetries: totalAttempts - resultsWithRetryInfo.length,
+    // Total extra attempts beyond first
+    usersWhoRetried,
+    averageAttemptsPerUser: resultsWithRetryInfo.length > 0 ? totalAttempts / resultsWithRetryInfo.length : 0,
+    maxAttempts,
+    retrySuccessRate
+  };
   const episodeCounts = successfulResults.map((r) => r.episodeIds?.length || 0).filter((count) => count > 0);
   const episodeStats = {
     minEpisodes: episodeCounts.length > 0 ? Math.min(...episodeCounts) : 0,
@@ -7961,6 +8930,7 @@ function aggregateUserProcessingResults(results) {
     totalElapsedMs,
     averageProcessingTimeMs,
     averageTiming,
+    retryStats,
     errorBreakdown,
     contentStats,
     episodeStats
@@ -7997,68 +8967,33 @@ async function prepareUsersForNewsletters(supabase4, config) {
       candidateCount: candidates.length,
       mode: config.last10Mode ? "L10" : "normal"
     });
-    let clearedEditionsCount = 0;
+    let existingEditionsToUpdate = [];
     if (config.last10Mode) {
-      debugSubscriptionRefresh("L10 mode active - clearing content for last 10 newsletter editions");
-      const editionIds = await queryLast10NewsletterEditions(supabase4);
+      debugSubscriptionRefresh("L10 mode active - preparing existing editions for update");
+      const editionIds = await queryLast3NewsletterEditionsForUpdate(supabase4);
       if (editionIds.length > 0) {
-        const clearResult = await clearNewsletterEditionContent(supabase4, editionIds);
-        if (!clearResult.success) {
-          debugSubscriptionRefresh("Failed to clear some existing edition content in L10 mode", {
-            error: clearResult.error,
-            editionCount: editionIds.length
-          });
-        } else {
-          clearedEditionsCount = clearResult.clearedCount;
-          debugSubscriptionRefresh("Successfully cleared content for L10 mode", {
-            clearedCount: clearedEditionsCount,
-            editionCount: editionIds.length
-          });
-        }
+        existingEditionsToUpdate = editionIds;
+        debugSubscriptionRefresh("Successfully prepared existing editions for update in L10 mode", {
+          editionCount: editionIds.length
+        });
       }
     }
     const elapsedMs = Date.now() - startTime;
     debugSubscriptionRefresh("User preparation completed", {
       candidateCount: candidates.length,
-      clearedEditionsCount,
+      existingEditionsToUpdateCount: existingEditionsToUpdate.length,
       wasL10Mode: config.last10Mode,
       elapsedMs
     });
     return {
       candidates,
-      clearedEditionsCount,
+      existingEditionsToUpdate,
       wasL10Mode: config.last10Mode,
       elapsedMs
     };
   } catch (error) {
     console.error("ERROR: Failed to prepare users for newsletters:", error);
     throw error;
-  }
-}
-async function clearNewsletterEditionContent(supabase4, editionIds) {
-  try {
-    const { data, error } = await supabase4.from("newsletter_editions").update({
-      content: "[Content cleared for L10 test mode]",
-      status: "cleared_for_testing",
-      updated_at: (/* @__PURE__ */ new Date()).toISOString()
-    }).in("id", editionIds).select("id");
-    if (error) {
-      return {
-        success: false,
-        clearedCount: 0,
-        error: error.message
-      };
-    }
-    return {
-      success: true,
-      clearedCount: data?.length || 0
-    };
-  } catch (error) {
-    return {
-      success: false,
-      clearedCount: 0,
-      error: error instanceof Error ? error.message : "Unknown error"
-    };
   }
 }
 function validateL10Mode2(candidates, config) {
@@ -8089,7 +9024,7 @@ function validateL10Mode2(candidates, config) {
 function logL10ModeSummary2(prepResult, validation) {
   debugSubscriptionRefresh("L10 Mode Summary", {
     candidateCount: prepResult.candidates.length,
-    clearedEditionsCount: prepResult.clearedEditionsCount,
+    existingEditionsToUpdateCount: prepResult.existingEditionsToUpdate.length,
     isValid: validation.isValid,
     warnings: validation.warnings,
     recommendations: validation.recommendations
@@ -8118,7 +9053,7 @@ async function executeEditionWorkflow(supabase4, config, nowOverride) {
       const validation = validateL10Mode2(prepResult.candidates, config);
       logL10ModeSummary2(prepResult, validation);
     }
-    if (prepResult.candidates.length === 0) {
+    if (prepResult.candidates.length === 0 && !config.last10Mode) {
       debugSubscriptionRefresh("No users found for newsletter generation; exiting");
       return {
         totalCandidates: 0,
@@ -8130,49 +9065,165 @@ async function executeEditionWorkflow(supabase4, config, nowOverride) {
         averageProcessingTimeMs: 0,
         successRate: 0,
         averageTiming: { queryMs: 0, generationMs: 0, databaseMs: 0 },
+        retryStats: { totalRetries: 0, usersWhoRetried: 0, averageAttemptsPerUser: 0, maxAttempts: 0, retrySuccessRate: 0 },
         errorBreakdown: {},
         contentStats: { minLength: 0, maxLength: 0, averageLength: 0, totalLength: 0 },
         episodeStats: { minEpisodes: 0, maxEpisodes: 0, averageEpisodes: 0, totalEpisodes: 0 }
       };
     }
     const results = [];
-    for (const user of prepResult.candidates) {
-      try {
-        const result = await processUserForNewsletter(supabase4, user, config, nowOverride);
-        results.push(result);
-        debugSubscriptionRefresh("Processed user", {
-          userId: user.id,
-          userEmail: user.email,
-          status: result.status,
-          elapsedMs: result.elapsedMs,
-          episodeNotesCount: result.metadata.episodeNotesCount
-        });
-      } catch (error) {
-        debugSubscriptionRefresh("Unexpected error processing user", {
-          userId: user.id,
-          userEmail: user.email,
-          error: error instanceof Error ? error.message : "Unknown error"
-        });
-        results.push({
-          userId: user.id,
-          userEmail: user.email,
-          status: "error",
-          error: error instanceof Error ? error.message : "Unknown error",
-          elapsedMs: Date.now() - startTime,
-          timing: { queryMs: 0, generationMs: 0, databaseMs: 0 },
-          metadata: {
-            episodeNotesCount: 0,
-            subscribedShowsCount: user.subscriptions.length,
-            totalWordCount: 0,
-            averageWordCount: 0
+    let successfulNewslettersCount = 0;
+    if (config.last10Mode && prepResult.existingEditionsToUpdate.length > 0) {
+      debugSubscriptionRefresh("L10 mode: Processing users from existing editions", {
+        editionCount: prepResult.existingEditionsToUpdate.length
+      });
+      for (const edition of prepResult.existingEditionsToUpdate) {
+        const user = {
+          id: edition.user_id,
+          email: edition.user_email,
+          subscriptions: []
+          // L10 mode doesn't need subscriptions
+        };
+        try {
+          const result = await processUserForNewsletter(
+            supabase4,
+            user,
+            config,
+            nowOverride,
+            prepResult.existingEditionsToUpdate
+          );
+          results.push(result);
+          if (result.status === "done") {
+            successfulNewslettersCount++;
+            debugSubscriptionRefresh("L10 mode: Successful newsletter generated", {
+              userId: user.id,
+              userEmail: user.email,
+              successfulCount: successfulNewslettersCount,
+              targetCount: prepResult.existingEditionsToUpdate.length
+            });
           }
-        });
+          debugSubscriptionRefresh("Processed user", {
+            userId: user.id,
+            userEmail: user.email,
+            status: result.status,
+            elapsedMs: result.elapsedMs,
+            episodeNotesCount: result.metadata.episodeNotesCount,
+            l10Progress: `${successfulNewslettersCount}/${prepResult.existingEditionsToUpdate.length}`
+          });
+          const isLastUser = successfulNewslettersCount === prepResult.existingEditionsToUpdate.length;
+          if (!isLastUser && process.env.NODE_ENV !== "test") {
+            debugSubscriptionRefresh("Adding delay between users", {
+              delayMs: 1e4,
+              userIndex: successfulNewslettersCount,
+              totalUsers: prepResult.existingEditionsToUpdate.length
+            });
+            await new Promise((resolve4) => setTimeout(resolve4, 1e4));
+          }
+        } catch (error) {
+          debugSubscriptionRefresh("Unexpected error processing user", {
+            userId: user.id,
+            userEmail: user.email,
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
+          results.push({
+            userId: user.id,
+            userEmail: user.email,
+            status: "error",
+            error: error instanceof Error ? error.message : "Unknown error",
+            elapsedMs: Date.now() - startTime,
+            timing: { queryMs: 0, generationMs: 0, databaseMs: 0 },
+            metadata: {
+              episodeNotesCount: 0,
+              subscribedShowsCount: 0,
+              totalWordCount: 0,
+              averageWordCount: 0
+            }
+          });
+        }
+      }
+    } else {
+      for (let i = 0; i < prepResult.candidates.length; i++) {
+        const user = prepResult.candidates[i];
+        if (config.last10Mode && successfulNewslettersCount >= 3) {
+          debugSubscriptionRefresh("L10 mode: Reached 3 successful newsletters, stopping", {
+            processedUsers: i,
+            successfulNewsletters: successfulNewslettersCount,
+            totalCandidates: prepResult.candidates.length
+          });
+          break;
+        }
+        const isLastUser = i === prepResult.candidates.length - 1 || config.last10Mode && successfulNewslettersCount === 2;
+        try {
+          const result = await processUserForNewsletter(
+            supabase4,
+            user,
+            config,
+            nowOverride,
+            config.last10Mode ? prepResult.existingEditionsToUpdate : void 0
+          );
+          results.push(result);
+          if (config.last10Mode && result.status === "done") {
+            successfulNewslettersCount++;
+            debugSubscriptionRefresh("L10 mode: Successful newsletter generated", {
+              userId: user.id,
+              userEmail: user.email,
+              successfulCount: successfulNewslettersCount,
+              targetCount: 3
+            });
+          }
+          debugSubscriptionRefresh("Processed user", {
+            userId: user.id,
+            userEmail: user.email,
+            status: result.status,
+            elapsedMs: result.elapsedMs,
+            episodeNotesCount: result.metadata.episodeNotesCount,
+            l10Progress: config.last10Mode ? `${successfulNewslettersCount}/3` : void 0
+          });
+          if (!isLastUser && process.env.NODE_ENV !== "test") {
+            debugSubscriptionRefresh("Adding delay between users", {
+              delayMs: 1e4,
+              userIndex: i,
+              totalUsers: prepResult.candidates.length,
+              nextUserEmail: prepResult.candidates[i + 1].email
+            });
+            await new Promise((resolve4) => setTimeout(resolve4, 1e4));
+          }
+        } catch (error) {
+          debugSubscriptionRefresh("Unexpected error processing user", {
+            userId: user.id,
+            userEmail: user.email,
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
+          results.push({
+            userId: user.id,
+            userEmail: user.email,
+            status: "error",
+            error: error instanceof Error ? error.message : "Unknown error",
+            elapsedMs: Date.now() - startTime,
+            timing: { queryMs: 0, generationMs: 0, databaseMs: 0 },
+            metadata: {
+              episodeNotesCount: 0,
+              subscribedShowsCount: user.subscriptions.length,
+              totalWordCount: 0,
+              averageWordCount: 0
+            }
+          });
+          if (!isLastUser && process.env.NODE_ENV !== "test") {
+            debugSubscriptionRefresh("Adding delay after error", {
+              delayMs: 1e4,
+              userIndex: i,
+              totalUsers: prepResult.candidates.length,
+              nextUserEmail: prepResult.candidates[i + 1].email
+            });
+            await new Promise((resolve4) => setTimeout(resolve4, 1e4));
+          }
+        }
       }
     }
     const summaryStats = aggregateUserProcessingResults(results);
     const totalElapsedMs = Date.now() - startTime;
     const workflowResult = {
-      totalCandidates: prepResult.candidates.length,
+      totalCandidates: config.last10Mode && prepResult.existingEditionsToUpdate.length > 0 ? prepResult.existingEditionsToUpdate.length : prepResult.candidates.length,
       processedUsers: summaryStats.totalUsers,
       successfulNewsletters: summaryStats.successfulNewsletters,
       errorCount: summaryStats.errorCount,
@@ -8181,6 +9232,7 @@ async function executeEditionWorkflow(supabase4, config, nowOverride) {
       averageProcessingTimeMs: summaryStats.averageProcessingTimeMs,
       successRate: summaryStats.successRate,
       averageTiming: summaryStats.averageTiming,
+      retryStats: summaryStats.retryStats,
       errorBreakdown: summaryStats.errorBreakdown,
       contentStats: summaryStats.contentStats,
       episodeStats: summaryStats.episodeStats
@@ -8189,6 +9241,7 @@ async function executeEditionWorkflow(supabase4, config, nowOverride) {
       ...workflowResult,
       success_rate: summaryStats.successRate.toFixed(1),
       avg_timing_ms: summaryStats.averageTiming,
+      retry_stats: summaryStats.retryStats,
       error_breakdown: summaryStats.errorBreakdown,
       content_stats: summaryStats.contentStats,
       episode_stats: summaryStats.episodeStats
@@ -8390,6 +9443,7 @@ function getSendNewsletterWorkerConfig() {
   if (!isValidEmail(trimmedSendFromEmail)) {
     throw new Error(`Invalid SEND_FROM_EMAIL: "${sendFromEmail}". Must be a valid email address.`);
   }
+  const sendFromName = process.env.SEND_FROM_NAME || "";
   const testReceiverEmail = process.env.TEST_RECEIVER_EMAIL;
   if (!testReceiverEmail || testReceiverEmail.trim().length === 0) {
     throw new Error("TEST_RECEIVER_EMAIL environment variable is required but not set.");
@@ -8398,6 +9452,15 @@ function getSendNewsletterWorkerConfig() {
   if (!isValidEmail(trimmedTestReceiverEmail)) {
     throw new Error(`Invalid TEST_RECEIVER_EMAIL: "${testReceiverEmail}". Must be a valid email address.`);
   }
+  let replyToEmail;
+  const rawReplyToEmail = process.env.REPLY_TO_EMAIL;
+  if (rawReplyToEmail && rawReplyToEmail.trim().length > 0) {
+    const trimmedReplyToEmail = rawReplyToEmail.trim();
+    if (!isValidEmail(trimmedReplyToEmail)) {
+      throw new Error(`Invalid REPLY_TO_EMAIL: "${rawReplyToEmail}". Must be a valid email address.`);
+    }
+    replyToEmail = trimmedReplyToEmail;
+  }
   return {
     enabled,
     cronSchedule,
@@ -8405,7 +9468,9 @@ function getSendNewsletterWorkerConfig() {
     last10Mode,
     resendApiKey: resendApiKey.trim(),
     sendFromEmail: trimmedSendFromEmail,
-    testReceiverEmail: trimmedTestReceiverEmail
+    sendFromName,
+    testReceiverEmail: trimmedTestReceiverEmail,
+    replyToEmail
   };
 }
 function isValidCronExpression2(cronExpression) {
@@ -8451,6 +9516,9 @@ function validateDependencies3(config) {
   if (!isValidEmail(config.testReceiverEmail)) {
     throw new Error(`TEST_RECEIVER_EMAIL is not a valid email address: ${config.testReceiverEmail}`);
   }
+  if (config.replyToEmail && !isValidEmail(config.replyToEmail)) {
+    throw new Error(`REPLY_TO_EMAIL is not a valid email address: ${config.replyToEmail}`);
+  }
   if (!isValidCronExpression2(config.cronSchedule)) {
     throw new Error(`Invalid cron schedule: ${config.cronSchedule}`);
   }
@@ -8476,16 +9544,16 @@ async function queryNewsletterEditionsForSending(supabase4, lookbackHours = 24, 
     throw error;
   }
 }
-async function queryLast10NewsletterEditionsForSending(supabase4) {
-  debugDatabase("Starting L10 newsletter editions query for sending");
+async function queryLast3NewsletterEditionsForSending(supabase4) {
+  debugDatabase("Starting L10 newsletter editions query for sending (last 3)");
   try {
-    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("*").eq("status", "generated").is("sent_at", null).is("deleted_at", null).order("created_at", { ascending: false }).limit(10);
+    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("*").eq("status", "generated").is("deleted_at", null).order("updated_at", { ascending: false }).limit(3);
     if (queryError) {
-      throw new Error(`Failed to query last 10 newsletter editions for sending: ${queryError.message}`);
+      throw new Error(`Failed to query last 3 newsletter editions for sending: ${queryError.message}`);
     }
     return (editions || []).reverse();
   } catch (error) {
-    console.error("ERROR: Failed to query last 10 newsletter editions for sending:", error);
+    console.error("ERROR: Failed to query last 3 newsletter editions for sending:", error);
     throw error;
   }
 }
@@ -8513,10 +9581,11 @@ async function updateNewsletterEditionSentAt(supabase4, editionId, sentAt) {
 // lib/clients/emailClient.ts
 import { Resend } from "resend";
 var EmailClient = class {
-  constructor(apiKey, fromEmail, resendInstance) {
+  constructor(apiKey, fromEmail, fromName, resendInstance) {
     this.resend = resendInstance || new Resend(apiKey);
     this.logger = createLogger();
     this.fromEmail = fromEmail;
+    this.fromName = fromName || "";
   }
   /**
    * Send an email using Resend API
@@ -8525,7 +9594,7 @@ var EmailClient = class {
    * @returns Promise<SendEmailResult> Result of the email send operation
    */
   async sendEmail(params, jobId) {
-    const { to, subject, html, text } = params;
+    const { to, subject, html, text, replyTo } = params;
     this.logger.info("email", "Sending email via Resend", {
       metadata: {
         job_id: jobId,
@@ -8533,12 +9602,14 @@ var EmailClient = class {
         subject,
         has_html: !!html,
         has_text: !!text,
-        from_email: this.fromEmail
+        from_email: this.fromEmail,
+        reply_to: replyTo || "not set"
       }
     });
     try {
-      const result = await this.resend.emails.send({
-        from: this.fromEmail,
+      const fromField = this.fromName ? `${this.fromName} <${this.fromEmail}>` : this.fromEmail;
+      const emailData = {
+        from: fromField,
         to: [to],
         subject,
         html,
@@ -8547,7 +9618,11 @@ var EmailClient = class {
         headers: {
           "X-Job-Id": jobId
         }
-      });
+      };
+      if (replyTo) {
+        emailData.reply_to = replyTo;
+      }
+      const result = await this.resend.emails.send(emailData);
       if (result.error) {
         const errorMessage = `Resend API error: ${result.error.message}`;
         this.logger.error("email", "Failed to send email via Resend", {
@@ -8620,15 +9695,15 @@ var EmailClient = class {
     return true;
   }
 };
-function createEmailClient(apiKey, fromEmail, resendInstance) {
-  return new EmailClient(apiKey, fromEmail, resendInstance);
+function createEmailClient(apiKey, fromEmail, fromName, resendInstance) {
+  return new EmailClient(apiKey, fromEmail, fromName, resendInstance);
 }
 
 // lib/utils/subjectBuilder.ts
 function buildSubject(editionDate) {
   const dateObj = typeof editionDate === "string" ? new Date(editionDate) : editionDate;
   if (isNaN(dateObj.getTime())) {
-    return "Listener Recap: Invalid Date";
+    return "Your Podcast Newsletter: Invalid Date";
   }
   const options = {
     year: "numeric",
@@ -8638,7 +9713,7 @@ function buildSubject(editionDate) {
     // Use UTC to avoid timezone issues
   };
   const formattedDate = dateObj.toLocaleDateString("en-US", options);
-  return `Listener Recap: ${formattedDate}`;
+  return `Your Podcast Newsletter: ${formattedDate}`;
 }
 
 // lib/utils/injectEditionPlaceholders.ts
@@ -8667,7 +9742,7 @@ var SendNewsletterWorker = class {
     const config = getSendNewsletterWorkerConfig();
     console.log(`Worker starting with config: ${JSON.stringify(config)}`);
     validateDependencies3(config);
-    const emailClient = createEmailClient(config.resendApiKey, config.sendFromEmail);
+    const emailClient = createEmailClient(config.resendApiKey, config.sendFromEmail, config.sendFromName);
     this.logger.info("system", "Send Newsletter Worker starting", {
       metadata: {
         job_id: jobId,
@@ -8683,10 +9758,10 @@ var SendNewsletterWorker = class {
     try {
       let editions;
       if (config.last10Mode) {
-        this.logger.info("system", "Using L10 mode - querying last 10 newsletter editions", {
+        this.logger.info("system", "Using L10 mode - querying last 3 newsletter editions", {
           metadata: { job_id: jobId }
         });
-        editions = await queryLast10NewsletterEditionsForSending(supabase4);
+        editions = await queryLast3NewsletterEditionsForSending(supabase4);
       } else {
         this.logger.info("system", "Using normal mode - querying editions within lookback window", {
           metadata: {
@@ -8739,7 +9814,12 @@ var SendNewsletterWorker = class {
           const html = injectEditionPlaceholders(edition.content, replacements);
           const to = config.last10Mode ? config.testReceiverEmail : edition.user_email;
           console.log(`About to send email for edition ${edition.id} to ${to}`);
-          const sendResult = await emailClient.sendEmail({ to, subject, html }, jobId);
+          const sendResult = await emailClient.sendEmail({
+            to,
+            subject,
+            html,
+            replyTo: config.replyToEmail || config.sendFromEmail
+          }, jobId);
           if (sendResult.success) {
             successfulSends++;
             this.logger.info("email", "Email sent successfully", {
@@ -8780,6 +9860,17 @@ var SendNewsletterWorker = class {
               processing_time_ms: Date.now() - editionStartTime
             }
           });
+        }
+        if (editions.length > 1) {
+          const delayMs = 500;
+          this.logger.info("system", `Adding ${delayMs}ms delay between emails to respect rate limits`, {
+            metadata: {
+              job_id: jobId,
+              delay_ms: delayMs,
+              remaining_editions: editions.length - (successfulSends + errorCount + noContentCount)
+            }
+          });
+          await new Promise((resolve4) => setTimeout(resolve4, delayMs));
         }
         processingTimes.push(Date.now() - editionStartTime);
       }
@@ -9875,7 +10966,7 @@ app.use(cookieParser());
 app.use(express6.json());
 var corsOptions = {
   origin: [
-    "https://listener-seven.vercel.app",
+    "https://getlistener.app",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:3000"
