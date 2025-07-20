@@ -82,7 +82,7 @@ export async function processUserForNewsletter(
   user: UserWithSubscriptions,
   config: EditionWorkerConfig,
   nowOverride?: number, // Optional for testability
-  existingEditionsToUpdate?: Array<{ id: string; user_id: string; edition_date: string }> // L10 mode existing editions
+  existingEditionsToUpdate?: Array<{ id: string; user_id: string; edition_date: string; user_email: string }> // L10 mode existing editions
 ): Promise<UserProcessingResult> {
   const startTime = Date.now();
   const timing = { queryMs: 0, generationMs: 0, databaseMs: 0 };

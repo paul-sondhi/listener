@@ -37,6 +37,7 @@ export interface PrepareUsersResult {
     id: string;
     user_id: string;
     edition_date: string;
+    user_email: string;
   }>;
   /** Whether L10 mode was active */
   wasL10Mode: boolean;
@@ -285,7 +286,7 @@ export async function executeEditionWorkflow(
       logL10ModeSummary(prepResult, validation);
     }
 
-    if (prepResult.candidates.length === 0) {
+    if (prepResult.candidates.length === 0 && !config.last10Mode) {
       debugSubscriptionRefresh('No users found for newsletter generation; exiting');
       return {
         totalCandidates: 0,
@@ -308,18 +309,101 @@ export async function executeEditionWorkflow(
     const results: UserProcessingResult[] = [];
     let successfulNewslettersCount = 0;
     
-    for (let i = 0; i < prepResult.candidates.length; i++) {
-      const user = prepResult.candidates[i];
+    // L10 mode: Process specific users from existing editions
+    if (config.last10Mode && prepResult.existingEditionsToUpdate.length > 0) {
+      debugSubscriptionRefresh('L10 mode: Processing users from existing editions', {
+        editionCount: prepResult.existingEditionsToUpdate.length
+      });
       
-      // In L10 mode, stop after 3 successful newsletters
-      if (config.last10Mode && successfulNewslettersCount >= 3) {
-        debugSubscriptionRefresh('L10 mode: Reached 3 successful newsletters, stopping', {
-          processedUsers: i,
-          successfulNewsletters: successfulNewslettersCount,
-          totalCandidates: prepResult.candidates.length
-        });
-        break;
+      for (const edition of prepResult.existingEditionsToUpdate) {
+        // Create a minimal user object for processing
+        const user = {
+          id: edition.user_id,
+          email: edition.user_email,
+          subscriptions: [] // L10 mode doesn't need subscriptions
+        };
+        
+        try {
+          const result = await processUserForNewsletter(
+            supabase,
+            user,
+            config,
+            nowOverride,
+            prepResult.existingEditionsToUpdate
+          );
+          
+          results.push(result);
+          
+          if (result.status === 'done') {
+            successfulNewslettersCount++;
+            debugSubscriptionRefresh('L10 mode: Successful newsletter generated', {
+              userId: user.id,
+              userEmail: user.email,
+              successfulCount: successfulNewslettersCount,
+              targetCount: prepResult.existingEditionsToUpdate.length
+            });
+          }
+          
+          // Log progress for each user
+          debugSubscriptionRefresh('Processed user', {
+            userId: user.id,
+            userEmail: user.email,
+            status: result.status,
+            elapsedMs: result.elapsedMs,
+            episodeNotesCount: result.metadata.episodeNotesCount,
+            l10Progress: `${successfulNewslettersCount}/${prepResult.existingEditionsToUpdate.length}`
+          });
+          
+          // Add delay between users (except for the last user and in test mode)
+          const isLastUser = successfulNewslettersCount === prepResult.existingEditionsToUpdate.length;
+          if (!isLastUser && process.env.NODE_ENV !== 'test') {
+            debugSubscriptionRefresh('Adding delay between users', {
+              delayMs: 10000,
+              userIndex: successfulNewslettersCount,
+              totalUsers: prepResult.existingEditionsToUpdate.length
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, 10000)); // 10 seconds
+          }
+          
+        } catch (error) {
+          // Handle unexpected errors for individual users
+          debugSubscriptionRefresh('Unexpected error processing user', {
+            userId: user.id,
+            userEmail: user.email,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+          
+          results.push({
+            userId: user.id,
+            userEmail: user.email,
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown error',
+            elapsedMs: Date.now() - startTime,
+            timing: { queryMs: 0, generationMs: 0, databaseMs: 0 },
+            metadata: {
+              episodeNotesCount: 0,
+              subscribedShowsCount: 0,
+              totalWordCount: 0,
+              averageWordCount: 0
+            }
+          });
+        }
       }
+    } else {
+      // Normal mode: Process all candidates
+      for (let i = 0; i < prepResult.candidates.length; i++) {
+        const user = prepResult.candidates[i];
+        
+        // In L10 mode, stop after 3 successful newsletters
+        if (config.last10Mode && successfulNewslettersCount >= 3) {
+          debugSubscriptionRefresh('L10 mode: Reached 3 successful newsletters, stopping', {
+            processedUsers: i,
+            successfulNewsletters: successfulNewslettersCount,
+            totalCandidates: prepResult.candidates.length
+          });
+          break;
+        }
       
       const isLastUser = i === prepResult.candidates.length - 1 || 
                          (config.last10Mode && successfulNewslettersCount === 2); // In L10 mode, check if this will be the last successful newsletter
@@ -403,13 +487,16 @@ export async function executeEditionWorkflow(
         }
       }
     }
+    }
 
     // Step 3: Aggregate results
     const summaryStats = aggregateUserProcessingResults(results);
     const totalElapsedMs = Date.now() - startTime;
 
     const workflowResult: EditionWorkflowResult = {
-      totalCandidates: prepResult.candidates.length,
+      totalCandidates: config.last10Mode && prepResult.existingEditionsToUpdate.length > 0 
+        ? prepResult.existingEditionsToUpdate.length 
+        : prepResult.candidates.length,
       processedUsers: summaryStats.totalUsers,
       successfulNewsletters: summaryStats.successfulNewsletters,
       errorCount: summaryStats.errorCount,

@@ -407,13 +407,13 @@ export async function queryLast3NewsletterEditions(
  */
 export async function queryLast3NewsletterEditionsForUpdate(
   supabase: SupabaseClient<Database>
-): Promise<Array<{ id: string; user_id: string; edition_date: string }>> {
+): Promise<Array<{ id: string; user_id: string; edition_date: string; user_email: string }>> {
   debugDatabase('Starting L10 newsletter editions query for updates');
 
   try {
     const { data: editions, error: queryError } = await supabase
       .from('newsletter_editions')
-      .select('id, user_id, edition_date')
+      .select('id, user_id, edition_date, user_email')
       .order('created_at', { ascending: false })
       .limit(3);
 
@@ -434,7 +434,7 @@ export async function queryLast3NewsletterEditionsForUpdate(
 
     debugDatabase('L10 mode - found editions to update', {
       count: editions.length,
-      editions: editions.map(e => ({ id: e.id, user_id: e.user_id, edition_date: e.edition_date }))
+      editions: editions.map(e => ({ id: e.id, user_id: e.user_id, edition_date: e.edition_date, user_email: e.user_email }))
     });
 
     return editions;
