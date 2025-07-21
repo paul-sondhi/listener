@@ -1581,9 +1581,7 @@ router3.post("/", async (req, res) => {
           if (!existingShow || !existingShow.title || existingShow.title.startsWith("Show ")) {
             upsertData.title = show.name || "Unknown Show";
           } else {
-            if (process.env.DEBUG_SYNC === "true") {
-              console.log(`[SyncShows] Preserving existing title for ${show.name}: "${existingShow.title}"`);
-            }
+            console.log(`[SyncShows] Preserving existing title for ${show.name}: "${existingShow.title}" (not overwriting with Spotify title)`);
           }
           upsertData.description = show.description || null;
           upsertData.image_url = show.images?.[0]?.url || null;
@@ -7266,6 +7264,69 @@ var GeminiRateLimiter = class _GeminiRateLimiter {
     return new Promise((resolve4) => setTimeout(resolve4, ms));
   }
 };
+function validateNewsletterStructure(htmlContent, episodeCount) {
+  const issues = [];
+  if (!htmlContent.includes("<!DOCTYPE html>")) {
+    issues.push("Missing DOCTYPE declaration");
+  }
+  if (!htmlContent.includes('<html lang="en">')) {
+    issues.push("Missing or incorrect html tag");
+  }
+  if (!htmlContent.includes("</html>")) {
+    issues.push("Unclosed html tag");
+  }
+  if (!htmlContent.includes("</body>")) {
+    issues.push("Unclosed body tag");
+  }
+  if (!htmlContent.includes("</table>")) {
+    issues.push("Unclosed table tag");
+  }
+  const tdOpenCount = (htmlContent.match(/<td[^>]*>/g) || []).length;
+  const tdCloseCount = (htmlContent.match(/<\/td>/g) || []).length;
+  if (tdOpenCount !== tdCloseCount) {
+    issues.push(`Unclosed td tags (${tdOpenCount} open, ${tdCloseCount} closed)`);
+  }
+  const requiredSections = [
+    { pattern: /Hello! I listened to \d+ episode/i, name: "Intro" },
+    { pattern: /Recommended Listens/i, name: "Recommended Listens heading" },
+    { pattern: /Today I Learned/i, name: "Today I Learned heading" },
+    { pattern: /Happy listening! 🎧/, name: "Closing" },
+    { pattern: /P\.S\. Got feedback\?/i, name: "P.S. section" }
+  ];
+  for (const section of requiredSections) {
+    if (!section.pattern.test(htmlContent)) {
+      issues.push(`Missing ${section.name}`);
+    }
+  }
+  const lastParagraphIndex = htmlContent.lastIndexOf("<p");
+  if (lastParagraphIndex > -1) {
+    const afterLastP = htmlContent.substring(lastParagraphIndex);
+    if (!afterLastP.includes("</p>")) {
+      issues.push("Last paragraph not closed properly");
+    }
+  }
+  const textContent = htmlContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const lastChar = textContent[textContent.length - 1];
+  const endsWithPunctuation = [".", "!", "?", '"', ")", "]", "\u{1F3A7}", "\u{1F4E7}"].includes(lastChar);
+  const lastFewChars = textContent.slice(-10);
+  const hasProperEnding = endsWithPunctuation || lastFewChars.includes("let me know") || lastFewChars.includes("feedback");
+  if (!hasProperEnding && textContent.length > 100) {
+    const context = textContent.slice(-50);
+    issues.push(`Content appears truncated mid-sentence. Ends with: "${context}"`);
+  }
+  const minContentLength = 3e3;
+  if (htmlContent.length < minContentLength) {
+    issues.push(`Content too short: ${htmlContent.length} chars (minimum ${minContentLength})`);
+  }
+  const htmlEnding = htmlContent.slice(-100).toLowerCase();
+  if (!htmlEnding.includes("</html>") || !htmlEnding.includes("</body>")) {
+    issues.push("HTML document not properly closed at the end");
+  }
+  return {
+    isValid: issues.length === 0,
+    issues
+  };
+}
 function debugLog3(message, data) {
   if (process.env.DEBUG_API === "true") {
     console.log(`[Gemini] ${message}`, data || "");
@@ -7276,7 +7337,9 @@ async function generateEpisodeNotes(transcript, promptOverrides) {
   if (!transcript || typeof transcript !== "string") {
     throw new Error("transcript must be a non-empty string");
   }
-  await GeminiRateLimiter.getInstance().throttleRequest();
+  if (process.env.NODE_ENV !== "test") {
+    await GeminiRateLimiter.getInstance().throttleRequest();
+  }
   const model = getModelName();
   const apiKey = process.env.GEMINI_API_KEY;
   const overrides = promptOverrides || {};
@@ -7377,7 +7440,9 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, e
     editionDate
   });
   try {
-    await GeminiRateLimiter.getInstance().throttleRequest();
+    if (process.env.NODE_ENV !== "test") {
+      await GeminiRateLimiter.getInstance().throttleRequest();
+    }
     if (!episodeNotes || !Array.isArray(episodeNotes)) {
       throw new Error("episodeNotes must be a non-empty array");
     }
@@ -7420,8 +7485,8 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, e
       generationConfig: {
         temperature: overrides.temperature || 0.4,
         // Slightly higher for creative newsletter content
-        maxOutputTokens: overrides.maxOutputTokens ?? 8192,
-        // Higher token limit for newsletter content
+        maxOutputTokens: overrides.maxOutputTokens ?? 16384,
+        // Increased token limit to prevent truncation
         topP: 0.9,
         topK: 40
       }
@@ -7468,13 +7533,31 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, e
         JSON.stringify(responseData)
       );
     }
+    const validation = validateNewsletterStructure(htmlContent, promptResult.episodeCount);
+    if (!validation.isValid) {
+      debugLog3("Generated newsletter failed validation", {
+        issues: validation.issues,
+        htmlContentLength: htmlContent.length,
+        episodeCount: promptResult.episodeCount
+      });
+      throw new GeminiAPIError(
+        `Generated newsletter failed validation: ${validation.issues.join(", ")}`,
+        200,
+        JSON.stringify({
+          validation,
+          contentLength: htmlContent.length,
+          episodeCount: promptResult.episodeCount
+        })
+      );
+    }
     const sanitizedContent = sanitizeNewsletterContent(htmlContent);
     debugLog3("Successfully generated newsletter edition", {
       model,
       htmlContentLength: htmlContent.length,
       sanitizedContentLength: sanitizedContent.length,
       episodeCount: promptResult.episodeCount,
-      elapsedMs: Date.now() - startTime
+      elapsedMs: Date.now() - startTime,
+      validationPassed: true
     });
     return {
       htmlContent: htmlContent.trim(),
@@ -8508,7 +8591,14 @@ function isRetryableError(error) {
     "internal server error",
     "bad gateway",
     "service unavailable",
-    "gateway timeout"
+    "gateway timeout",
+    // Newsletter validation errors
+    "failed validation",
+    "missing.*section",
+    "unclosed.*tag",
+    "truncated mid-sentence",
+    "content too short",
+    "not properly closed"
   ];
   const nonRetryablePatterns = [
     "api key",

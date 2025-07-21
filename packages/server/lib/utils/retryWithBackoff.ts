@@ -50,7 +50,14 @@ export function isRetryableError(error: Error): boolean {
     'internal server error',
     'bad gateway',
     'service unavailable',
-    'gateway timeout'
+    'gateway timeout',
+    // Newsletter validation errors
+    'failed validation',
+    'missing.*section',
+    'unclosed.*tag',
+    'truncated mid-sentence',
+    'content too short',
+    'not properly closed'
   ];
   
   // Non-retryable error patterns (fail fast)

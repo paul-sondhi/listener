@@ -216,6 +216,114 @@ class GeminiRateLimiter {
 }
 
 // ===================================================================
+// VALIDATION
+// ===================================================================
+
+/**
+ * Validates that generated newsletter content matches expected structure
+ * Based on the template defined in prompts/newsletter-edition.md
+ * 
+ * @param htmlContent - The generated HTML content to validate
+ * @param episodeCount - Number of episodes included in the newsletter
+ * @returns Validation result with specific issues if invalid
+ */
+export function validateNewsletterStructure(htmlContent: string, episodeCount: number): {
+  isValid: boolean;
+  issues: string[];
+} {
+  const issues: string[] = [];
+  
+  // 1. Check required HTML structure
+  if (!htmlContent.includes('<!DOCTYPE html>')) {
+    issues.push('Missing DOCTYPE declaration');
+  }
+  if (!htmlContent.includes('<html lang="en">')) {
+    issues.push('Missing or incorrect html tag');
+  }
+  if (!htmlContent.includes('</html>')) {
+    issues.push('Unclosed html tag');
+  }
+  if (!htmlContent.includes('</body>')) {
+    issues.push('Unclosed body tag');
+  }
+  if (!htmlContent.includes('</table>')) {
+    issues.push('Unclosed table tag');
+  }
+  
+  // Check for any unclosed td tags
+  const tdOpenCount = (htmlContent.match(/<td[^>]*>/g) || []).length;
+  const tdCloseCount = (htmlContent.match(/<\/td>/g) || []).length;
+  if (tdOpenCount !== tdCloseCount) {
+    issues.push(`Unclosed td tags (${tdOpenCount} open, ${tdCloseCount} closed)`);
+  }
+  
+  // 2. Check required sections exist and are complete
+  const requiredSections = [
+    { pattern: /Hello! I listened to \d+ episode/i, name: 'Intro' },
+    { pattern: /Recommended Listens/i, name: 'Recommended Listens heading' },
+    { pattern: /Today I Learned/i, name: 'Today I Learned heading' },
+    { pattern: /Happy listening! 🎧/, name: 'Closing' },
+    { pattern: /P\.S\. Got feedback\?/i, name: 'P.S. section' }
+  ];
+  
+  for (const section of requiredSections) {
+    if (!section.pattern.test(htmlContent)) {
+      issues.push(`Missing ${section.name}`);
+    }
+  }
+  
+  // 3. Check that last paragraph closes properly
+  const lastParagraphIndex = htmlContent.lastIndexOf('<p');
+  if (lastParagraphIndex > -1) {
+    const afterLastP = htmlContent.substring(lastParagraphIndex);
+    if (!afterLastP.includes('</p>')) {
+      issues.push('Last paragraph not closed properly');
+    }
+  }
+  
+  // 4. Check for mid-sentence truncation
+  // Extract text content without HTML tags
+  const textContent = htmlContent
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove style blocks
+    .replace(/<[^>]*>/g, ' ') // Remove HTML tags
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .trim();
+  
+  // Check if content ends properly (with punctuation or emoji)
+  const lastChar = textContent[textContent.length - 1];
+  const endsWithPunctuation = ['.', '!', '?', '"', ')', ']', '🎧', '📧'].includes(lastChar);
+  
+  // Also check the last few characters for common ending patterns
+  const lastFewChars = textContent.slice(-10);
+  const hasProperEnding = endsWithPunctuation || 
+    lastFewChars.includes('let me know') || 
+    lastFewChars.includes('feedback');
+  
+  if (!hasProperEnding && textContent.length > 0) {
+    // Get last 50 characters for context in error message
+    const context = textContent.slice(-50);
+    issues.push(`Content appears truncated mid-sentence. Ends with: "${context}"`);
+  }
+  
+  // 5. Minimum content check
+  const minContentLength = 3000; // Minimum expected length
+  if (htmlContent.length < minContentLength) {
+    issues.push(`Content too short: ${htmlContent.length} chars (minimum ${minContentLength})`);
+  }
+  
+  // 6. Check for incomplete HTML structure at the end
+  const htmlEnding = htmlContent.slice(-100).toLowerCase();
+  if (!htmlEnding.includes('</html>') || !htmlEnding.includes('</body>')) {
+    issues.push('HTML document not properly closed at the end');
+  }
+  
+  return {
+    isValid: issues.length === 0,
+    issues
+  };
+}
+
+// ===================================================================
 // MAIN EXPORT FUNCTION
 // ===================================================================
 
@@ -261,8 +369,10 @@ export async function generateEpisodeNotes(
     throw new Error('transcript must be a non-empty string');
   }
 
-  // Apply rate limiting before making API request
-  await GeminiRateLimiter.getInstance().throttleRequest();
+  // Apply rate limiting before making API request (skip in tests)
+  if (process.env.NODE_ENV !== 'test') {
+    await GeminiRateLimiter.getInstance().throttleRequest();
+  }
 
   const model = getModelName();
   const apiKey = process.env.GEMINI_API_KEY!; // Validated above
@@ -434,8 +544,10 @@ export async function generateNewsletterEdition(
   });
 
   try {
-    // Apply rate limiting before making API request
-    await GeminiRateLimiter.getInstance().throttleRequest();
+    // Apply rate limiting before making API request (skip in tests)
+    if (process.env.NODE_ENV !== 'test') {
+      await GeminiRateLimiter.getInstance().throttleRequest();
+    }
     // Validate inputs
     if (!episodeNotes || !Array.isArray(episodeNotes)) {
       throw new Error('episodeNotes must be a non-empty array');
@@ -491,7 +603,7 @@ export async function generateNewsletterEdition(
       ],
       generationConfig: {
         temperature: overrides.temperature || 0.4, // Slightly higher for creative newsletter content
-        maxOutputTokens: overrides.maxOutputTokens ?? 8192, // Higher token limit for newsletter content
+        maxOutputTokens: overrides.maxOutputTokens ?? 16384, // Increased token limit to prevent truncation
         topP: 0.9,
         topK: 40
       }
@@ -547,6 +659,27 @@ export async function generateNewsletterEdition(
       );
     }
 
+    // Validate the generated content structure
+    const validation = validateNewsletterStructure(htmlContent, promptResult.episodeCount);
+    
+    if (!validation.isValid) {
+      debugLog('Generated newsletter failed validation', {
+        issues: validation.issues,
+        htmlContentLength: htmlContent.length,
+        episodeCount: promptResult.episodeCount
+      });
+      
+      throw new GeminiAPIError(
+        `Generated newsletter failed validation: ${validation.issues.join(', ')}`,
+        200,
+        JSON.stringify({ 
+          validation,
+          contentLength: htmlContent.length,
+          episodeCount: promptResult.episodeCount
+        })
+      );
+    }
+
     // Sanitize the HTML content for safe email use
     const sanitizedContent = sanitizeNewsletterContent(htmlContent);
 
@@ -555,7 +688,8 @@ export async function generateNewsletterEdition(
       htmlContentLength: htmlContent.length,
       sanitizedContentLength: sanitizedContent.length,
       episodeCount: promptResult.episodeCount,
-      elapsedMs: Date.now() - startTime
+      elapsedMs: Date.now() - startTime,
+      validationPassed: true
     });
 
     return {
