@@ -21,7 +21,7 @@ export default function Login(): React.JSX.Element {
   // Redirect to app if user is already logged in
   useEffect(() => {
     if (user) {
-      navigate('/app', { replace: true })
+      void navigate('/app', { replace: true })
     }
   }, [user, navigate])
 
@@ -63,7 +63,7 @@ export default function Login(): React.JSX.Element {
       <p>Your podcast feed in a newsletter</p>
       
       <button 
-        onClick={handleLogin}
+        onClick={() => void handleLogin()}
         disabled={isLoading}
         className={`login-button ${isLoading ? 'loading' : ''}`}
         type="button"

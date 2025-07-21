@@ -50,7 +50,7 @@ async function getOriginalSpotifyTitle(spotifyUrl: string): Promise<string> {
     throw new Error('Failed to fetch show from Spotify API');
   }
   
-  const showData: any = await apiRes.json();
+  const showData = await apiRes.json() as { name?: string };
   const { name } = showData;
   
   if (!name) {
@@ -85,7 +85,7 @@ async function getSpotifyAccessToken(): Promise<string> {
     throw new Error('Failed to get Spotify access token');
   }
   
-  const data = await response.json();
+  const data = await response.json() as { access_token: string };
   return data.access_token;
 }
 

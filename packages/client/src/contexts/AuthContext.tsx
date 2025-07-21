@@ -11,7 +11,7 @@ interface AuthContextType {
   requiresReauth: boolean
   checkingReauth: boolean
   signIn: (credentials: SignInWithOAuthCredentials) => Promise<OAuthResponse>
-  signOut: () => Promise<{ error: any }>
+  signOut: () => Promise<{ error: Error | null }>
   checkReauthStatus: () => Promise<void>
   clearReauthFlag: () => Promise<void>
 }
@@ -148,7 +148,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     
     // Use queueMicrotask to defer the execution to the next tick
     // This ensures we're completely outside the auth callback's execution context
-    queueMicrotask(runDeferredReauthCheck);
+    queueMicrotask(() => void runDeferredReauthCheck());
   }, [needsReauthCheck, user, checkReauthStatus]);
 
   useEffect(() => {
@@ -174,7 +174,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       }
     }
 
-    initializeAuth()
+    void initializeAuth()
 
     // Listen for changes on auth state (logged in, signed out, etc.)
     // CRITICAL FIX: Remove all Supabase calls from this callback to prevent deadlock
@@ -260,7 +260,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         setRequiresReauth(false);
         
         const duration = Date.now() - startTime;
-        console.log(`AUTH_CONTEXT: SignOut fallback completed in ${duration}ms`);
+        logger.info(`AUTH_CONTEXT: SignOut fallback completed in ${duration}ms`);
         
         return { error: error instanceof Error ? error : new Error(String(error)) };
       }

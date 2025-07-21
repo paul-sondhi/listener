@@ -8,8 +8,8 @@ process.env.SUPABASE_URL = 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-key-for-testing';
 
 // --- Mock Supabase client and operations ---
-let mockSupabaseAuthGetUser = vi.fn();
-let mockSupabaseFrom = vi.fn();
+const mockSupabaseAuthGetUser = vi.fn();
+const mockSupabaseFrom = vi.fn();
 
 vi.mock('@supabase/supabase-js', () => ({
     createClient: vi.fn(() => ({
@@ -39,7 +39,7 @@ vi.mock('../../lib/audiobookFilter.js', () => ({
 }));
 
 // --- Mock global fetch ---
-let mockFetch = vi.fn();
+const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
 // Import after mocks are set up

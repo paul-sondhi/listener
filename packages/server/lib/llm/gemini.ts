@@ -16,6 +16,37 @@ import {
   EpisodeMetadata
 } from '../utils/buildNewsletterEditionPrompt';
 
+// Gemini API response types
+interface GeminiCandidate {
+  content: {
+    parts: Array<{
+      text: string;
+    }>;
+    role: string;
+  };
+  finishReason: string;
+  index: number;
+  safetyRatings: Array<{
+    category: string;
+    probability: string;
+  }>;
+}
+
+interface GeminiResponse {
+  candidates?: GeminiCandidate[];
+  promptFeedback?: {
+    safetyRatings: Array<{
+      category: string;
+      probability: string;
+    }>;
+  };
+  error?: {
+    message: string;
+    code?: number;
+    status?: string;
+  };
+}
+
 // ===================================================================
 // ENVIRONMENT VALIDATION
 // ===================================================================
@@ -191,7 +222,7 @@ class GeminiRateLimiter {
 /**
  * Debug logging helper - only logs when DEBUG_API=true
  */
-function debugLog(message: string, data?: any): void {
+function debugLog(message: string, data?: unknown): void {
   if (process.env.DEBUG_API === 'true') {
     console.log(`[Gemini] ${message}`, data || '');
   }
@@ -286,7 +317,7 @@ ${transcript}`;
       body: JSON.stringify(requestBody)
     });
 
-    const responseData = await response.json() as any;
+    const responseData = await response.json() as GeminiResponse;
     
     if (!response.ok) {
       debugLog('Gemini API error response', { 
@@ -482,7 +513,7 @@ export async function generateNewsletterEdition(
       body: JSON.stringify(requestBody)
     });
 
-    const responseData = await response.json() as any;
+    const responseData = await response.json() as GeminiResponse;
 
     if (!response.ok) {
       debugLog('Gemini API error response for newsletter', { 

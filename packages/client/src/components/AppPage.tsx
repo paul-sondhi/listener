@@ -20,7 +20,11 @@ interface SyncShowsResponse extends ApiResponse {
   inactive_count?: number
   cached_data?: boolean
   last_sync?: string
-  shows?: any[]
+  shows?: Array<{
+    id: string
+    name: string
+    spotify_id?: string
+  }>
 }
 
 /**
@@ -131,7 +135,7 @@ const AppPage = (): React.JSX.Element => {
         })
 
         if (!storeResponse.ok) {
-          const errorData: ErrorResponse = await storeResponse.json()
+          const errorData = await storeResponse.json() as ErrorResponse
           const errorMessage = errorData.error || 'Failed to store Spotify tokens'
           logger.error('Token storage failed:', errorMessage)
           // CRITICAL: Mark as attempted even on failure to prevent infinite loops
@@ -156,7 +160,7 @@ const AppPage = (): React.JSX.Element => {
         })
 
         if (!syncResponse.ok) {
-          const errorData: ErrorResponse = await syncResponse.json()
+          const errorData = await syncResponse.json() as ErrorResponse
           const errorMessage = errorData.error || 'Failed to sync Spotify shows'
           logger.error('Show sync failed:', errorMessage)
           // Mark as attempted since token storage succeeded
@@ -164,7 +168,7 @@ const AppPage = (): React.JSX.Element => {
           return
         }
 
-        const result: SyncShowsResponse = await syncResponse.json()
+        const result = await syncResponse.json() as SyncShowsResponse
         
         if (result.cached_data) {
           logger.info('Retrieved cached Spotify shows:', result)
@@ -190,7 +194,7 @@ const AppPage = (): React.JSX.Element => {
 
     // Only try to sync if we have a user and we haven't synced yet
     if (user && !hasSynced.current) {
-      syncSpotifyTokens()
+      void syncSpotifyTokens()
     }
   }, [user, clearReauthFlag]) // Add clearReauthFlag to dependencies for completeness
 
@@ -241,7 +245,7 @@ const AppPage = (): React.JSX.Element => {
             <h1>You're in!</h1>
             <p>Look out for an email from Listener every day at 12p ET / 9a PT</p>
             <button 
-              onClick={handleLogout} 
+              onClick={() => void handleLogout()} 
               className="logout-btn"
               type="button"
             >

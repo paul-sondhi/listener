@@ -108,7 +108,7 @@ async function cleanupTestEpisodes() {
 const command = process.argv[2];
 
 if (command === 'clean') {
-  cleanupTestEpisodes();
+  void cleanupTestEpisodes();
 } else {
-  seedTestEpisodes();
+  void seedTestEpisodes();
 } 

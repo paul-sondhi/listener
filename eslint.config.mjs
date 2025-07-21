@@ -64,8 +64,6 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        // Remove strict project checking for now to avoid path issues
-        // project: true,
         ecmaFeatures: { jsx: true },
       },
     },
@@ -75,6 +73,7 @@ export default [
     rules: {
       ...js.configs.recommended.rules,
       ...tseslint.configs.recommended.rules,
+      // Removed recommended-type-checked rules to avoid parser service errors
       
       // Disable JS rules that conflict with TS rules
       'no-unused-vars': 'off',
@@ -93,6 +92,16 @@ export default [
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-var-requires': 'error',
       '@typescript-eslint/no-empty-object-type': 'warn', // Allow empty interfaces for now
+      
+      // Type-aware rules disabled - these require projectService/project configuration
+      // To use these, you need proper TypeScript project setup
+      // '@typescript-eslint/no-unsafe-assignment': 'warn',
+      // '@typescript-eslint/no-unsafe-member-access': 'warn',
+      // '@typescript-eslint/no-unsafe-call': 'warn',
+      // '@typescript-eslint/no-unsafe-return': 'warn',
+      // '@typescript-eslint/no-unsafe-argument': 'error',
+      // '@typescript-eslint/no-floating-promises': 'error',
+      // '@typescript-eslint/no-misused-promises': 'error',
       
       // General code quality rules
       'no-console': 'warn',
@@ -137,7 +146,7 @@ export default [
 
   // Test files configuration
   {
-    files: ['**/__tests__/**/*.{js,ts,tsx}', '**/*.{test,spec}.{js,ts,tsx}'],
+    files: ['**/__tests__/**/*.{js,ts,tsx}', '**/*.{test,spec}.{js,ts,tsx}', '**/setupTests.ts', '**/vitest.config.ts', '**/vite.config.ts'],
     languageOptions: {
       globals: {
         ...globals.node,
