@@ -806,6 +806,7 @@ export function sanitizeNewsletterContent(htmlContent: string): string {
         'font-size': [/^\d+(?:px|em|%)$/],
         'font-weight': [/^(normal|bold|bolder|lighter|\d{3})$/],
         'text-align': [/^(left|right|center|justify)$/],
+        'text-decoration': [/^(none|underline|overline|line-through)$/],
         'line-height': [/^\d+(?:\.\d+)?$/],
         'margin': [/^\d+(?:px|em|%)?$/],
         'margin-top': [/^\d+(?:px|em|%)?$/],
