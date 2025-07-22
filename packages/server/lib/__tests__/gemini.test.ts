@@ -36,7 +36,7 @@ interface MockFetchResponse {
 // System Under Test - will be imported dynamically to control environment
 let generateEpisodeNotes: (transcript: string, overrides?: any) => Promise<{ notes: string; model: string }>
 let GeminiAPIError: new (message: string, statusCode: number, responseBody: string) => Error
-let validateNewsletterStructure: (htmlContent: string, episodeCount: number) => { isValid: boolean; issues: string[] }
+let _validateNewsletterStructure: (htmlContent: string, episodeCount: number) => { isValid: boolean; issues: string[] }
 
 describe('Gemini Client Utility', () => {
   let mockFetch: MockInstance
@@ -62,7 +62,7 @@ describe('Gemini Client Utility', () => {
     const geminiModule = await import('../llm/gemini.js')
     generateEpisodeNotes = geminiModule.generateEpisodeNotes
     GeminiAPIError = geminiModule.GeminiAPIError
-    validateNewsletterStructure = geminiModule.validateNewsletterStructure
+    _validateNewsletterStructure = geminiModule.validateNewsletterStructure
   })
 
   afterEach(() => {
@@ -413,7 +413,7 @@ const mockHtml = `<!DOCTYPE html>
   </table>
 </body>
 </html>`
-const sanitizedHtml = mockHtml // For this test, assume sanitization returns the same
+const _sanitizedHtml = mockHtml // For this test, assume sanitization returns the same
 const mockMetadata = [
   { showTitle: 'AI Podcast', spotifyUrl: 'https://open.spotify.com/show/ai-podcast' },
   { showTitle: 'Podcast Analytics Show', spotifyUrl: 'https://open.spotify.com/show/analytics' },

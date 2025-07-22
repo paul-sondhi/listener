@@ -227,7 +227,7 @@ class GeminiRateLimiter {
  * @param episodeCount - Number of episodes included in the newsletter
  * @returns Validation result with specific issues if invalid
  */
-export function validateNewsletterStructure(htmlContent: string, episodeCount: number): {
+export function validateNewsletterStructure(htmlContent: string, _episodeCount: number): {
   isValid: boolean;
   issues: string[];
 } {

@@ -64,9 +64,11 @@ describe('Login Component', () => {
       </MemoryRouter>
     )
 
-    // Assert: Check if the login button is present in the document
-    const loginButton: HTMLElement = screen.getByRole('button', { name: /connect spotify/i })
-    expect(loginButton).toBeInTheDocument()
+    // Assert: Check if both login buttons are present in the document
+    const spotifyButton: HTMLElement = screen.getByRole('button', { name: /continue with spotify/i })
+    const googleButton: HTMLElement = screen.getByRole('button', { name: /continue with google/i })
+    expect(spotifyButton).toBeInTheDocument()
+    expect(googleButton).toBeInTheDocument()
   })
 
   it('calls signIn when the login button is clicked', async () => {
@@ -90,11 +92,11 @@ describe('Login Component', () => {
       </MemoryRouter>
     )
     
-    const loginButton: HTMLElement = screen.getByRole('button', { name: /connect spotify/i })
+    const spotifyButton: HTMLElement = screen.getByRole('button', { name: /continue with spotify/i })
 
-    // Act: Simulate a user clicking the login button
+    // Act: Simulate a user clicking the Spotify login button
     await act(async () => {
-      fireEvent.click(loginButton)
+      fireEvent.click(spotifyButton)
     })
 
     // Assert: Check if the signIn function was called with correct parameters
@@ -138,15 +140,15 @@ describe('Login Component', () => {
       </MemoryRouter>
     )
     
-    const loginButton: HTMLElement = screen.getByRole('button', { name: /connect spotify/i })
+    const spotifyButton: HTMLElement = screen.getByRole('button', { name: /continue with spotify/i })
 
     // Act: Click the button, which should now lead to an error
     await act(async () => {
-      fireEvent.click(loginButton)
+      fireEvent.click(spotifyButton)
     })
 
     // Assert: Check for the error message
-    const errorMessage: HTMLElement = await screen.findByText('Error during login. Please try again.')
+    const errorMessage: HTMLElement = await screen.findByText('Error during spotify login. Please try again.')
     expect(errorMessage).toBeInTheDocument()
   })
 
@@ -166,15 +168,15 @@ describe('Login Component', () => {
       </MemoryRouter>
     )
     
-    const loginButton: HTMLElement = screen.getByRole('button', { name: /connect spotify/i })
+    const spotifyButton: HTMLElement = screen.getByRole('button', { name: /continue with spotify/i })
 
     // Act: Click the button, which should throw an error
     await act(async () => {
-      fireEvent.click(loginButton)
+      fireEvent.click(spotifyButton)
     })
 
     // Assert: Check for the error message
-    const errorMessage: HTMLElement = await screen.findByText('An unexpected error occurred during login. Please try again.')
+    const errorMessage: HTMLElement = await screen.findByText('An unexpected error occurred during spotify login. Please try again.')
     expect(errorMessage).toBeInTheDocument()
   })
 
@@ -229,16 +231,16 @@ describe('Login Component', () => {
       </MemoryRouter>
     )
     
-    const loginButton: HTMLElement = screen.getByRole('button', { name: /connect spotify/i })
+    const spotifyButton: HTMLElement = screen.getByRole('button', { name: /continue with spotify/i })
 
     // Act: Click the button but don't resolve the promise yet - wrap in act()
     await act(async () => {
-      fireEvent.click(loginButton)
+      fireEvent.click(spotifyButton)
     })
 
     // Assert: Button should show loading state
     expect(await screen.findByText('Connecting...')).toBeInTheDocument()
-    expect(loginButton).toBeDisabled()
+    expect(spotifyButton).toBeDisabled()
 
     // Cleanup: Resolve the promise to complete the test
     act(() => {
