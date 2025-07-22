@@ -38,7 +38,7 @@ describe('buildNewsletterEditionPrompt', () => {
   afterEach(() => {
     // Clean up any custom template
     removeCustomTemplate();
-    delete process.env.NEWSLETTER_PROMPT_PATH;
+    delete process.env.EDITION_PROMPT_PATH;
   });
 
   it('throws on empty episodeNotes array', async () => {
@@ -129,10 +129,10 @@ describe('buildNewsletterEditionPrompt', () => {
     expect(result.template).toContain('Custom Newsletter');
   });
 
-  it('loads template from NEWSLETTER_PROMPT_PATH env var', async () => {
+  it('loads template from EDITION_PROMPT_PATH env var', async () => {
     const customContent = readFileSync(defaultTemplatePath, 'utf-8').replace('Newsletter', 'Env Newsletter');
     writeCustomTemplate(customContent);
-    process.env.NEWSLETTER_PROMPT_PATH = customTemplatePath;
+    process.env.EDITION_PROMPT_PATH = customTemplatePath;
     const result = await buildNewsletterEditionPrompt({
       episodeNotes: mockNotes,
       userEmail,

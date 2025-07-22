@@ -490,7 +490,9 @@ ${transcript}`;
  * @param episodeNotes - Array of episode notes text from episode_transcript_notes table
  * @param userEmail - User email for personalization
  * @param editionDate - Edition date in YYYY-MM-DD format
+ * @param episodeMetadata - Metadata for each episode (show title and Spotify URL)
  * @param promptOverrides - Optional prompt customizations and generation settings
+ * @param promptTemplatePath - Optional path to custom prompt template file
  * @returns Promise resolving to generated newsletter content and metadata
  * @throws {GeminiAPIError} On API failures with status code and response details
  * @throws {Error} On validation errors, network errors, or invalid responses
@@ -524,7 +526,8 @@ export async function generateNewsletterEdition(
   userEmail: string,
   editionDate: string,
   episodeMetadata: EpisodeMetadata[],
-  promptOverrides?: Partial<PromptOverrides>
+  promptOverrides?: Partial<PromptOverrides>,
+  promptTemplatePath?: string
 ): Promise<NewsletterEditionResult> {
   // Validate environment first
   validateEnvironment();
@@ -564,7 +567,8 @@ export async function generateNewsletterEdition(
       episodeNotes,
       userEmail,
       editionDate,
-      episodeMetadata
+      episodeMetadata,
+      promptTemplatePath
     });
 
     if (!promptResult.success) {

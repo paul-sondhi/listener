@@ -424,8 +424,8 @@ export async function buildNewsletterEditionPrompt(
  *   - File system errors (permissions, disk space, etc.)
  * 
  * @note Environment Variable Support:
- *   - NEWSLETTER_PROMPT_PATH: Override the default prompt template path
- *   - Priority: explicit parameter > NEWSLETTER_PROMPT_PATH > default ('prompts/newsletter-edition.md')
+ *   - EDITION_PROMPT_PATH: Override the default prompt template path
+ *   - Priority: explicit parameter > EDITION_PROMPT_PATH > default ('prompts/newsletter-edition.md')
  * 
  * @example
  * ```typescript
@@ -438,8 +438,8 @@ export async function buildNewsletterEditionPrompt(
  * ```
  */
 async function loadPromptTemplate(templatePath?: string): Promise<string> {
-  // Support environment variable override for newsletter prompt path
-  const envPromptPath = process.env.NEWSLETTER_PROMPT_PATH;
+  // Support environment variable override for edition prompt path
+  const envPromptPath = process.env.EDITION_PROMPT_PATH;
   const defaultPath = 'prompts/newsletter-edition.md';
   
   // Priority: explicit parameter > environment variable > default

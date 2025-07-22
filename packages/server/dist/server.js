@@ -6998,7 +6998,7 @@ async function buildNewsletterEditionPrompt(episodeNotesOrParams, userEmail, edi
   }
 }
 async function loadPromptTemplate(templatePath) {
-  const envPromptPath = process.env.NEWSLETTER_PROMPT_PATH;
+  const envPromptPath = process.env.EDITION_PROMPT_PATH;
   const defaultPath = "prompts/newsletter-edition.md";
   const path4 = templatePath || envPromptPath || defaultPath;
   console.log("DEBUG: Loading newsletter prompt template", {
@@ -7314,10 +7314,6 @@ function validateNewsletterStructure(htmlContent, _episodeCount) {
     const context = textContent.slice(-50);
     issues.push(`Content appears truncated mid-sentence. Ends with: "${context}"`);
   }
-  const minContentLength = 3e3;
-  if (htmlContent.length < minContentLength) {
-    issues.push(`Content too short: ${htmlContent.length} chars (minimum ${minContentLength})`);
-  }
   const htmlEnding = htmlContent.slice(-100).toLowerCase();
   if (!htmlEnding.includes("</html>") || !htmlEnding.includes("</body>")) {
     issues.push("HTML document not properly closed at the end");
@@ -7431,7 +7427,7 @@ ${transcript}`;
     );
   }
 }
-async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, episodeMetadata, promptOverrides) {
+async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, episodeMetadata, promptOverrides, promptTemplatePath) {
   validateEnvironment();
   const startTime = Date.now();
   debugLog3("Starting newsletter edition generation", {
@@ -7459,7 +7455,8 @@ async function generateNewsletterEdition(episodeNotes, userEmail, editionDate, e
       episodeNotes,
       userEmail,
       editionDate,
-      episodeMetadata
+      episodeMetadata,
+      promptTemplatePath
     });
     if (!promptResult.success) {
       throw new Error(`Failed to build newsletter prompt: ${promptResult.error}`);
@@ -8597,7 +8594,6 @@ function isRetryableError(error) {
     "missing.*section",
     "unclosed.*tag",
     "truncated mid-sentence",
-    "content too short",
     "not properly closed"
   ];
   const nonRetryablePatterns = [
@@ -8775,7 +8771,16 @@ async function processUserForNewsletter(supabase4, user, config, nowOverride, ex
       const editionDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
       retryResult = await retryWithBackoff(
         async () => {
-          const result = await generateNewsletterEdition(notesTexts, user.email, editionDate, episodeMetadata);
+          const result = await generateNewsletterEdition(
+            notesTexts,
+            user.email,
+            editionDate,
+            episodeMetadata,
+            void 0,
+            // promptOverrides
+            config.promptPath
+            // Pass the configured prompt path
+          );
           if (!result.success) {
             throw new Error(result.error || "Newsletter generation failed");
           }
@@ -9364,6 +9369,7 @@ function getEditionWorkerConfig() {
   let promptTemplate;
   try {
     const fullPromptPath = resolve3(promptPath);
+    console.log(`Loading edition prompt from: ${fullPromptPath} (env: ${process.env.EDITION_PROMPT_PATH || "not set"})`);
     promptTemplate = readFileSync4(fullPromptPath, "utf-8").trim();
     if (!promptTemplate) {
       throw new Error(`Prompt template file is empty: ${fullPromptPath}`);
@@ -9425,6 +9431,7 @@ var NewsletterEditionWorker = class {
         job_id: jobId,
         lookback_hours: config.lookbackHours,
         last10_mode: config.last10Mode,
+        prompt_path: config.promptPath,
         prompt_template_length: config.promptTemplate.length
       }
     });
