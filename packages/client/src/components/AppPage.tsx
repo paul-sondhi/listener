@@ -35,6 +35,7 @@ interface SyncShowsResponse extends ApiResponse {
 const AppPage = (): React.JSX.Element => {
   const { user, signOut, clearReauthFlag, checkReauthStatus: _checkReauthStatus } = useAuth()
   const [isSyncing, setIsSyncing] = useState<boolean>(false)
+  const [userAuthProvider, setUserAuthProvider] = useState<string | null>(null)
   
   // Use ref to track if we've already synced for this user session
   const hasSynced = useRef<boolean>(false)
@@ -84,9 +85,13 @@ const AppPage = (): React.JSX.Element => {
           return
         }
 
+        // Store the auth provider for UI display
+        const provider = session.user?.app_metadata?.provider
+        setUserAuthProvider(provider || null)
+        
         // Check if this is a Spotify OAuth session
-        if (session.user?.app_metadata?.provider !== 'spotify') {
-          logger.warn('User not authenticated with Spotify')
+        if (provider !== 'spotify') {
+          logger.info(`User authenticated with ${provider || 'unknown'} provider, skipping Spotify sync`)
           // Mark as attempted to prevent infinite retries
           hasSynced.current = true
           return
@@ -196,7 +201,7 @@ const AppPage = (): React.JSX.Element => {
     if (user && !hasSynced.current) {
       void syncSpotifyTokens()
     }
-  }, [user, clearReauthFlag]) // Add clearReauthFlag to dependencies for completeness
+  }, [user, clearReauthFlag, isSyncing]) // Add dependencies for completeness
 
   // Reset sync status when user changes (logout/login)
   useEffect(() => {
@@ -236,14 +241,28 @@ const AppPage = (): React.JSX.Element => {
       
       {!user ? (
         <div className="login-prompt">
-          <p>Please log in with Spotify to access the transcript downloader.</p>
-          <p>Go back to the login page to authenticate with Spotify.</p>
+          <p>Please log in to access Listener.</p>
+          <p>Go back to the login page to authenticate.</p>
         </div>
       ) : (
         <>
           <div className="user-info">
             <h1>You're in!</h1>
-            <p>Look out for an email from Listener every day at 12p ET / 9a PT</p>
+            {userAuthProvider === 'spotify' ? (
+              <>
+                <p>Look out for an email from Listener every day at 12p ET / 9a PT</p>
+                <p className="auth-provider-info">Authenticated with: Spotify</p>
+              </>
+            ) : (
+              <>
+                <p>Welcome to Listener!</p>
+                <p className="auth-provider-info">Authenticated with: {userAuthProvider === 'google' ? 'Google' : userAuthProvider}</p>
+                <div className="google-user-notice">
+                  <p><strong>Note:</strong> As a Google user, you'll be able to manually add podcasts to track.</p>
+                  <p>This feature is coming soon!</p>
+                </div>
+              </>
+            )}
             <button 
               onClick={() => void handleLogout()} 
               className="logout-btn"

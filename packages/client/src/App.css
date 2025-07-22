@@ -86,17 +86,112 @@ p, div, span, label {
   font-size: 1.1rem;
 }
 
-.login-button {
-  width: auto;
-  padding: 0.75rem 2rem;
-  min-width: 200px;
-  background-color: #1DB954 !important; /* Spotify green */
-  color: white !important;
+.login-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  width: 100%;
+  max-width: 300px;
 }
 
-.login-button:hover {
-  background-color: #1DB954 !important;
-  border-color: transparent !important;
+.login-button {
+  width: 100%;
+  padding: 0.75rem 2rem;
+  min-width: 200px;
+  color: white !important;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.login-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.login-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spotify-button {
+  background-color: #1DB954 !important; /* Spotify green */
+}
+
+.google-button {
+  background-color: #4285F4 !important; /* Google blue */
+}
+
+.login-divider {
+  position: relative;
+  width: 100%;
+  text-align: center;
+  margin: 0.5rem 0;
+}
+
+.login-divider span {
+  background-color: white;
+  padding: 0 1rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.login-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #e0e0e0;
+  z-index: -1;
+}
+
+.login-note {
+  margin-top: 2rem;
+  padding: 1rem;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  max-width: 400px;
+}
+
+.login-note p {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0;
+  text-align: left;
+}
+
+.auth-provider-info {
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.google-user-notice {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #f0f7ff;
+  border: 1px solid #4285F4;
+  border-radius: 4px;
+  text-align: left;
+  max-width: 400px;
+}
+
+.google-user-notice p {
+  color: #333;
+  font-size: 0.95rem;
+  margin: 0.5rem 0;
+}
+
+.google-user-notice p:first-child {
+  margin-top: 0;
+}
+
+.google-user-notice p:last-child {
+  margin-bottom: 0;
 }
 
 /* App page specific styles */

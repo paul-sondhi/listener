@@ -4,12 +4,13 @@ import { useAuth } from '../contexts/AuthContext'
 import { logger } from '../lib/logger'
 
 /**
- * Login component that handles Spotify OAuth authentication
+ * Login component that handles OAuth authentication for both Spotify and Google
  * Redirects authenticated users to the app page
  */
 export default function Login(): React.JSX.Element {
   const [error, setError] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [loadingProvider, setLoadingProvider] = useState<'spotify' | 'google' | null>(null)
   const { signIn, user } = useAuth()
   const navigate = useNavigate()
 
@@ -26,34 +27,48 @@ export default function Login(): React.JSX.Element {
   }, [user, navigate])
 
   /**
-   * Handle Spotify OAuth login with proper error handling
+   * Handle OAuth login with proper error handling
+   * @param provider - The OAuth provider to use ('spotify' or 'google')
    */
-  const handleLogin = async (): Promise<void> => {
+  const handleLogin = async (provider: 'spotify' | 'google'): Promise<void> => {
     try {
       setError('')
       setIsLoading(true)
+      setLoadingProvider(provider)
       
-      const { error } = await signIn({
-        provider: 'spotify',
-        options: {
-          scopes: 'user-read-email user-library-read',
-          redirectTo: REDIRECT_URI,
-          queryParams: {
-            show_dialog: 'true' // Force the consent screen
+      // Provider-specific options
+      const providerOptions = provider === 'spotify' 
+        ? {
+            scopes: 'user-read-email user-library-read',
+            redirectTo: REDIRECT_URI,
+            queryParams: {
+              show_dialog: 'true' // Force the consent screen for Spotify
+            }
           }
-        }
+        : {
+            redirectTo: REDIRECT_URI,
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'consent' // Force consent screen for Google to ensure we get refresh token
+            }
+          }
+
+      const { error } = await signIn({
+        provider,
+        options: providerOptions
       })
 
       if (error) {
-        logger.error('Login error:', error)
-        setError('Error during login. Please try again.')
+        logger.error(`${provider} login error:`, error)
+        setError(`Error during ${provider} login. Please try again.`)
       }
     } catch (error: unknown) {
       const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
-      logger.error('Error during login:', errorMessage)
-      setError('An unexpected error occurred during login. Please try again.')
+      logger.error(`Error during ${provider} login:`, errorMessage)
+      setError(`An unexpected error occurred during ${provider} login. Please try again.`)
     } finally {
       setIsLoading(false)
+      setLoadingProvider(null)
     }
   }
 
@@ -62,20 +77,42 @@ export default function Login(): React.JSX.Element {
       <h1>Listener 1.0</h1>
       <p>Your podcast feed in a newsletter</p>
       
-      <button 
-        onClick={() => void handleLogin()}
-        disabled={isLoading}
-        className={`login-button ${isLoading ? 'loading' : ''}`}
-        type="button"
-      >
-        {isLoading ? 'Connecting...' : 'Connect Spotify'}
-      </button>
+      <div className="login-buttons">
+        <button 
+          onClick={() => void handleLogin('spotify')}
+          disabled={isLoading}
+          className={`login-button spotify-button ${loadingProvider === 'spotify' ? 'loading' : ''}`}
+          type="button"
+        >
+          {loadingProvider === 'spotify' ? 'Connecting...' : 'Continue with Spotify'}
+        </button>
+        
+        <div className="login-divider">
+          <span>or</span>
+        </div>
+        
+        <button 
+          onClick={() => void handleLogin('google')}
+          disabled={isLoading}
+          className={`login-button google-button ${loadingProvider === 'google' ? 'loading' : ''}`}
+          type="button"
+        >
+          {loadingProvider === 'google' ? 'Connecting...' : 'Continue with Google'}
+        </button>
+      </div>
       
       {error && (
         <div className="error-message" role="alert">
           {error}
         </div>
       )}
+      
+      <div className="login-note">
+        <p>
+          <strong>Note:</strong> Spotify users get automatic podcast syncing. 
+          Google users can manually add podcasts to track.
+        </p>
+      </div>
     </div>
   )
 } 

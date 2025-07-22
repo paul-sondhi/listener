@@ -385,8 +385,10 @@ export type Database = {
       }
       users: {
         Row: {
+          auth_provider: string
           created_at: string
           email: string | null
+          google_id: string | null
           id: string
           spotify_id: string | null
           spotify_reauth_required: boolean | null
@@ -394,8 +396,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auth_provider?: string
           created_at?: string
           email?: string | null
+          google_id?: string | null
           id?: string
           spotify_id?: string | null
           spotify_reauth_required?: boolean | null
@@ -403,8 +407,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auth_provider?: string
           created_at?: string
           email?: string | null
+          google_id?: string | null
           id?: string
           spotify_id?: string | null
           spotify_reauth_required?: boolean | null
