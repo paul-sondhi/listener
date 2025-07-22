@@ -58,6 +58,7 @@ export function getEditionWorkerConfig(): EditionWorkerConfig {
   try {
     // Resolve path relative to project root (where the server runs)
     const fullPromptPath = resolve(promptPath);
+    console.log(`Loading edition prompt from: ${fullPromptPath} (env: ${process.env.EDITION_PROMPT_PATH || 'not set'})`);
     promptTemplate = readFileSync(fullPromptPath, 'utf-8').trim();
     
     if (!promptTemplate) {

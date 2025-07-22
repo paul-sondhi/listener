@@ -77,6 +77,7 @@ export class NewsletterEditionWorker {
         job_id: jobId,
         lookback_hours: config.lookbackHours,
         last10_mode: config.last10Mode,
+        prompt_path: config.promptPath,
         prompt_template_length: config.promptTemplate.length
       }
     });
