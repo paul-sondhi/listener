@@ -251,12 +251,12 @@ const AppPage = (): React.JSX.Element => {
             {userAuthProvider === 'spotify' ? (
               <>
                 <p>Look out for an email from Listener every day at 12p ET / 9a PT</p>
-                <p className="auth-provider-info">Authenticated with: Spotify</p>
+                {/* <p className="auth-provider-info">Authenticated with: Spotify</p> */}
               </>
             ) : (
               <>
                 <p>Welcome to Listener!</p>
-                <p className="auth-provider-info">Authenticated with: {userAuthProvider === 'google' ? 'Google' : userAuthProvider}</p>
+                {/* <p className="auth-provider-info">Authenticated with: {userAuthProvider === 'google' ? 'Google' : userAuthProvider}</p> */}
                 <div className="google-user-notice">
                   <p><strong>Note:</strong> As a Google user, you'll be able to manually add podcasts to track.</p>
                   <p>This feature is coming soon!</p>
