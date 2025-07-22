@@ -133,7 +133,7 @@ Here is a perfect example of what your output should look like:
 
               <p style="line-height:1.6;margin-bottom:20px">Happy listening! 🎧</p>
 
-              <p style="line-height:1.6;margin-bottom:20px"><em>P.S. Got feedback? Hit reply to this email and let me know.</em></p>
+              <p style="line-height:1.6;margin-bottom:20px; font-family: Arial;"><em>P.S. Got feedback or want to unsubscribe? Hit reply to this email and let me know.</em></p>
 
 </td>
     </tr>
@@ -295,7 +295,7 @@ Here is a perfect example of what your output should look like:
 
               <p style="line-height:1.6;margin-bottom:20px">Happy listening! 🎧</p>
 
-              <p style="line-height:1.6;margin-bottom:20px"><em>P.S. Got feedback? Hit reply to this email and let me know.</em></p>
+              <p style="line-height:1.6;margin-bottom:20px; font-family: Arial;"><em>P.S. Got feedback or want to unsubscribe? Hit reply to this email and let me know.</em></p>
 
 </td>
     </tr>

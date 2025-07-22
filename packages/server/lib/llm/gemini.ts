@@ -263,7 +263,7 @@ export function validateNewsletterStructure(htmlContent: string, _episodeCount: 
     { pattern: /Recommended Listens/i, name: 'Recommended Listens heading' },
     { pattern: /Today I Learned/i, name: 'Today I Learned heading' },
     { pattern: /Happy listening! 🎧/, name: 'Closing' },
-    { pattern: /P\.S\. Got feedback\?/i, name: 'P.S. section' }
+    { pattern: /P\.S\. Got feedback/i, name: 'P.S. section' }
   ];
   
   for (const section of requiredSections) {
