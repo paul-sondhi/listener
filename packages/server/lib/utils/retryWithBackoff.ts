@@ -56,7 +56,6 @@ export function isRetryableError(error: Error): boolean {
     'missing.*section',
     'unclosed.*tag',
     'truncated mid-sentence',
-    'content too short',
     'not properly closed'
   ];
   

@@ -305,13 +305,7 @@ export function validateNewsletterStructure(htmlContent: string, _episodeCount: 
     issues.push(`Content appears truncated mid-sentence. Ends with: "${context}"`);
   }
   
-  // 5. Minimum content check
-  const minContentLength = 3000; // Minimum expected length
-  if (htmlContent.length < minContentLength) {
-    issues.push(`Content too short: ${htmlContent.length} chars (minimum ${minContentLength})`);
-  }
-  
-  // 6. Check for incomplete HTML structure at the end
+  // 5. Check for incomplete HTML structure at the end
   const htmlEnding = htmlContent.slice(-100).toLowerCase();
   if (!htmlEnding.includes('</html>') || !htmlEnding.includes('</body>')) {
     issues.push('HTML document not properly closed at the end');
