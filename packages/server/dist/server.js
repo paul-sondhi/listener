@@ -3979,7 +3979,7 @@ import { GraphQLClient } from "graphql-request";
 
 // generated/taddy.ts
 var defaultWrapper = (action, _operationName, _operationType, _variables) => action();
-function getSdk(client, _withWrapper = defaultWrapper) {
+function getSdk(client, withWrapper = defaultWrapper) {
   return {};
 }
 
@@ -7264,7 +7264,7 @@ var GeminiRateLimiter = class _GeminiRateLimiter {
     return new Promise((resolve4) => setTimeout(resolve4, ms));
   }
 };
-function validateNewsletterStructure(htmlContent, episodeCount) {
+function validateNewsletterStructure(htmlContent, _episodeCount) {
   const issues = [];
   if (!htmlContent.includes("<!DOCTYPE html>")) {
     issues.push("Missing DOCTYPE declaration");
@@ -7310,7 +7310,7 @@ function validateNewsletterStructure(htmlContent, episodeCount) {
   const endsWithPunctuation = [".", "!", "?", '"', ")", "]", "\u{1F3A7}", "\u{1F4E7}"].includes(lastChar);
   const lastFewChars = textContent.slice(-10);
   const hasProperEnding = endsWithPunctuation || lastFewChars.includes("let me know") || lastFewChars.includes("feedback");
-  if (!hasProperEnding && textContent.length > 100) {
+  if (!hasProperEnding && textContent.length > 0) {
     const context = textContent.slice(-50);
     issues.push(`Content appears truncated mid-sentence. Ends with: "${context}"`);
   }

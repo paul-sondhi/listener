@@ -1559,6 +1559,8 @@ type Query {
   getPublicClientDetails: PublicClientDetails
   getMyDeveloperWebhooks: UserWebhooks
   me: User
+  getApiRequestsRemaining: Int
+  getTranscriptCreditsRemaining: Int
   getItunesInfo: iTunesInfo
   getMyInternalSeries: UserInternalSeriesList
   getPreviewDetailsForSeries: ContentInternalSeriesList

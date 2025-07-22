@@ -37,7 +37,11 @@ export default function Login(): React.JSX.Element {
       setLoadingProvider(provider)
       
       // Provider-specific options
-      const providerOptions = provider === 'spotify' 
+      const providerOptions: {
+        scopes?: string;
+        redirectTo: string;
+        queryParams: { [key: string]: string };
+      } = provider === 'spotify' 
         ? {
             scopes: 'user-read-email user-library-read',
             redirectTo: REDIRECT_URI,
