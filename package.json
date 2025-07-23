@@ -30,7 +30,7 @@
     "type-check": "tsc --noEmit",
     "type-check:watch": "tsc --noEmit --watch",
     "migration:validate": "cd scripts && npm install && cd .. && node scripts/core/validate-migration.js",
-    "backup-restore:test": "cd scripts && npm install && cd .. && node scripts/local/backup-restore-test.js",
+    "backup-restore:test": "cd scripts && npm install && cd .. && node scripts/core/backup-restore-test.js",
     "test:migration": "npm run migration:validate && npm run backup-restore:test",
     "monitor:vault": "cd scripts && npm install && cd .. && node scripts/local/monitor-vault.js",
     "verify:vault-usage": "node scripts/local/verify-vault-usage.js",
