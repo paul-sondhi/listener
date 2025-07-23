@@ -174,7 +174,7 @@ jobs:
         run: |
           echo "🔄 Running backup-restore test..."
           cd scripts
-          node backup-restore-test.js
+          node local/backup-restore-test.js
 
       - name: Upload backup artifacts (if test fails)
         if: failure()
