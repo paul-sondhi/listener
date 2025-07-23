@@ -37,14 +37,8 @@ vi.mock('../../contexts/AuthContext', () => ({
 
 /**
  * Test suite for Google authentication functionality in the Login component
- * 
- * NOTE: These tests are currently skipped because the Google authentication
- * UI is temporarily hidden. When the Google button and info box are 
- * re-enabled in the Login component, remove the .skip from describe()
- * to re-enable these tests.
  */
-// Skip these tests while Google auth UI is hidden
-describe.skip('Login Component - Google Authentication', () => {
+describe('Login Component - Google Authentication', () => {
   beforeEach(() => {
     mockSignIn.mockClear()
     mockNavigate.mockClear()

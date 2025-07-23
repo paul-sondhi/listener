@@ -64,12 +64,11 @@ describe('Login Component', () => {
       </MemoryRouter>
     )
 
-    // Assert: Check if the Spotify login button is present in the document
+    // Assert: Check if the login buttons are present in the document
     const spotifyButton: HTMLElement = screen.getByRole('button', { name: /continue with spotify/i })
     expect(spotifyButton).toBeInTheDocument()
-    // Google button is currently hidden
-    // const googleButton: HTMLElement = screen.getByRole('button', { name: /continue with google/i })
-    // expect(googleButton).toBeInTheDocument()
+    const googleButton: HTMLElement = screen.getByRole('button', { name: /continue with google/i })
+    expect(googleButton).toBeInTheDocument()
   })
 
   it('calls signIn when the login button is clicked', async () => {
