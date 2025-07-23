@@ -6,6 +6,7 @@ import spotifyTokensRouter from './spotifyTokens.js';
 import syncShowsRouter from './syncShows.js';
 import healthRouter from './health.js';
 import adminRouter from './admin.js';
+import opmlUploadRouter from './opmlUpload.js';
 
 // Create router with proper typing
 const router: Router = express.Router();
@@ -16,5 +17,6 @@ router.use('/store-spotify-tokens', spotifyTokensRouter); // Spotify token manag
 router.use('/sync-spotify-shows', syncShowsRouter);    // Spotify show synchronization
 router.use('/healthz', healthRouter);                 // Health check endpoints
 router.use('/admin', adminRouter);                    // Admin and monitoring endpoints
+router.use('/opml-upload', opmlUploadRouter);         // OPML file upload endpoint
 
 export default router; 
