@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabaseClient'
 import { ApiResponse } from '@listener/shared'
 import ReauthPrompt from './ReauthPrompt'
+import OPMLUpload from './OPMLUpload'
 import { logger } from '../lib/logger'
 
 // Get the API base URL from environment variables
@@ -252,15 +253,13 @@ const AppPage = (): React.JSX.Element => {
               <>
                 <p>Look out for an email from Listener every day at 12p ET / 9a PT</p>
                 <p className="auth-provider-info">Authenticated with: Spotify</p>
+                <OPMLUpload />
               </>
             ) : (
               <>
                 <p>Welcome to Listener!</p>
                 <p className="auth-provider-info">Authenticated with: {userAuthProvider === 'google' ? 'Google' : userAuthProvider}</p>
-                <div className="google-user-notice">
-                  <p><strong>Note:</strong> As a Google user, you'll be able to manually add podcasts to track.</p>
-                  <p>This feature is coming soon!</p>
-                </div>
+                <OPMLUpload />
               </>
             )}
             <button 

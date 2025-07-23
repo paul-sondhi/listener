@@ -8,12 +8,16 @@ const mockTranscribeRouter = vi.fn((_req, _res, next) => next());
 const mockSpotifyTokensRouter = vi.fn((_req, _res, next) => next());
 const mockSyncShowsRouter = vi.fn((_req, _res, next) => next());
 const mockHealthRouter = vi.fn((_req, _res, next) => next());
+const mockAdminRouter = vi.fn((_req, _res, next) => next());
+const mockOpmlUploadRouter = vi.fn((_req, _res, next) => next());
 
 // Mock the sub-routers that mainApiRouter depends on
 vi.mock('../transcribe.js', () => ({ default: mockTranscribeRouter }));
 vi.mock('../spotifyTokens.js', () => ({ default: mockSpotifyTokensRouter }));
 vi.mock('../syncShows.js', () => ({ default: mockSyncShowsRouter }));
 vi.mock('../health.js', () => ({ default: mockHealthRouter }));
+vi.mock('../admin.js', () => ({ default: mockAdminRouter }));
+vi.mock('../opmlUpload.js', () => ({ default: mockOpmlUploadRouter }));
 
 let app; // Declare app here to be accessible in tests
 
@@ -50,6 +54,18 @@ describe('Main API Router (routes/index.js)', () => {
     mockHealthRouter.mockClear();
     await request(app).get('/api/healthz');
     expect(mockHealthRouter).toHaveBeenCalled();
+  });
+
+  it('should mount adminRouter at /admin', async () => {
+    mockAdminRouter.mockClear();
+    await request(app).get('/api/admin/somepath');
+    expect(mockAdminRouter).toHaveBeenCalled();
+  });
+
+  it('should mount opmlUploadRouter at /opml-upload', async () => {
+    mockOpmlUploadRouter.mockClear();
+    await request(app).post('/api/opml-upload');
+    expect(mockOpmlUploadRouter).toHaveBeenCalled();
   });
 
   it('should return 404 for non-existent routes under /api', async () => {
