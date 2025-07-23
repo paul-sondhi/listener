@@ -390,7 +390,7 @@ const mockHtml = `<!DOCTYPE html>
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="600" class="card-bg" style="width:600px; background:#ffffff;">
     <tr>
       <td style="padding:20px;">
-        <p style="line-height:1.6;margin-bottom:20px;">Hello! I listened to 3 episodes for you since yesterday. Here's what I heard.</p>
+        <p style="line-height:1.6;margin-bottom:20px;">Hello! 👋<br></br>I listened to 3 episodes for you since yesterday. Here's what I heard.</p>
         <h3 style="color:#000000;margin-top:25px;margin-bottom:15px;">Recommended Listens</h3>
         <p style="line-height:1.6;margin-bottom:20px;">The latest episode of <a href="https://open.spotify.com/show/tech-daily" style="text-decoration:none;">Tech Daily</a> dives deep into the implications of AI regulation in Europe, featuring interviews with key policymakers who are shaping the future of technology governance. The discussion highlights the delicate balance between innovation and consumer protection, with specific examples from recent GDPR amendments.<br><br>
         For a lighter listen, <a href="https://open.spotify.com/show/comedy-hour" style="text-decoration:none;">Comedy Hour</a> brings their signature blend of current events and humor, this time tackling the absurdity of modern dating apps with guest comedian Sarah Chen. The episode is filled with hilarious anecdotes and surprisingly insightful observations about human connection in the digital age.<br><br>
@@ -404,7 +404,7 @@ const mockHtml = `<!DOCTYPE html>
         <p style="line-height:1.6;margin-bottom:20px;"><a href="https://open.spotify.com/show/planet-money" style="text-decoration:none;">Planet Money</a> unravels the complex web of international supply chains through the story of a single semiconductor chip, tracing its journey from raw materials to finished product. The narrative reveals surprising bottlenecks and dependencies that most consumers never consider. Their investigation uncovers how geopolitical tensions are reshaping global manufacturing strategies.<br><br>
         <a href="https://open.spotify.com/show/how-i-built-this" style="text-decoration:none;">How I Built This</a> features the founder of a sustainable fashion startup who turned textile waste into a billion-dollar business. The entrepreneur shares candid stories about near-bankruptcy, pivotal decisions, and the importance of mission-driven leadership in attracting both customers and investors.</p>
         
-        <h3 style="color:#000000;margin-top:25px;margin-bottom:15px;">Today I Learned</h3>
+        <h3 style="color:#000000;margin-top:25px;margin-bottom:15px;">💡 Today I Learned</h3>
         <p style="line-height:1.6;margin-bottom:20px;">The human brain uses about 20% of the body's total energy despite being only 2% of body weight, and scientists have recently discovered that this energy consumption actually increases during deep sleep as the brain consolidates memories and clears metabolic waste (from <a href="https://open.spotify.com/show/neuroscience-today" style="text-decoration:none;">Neuroscience Today</a>).</p>
         <p style="line-height:1.6;margin-bottom:20px;">Happy listening! 🎧</p>
         <p style="line-height:1.6;margin-bottom:20px;"><em>P.S. Got feedback? Hit reply to this email and let me know.</em></p>

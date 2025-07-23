@@ -259,9 +259,9 @@ export function validateNewsletterStructure(htmlContent: string, _episodeCount: 
   
   // 2. Check required sections exist and are complete
   const requiredSections = [
-    { pattern: /Hello! I listened to \d+ episode/i, name: 'Intro' },
+    { pattern: /Hello!.*I listened to \d+ episode/i, name: 'Intro' },
     { pattern: /Recommended Listens/i, name: 'Recommended Listens heading' },
-    { pattern: /Today I Learned/i, name: 'Today I Learned heading' },
+    { pattern: /.*Today I Learned/i, name: 'Today I Learned heading' },
     { pattern: /Happy listening! 🎧/, name: 'Closing' },
     { pattern: /P\.S\. Got feedback/i, name: 'P.S. section' }
   ];
