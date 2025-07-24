@@ -104,10 +104,10 @@ export class TranscriptWorker {
     // Initialize transcript service
     this.transcriptService = new TranscriptService();
     
-    // Initialize Deepgram fallback service with configured file size limit
+    // Initialize Deepgram fallback service with configured file size limit and logger
     this.deepgramService = new DeepgramFallbackService({
       maxDeepgramFileSizeMB: this.config.maxDeepgramFileSizeMB
-    });
+    }, this.logger);
 
     this.logger.info('system', 'TranscriptWorker initialized', {
       metadata: {
@@ -856,9 +856,12 @@ export class TranscriptWorker {
         
         // Attempt Deepgram fallback if configured and within limits
         if (this.config.enableDeepgramFallback && 
-            this.shouldFallbackToDeepgram(transcriptResult) && 
-            this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
-          return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+            this.shouldFallbackToDeepgram(transcriptResult)) {
+          if (this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
+            return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+          } else {
+            this.logCostLimitReached(episode.id, 'no_transcript_found');
+          }
         }
         
         return {
@@ -873,9 +876,12 @@ export class TranscriptWorker {
         
         // Attempt Deepgram fallback if configured and within limits
         if (this.config.enableDeepgramFallback && 
-            this.shouldFallbackToDeepgram(transcriptResult) && 
-            this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
-          return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+            this.shouldFallbackToDeepgram(transcriptResult)) {
+          if (this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
+            return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+          } else {
+            this.logCostLimitReached(episode.id, 'no_match');
+          }
         }
         
         return {
@@ -905,9 +911,12 @@ export class TranscriptWorker {
         // Attempt Deepgram fallback if configured and within limits (but not if quota exhausted)
         if (!this.quotaExhausted && 
             this.config.enableDeepgramFallback && 
-            this.shouldFallbackToDeepgram(transcriptResult) && 
-            this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
-          return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+            this.shouldFallbackToDeepgram(transcriptResult)) {
+          if (this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
+            return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+          } else {
+            this.logCostLimitReached(episode.id, 'error');
+          }
         }
         
         return {
@@ -1095,6 +1104,24 @@ export class TranscriptWorker {
   }
 
   /**
+   * Log when Deepgram fallback cost limit is reached
+   * @param episodeId - ID of the episode that would have been processed
+   * @param originalStatus - The original Taddy status that triggered fallback
+   */
+  private logCostLimitReached(episodeId: string, originalStatus: string): void {
+    this.logger.warn('system', 'Deepgram fallback cost limit reached - skipping remaining episodes', {
+      metadata: {
+        episode_id: episodeId,
+        original_taddy_status: originalStatus,
+        fallback_attempts_used: this.deepgramFallbackCount,
+        max_fallbacks_per_run: this.config.maxDeepgramFallbacksPerRun,
+        limit: this.config.maxDeepgramFallbacksPerRun,
+        processed: this.deepgramFallbackCount
+      }
+    });
+  }
+
+  /**
    * Attempt Deepgram fallback transcription for a failed episode
    * @param episode Episode to transcribe
    * @param originalResult Original Taddy result that failed
@@ -1142,13 +1169,21 @@ export class TranscriptWorker {
           null // Clear error details on success
         );
 
+        // Calculate estimated cost (Nova-3 model pricing: ~$0.0043/minute)
+        const estimatedDurationMinutes = deepgramResult.processingTimeMs ? 
+          Math.round(deepgramResult.processingTimeMs / 60000 * 100) / 100 : 0;
+        const estimatedCostUSD = estimatedDurationMinutes * 0.0043;
+
         this.logger.info('system', 'Deepgram fallback successful', {
           metadata: {
             job_id: jobId,
             episode_id: episode.id,
             storage_path: storagePath,
             file_size_mb: deepgramResult.fileSizeMB,
-            transcript_length: deepgramResult.transcript.length
+            transcript_length: deepgramResult.transcript.length,
+            processing_time_ms: deepgramResult.processingTimeMs,
+            estimated_duration_minutes: estimatedDurationMinutes,
+            estimated_cost_usd: Math.round(estimatedCostUSD * 10000) / 10000 // Round to 4 decimal places
           }
         });
 
@@ -1176,6 +1211,7 @@ export class TranscriptWorker {
             episode_id: episode.id,
             deepgram_error: deepgramResult.error,
             file_size_mb: deepgramResult.fileSizeMB,
+            processing_time_ms: deepgramResult.processingTimeMs,
             original_taddy_status: originalResult.kind
           }
         });

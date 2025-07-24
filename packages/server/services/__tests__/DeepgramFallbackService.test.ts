@@ -265,7 +265,7 @@ describe('DeepgramFallbackService', () => {
       const result = await service.transcribeFromUrl(validUrl);
       
       expect(result.success).toBe(false);
-      expect(result.error).toBe('No transcript returned from Deepgram API');
+      expect(result.error).toBe('Invalid response structure from Deepgram API');
       expect(result.fileSizeMB).toBe(50);
     });
 
@@ -281,7 +281,7 @@ describe('DeepgramFallbackService', () => {
       const result = await service.transcribeFromUrl(validUrl);
       
       expect(result.success).toBe(false);
-      expect(result.error).toBe('No transcript returned from Deepgram API');
+      expect(result.error).toBe('Invalid response structure from Deepgram API');
     });
 
     it('should handle rate limit errors (429)', async () => {

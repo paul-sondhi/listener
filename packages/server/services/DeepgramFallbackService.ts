@@ -6,6 +6,7 @@
  */
 
 import { createClient, DeepgramClient } from '@deepgram/sdk';
+import { Logger } from '../lib/logger.js';
 
 /**
  * Configuration interface for Deepgram fallback service
@@ -30,6 +31,7 @@ export interface DeepgramTranscriptResult {
   transcript?: string;
   error?: string;
   fileSizeMB?: number;
+  processingTimeMs?: number;
 }
 
 /**
@@ -38,14 +40,16 @@ export interface DeepgramTranscriptResult {
 export class DeepgramFallbackService {
   private client: DeepgramClient;
   private config: DeepgramFallbackConfig;
+  private logger: Logger;
 
-  constructor(config?: Partial<DeepgramFallbackConfig>) {
+  constructor(config?: Partial<DeepgramFallbackConfig>, logger?: Logger) {
     const apiKey = process.env.DEEPGRAM_API_KEY;
     if (!apiKey) {
       throw new Error('DEEPGRAM_API_KEY environment variable is required');
     }
 
     this.client = createClient(apiKey);
+    this.logger = logger || console as any; // Fallback to console if no logger provided
     
     // Set default configuration with overrides
     this.config = {
@@ -59,9 +63,14 @@ export class DeepgramFallbackService {
       ...config
     };
 
-    console.log('[DEEPGRAM_FALLBACK] Service initialized with config:', {
-      maxFileSizeMB: this.config.maxDeepgramFileSizeMB,
-      model: this.config.deepgramOptions.model,
+    this.logger.info('system', 'Deepgram fallback service initialized', {
+      metadata: {
+        max_file_size_mb: this.config.maxDeepgramFileSizeMB,
+        model: this.config.deepgramOptions.model,
+        smart_format: this.config.deepgramOptions.smart_format,
+        diarize: this.config.deepgramOptions.diarize,
+        filler_words: this.config.deepgramOptions.filler_words
+      }
     });
   }
 
@@ -73,24 +82,53 @@ export class DeepgramFallbackService {
   async transcribeFromUrl(episodeUrl: string): Promise<DeepgramTranscriptResult> {
     const startTime = Date.now();
     
-    console.log('[DEEPGRAM_FALLBACK] Starting transcription for URL:', episodeUrl);
+    this.logger.info('system', 'Starting Deepgram transcription', {
+      metadata: {
+        episode_url: episodeUrl,
+        timestamp: new Date().toISOString()
+      }
+    });
 
     try {
       // Step 1: Validate URL format
       if (!this.isValidUrl(episodeUrl)) {
         const error = `Invalid URL format: ${episodeUrl}`;
-        console.log('[DEEPGRAM_FALLBACK] URL validation failed:', error);
-        return { success: false, error };
+        const processingTimeMs = Date.now() - startTime;
+        
+        this.logger.warn('system', 'Deepgram URL validation failed', {
+          metadata: {
+            episode_url: episodeUrl,
+            error: error,
+            processing_time_ms: processingTimeMs
+          }
+        });
+        
+        return { success: false, error, processingTimeMs };
       }
 
       // Step 2: Check file size via HEAD request
       const fileSizeCheck = await this.checkFileSize(episodeUrl);
       if (!fileSizeCheck.success) {
-        console.log('[DEEPGRAM_FALLBACK] File size check failed:', fileSizeCheck.error);
-        return fileSizeCheck;
+        const processingTimeMs = Date.now() - startTime;
+        
+        this.logger.warn('system', 'Deepgram file size check failed', {
+          metadata: {
+            episode_url: episodeUrl,
+            error: fileSizeCheck.error,
+            file_size_mb: fileSizeCheck.fileSizeMB,
+            processing_time_ms: processingTimeMs
+          }
+        });
+        
+        return { ...fileSizeCheck, processingTimeMs };
       }
 
-      console.log('[DEEPGRAM_FALLBACK] File size check passed:', `${fileSizeCheck.fileSizeMB}MB`);
+      this.logger.debug('system', 'Deepgram file size check passed', {
+        metadata: {
+          episode_url: episodeUrl,
+          file_size_mb: fileSizeCheck.fileSizeMB
+        }
+      });
 
       // Step 3: Attempt transcription with Deepgram
       const { result, error } = await this.client.listen.prerecorded.transcribeUrl(
@@ -99,53 +137,96 @@ export class DeepgramFallbackService {
       );
 
       if (error) {
+        const processingTimeMs = Date.now() - startTime;
         const errorMessage = `Deepgram API error: ${error.message || 'Unknown error'}`;
-        console.error('[DEEPGRAM_FALLBACK] Deepgram API error:', error);
-        return { success: false, error: errorMessage, fileSizeMB: fileSizeCheck.fileSizeMB };
+        
+        this.logger.error('system', 'Deepgram API error', {
+          metadata: {
+            episode_url: episodeUrl,
+            error: error.message || 'Unknown error',
+            error_code: error.code || 'unknown',
+            file_size_mb: fileSizeCheck.fileSizeMB,
+            processing_time_ms: processingTimeMs
+          }
+        });
+        
+        return { success: false, error: errorMessage, fileSizeMB: fileSizeCheck.fileSizeMB, processingTimeMs };
       }
 
       // Step 4: Extract transcript from response
       const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript;
       
       if (!transcript) {
-        const error = 'No transcript returned from Deepgram API';
-        console.error('[DEEPGRAM_FALLBACK] No transcript in response:', result);
-        return { success: false, error, fileSizeMB: fileSizeCheck.fileSizeMB };
+        const processingTimeMs = Date.now() - startTime;
+        const error = 'Invalid response structure from Deepgram API';
+        
+        this.logger.error('system', 'Deepgram response missing transcript', {
+          metadata: {
+            episode_url: episodeUrl,
+            error: error,
+            response_structure: {
+              has_results: !!result?.results,
+              has_channels: !!result?.results?.channels,
+              channels_count: result?.results?.channels?.length || 0
+            },
+            file_size_mb: fileSizeCheck.fileSizeMB,
+            processing_time_ms: processingTimeMs
+          }
+        });
+        
+        return { success: false, error, fileSizeMB: fileSizeCheck.fileSizeMB, processingTimeMs };
       }
 
-      const duration = Date.now() - startTime;
-      console.log('[DEEPGRAM_FALLBACK] Transcription successful:', {
-        fileSizeMB: fileSizeCheck.fileSizeMB,
-        transcriptLength: transcript.length,
-        durationMs: duration
+      const processingTimeMs = Date.now() - startTime;
+      
+      this.logger.info('system', 'Deepgram transcription successful', {
+        metadata: {
+          episode_url: episodeUrl,
+          file_size_mb: fileSizeCheck.fileSizeMB,
+          transcript_length: transcript.length,
+          processing_time_ms: processingTimeMs,
+          estimated_duration_minutes: Math.round(processingTimeMs / 60000 * 100) / 100
+        }
       });
 
       return {
         success: true,
         transcript,
-        fileSizeMB: fileSizeCheck.fileSizeMB
+        fileSizeMB: fileSizeCheck.fileSizeMB,
+        processingTimeMs
       };
 
     } catch (error) {
-      const duration = Date.now() - startTime;
+      const processingTimeMs = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : 'Unknown transcription error';
       
-      console.error('[DEEPGRAM_FALLBACK] Transcription failed:', {
-        error: errorMessage,
-        url: episodeUrl,
-        durationMs: duration
+      this.logger.error('system', 'Deepgram transcription exception', {
+        metadata: {
+          episode_url: episodeUrl,
+          error: errorMessage,
+          error_type: error instanceof Error ? error.constructor.name : 'unknown',
+          processing_time_ms: processingTimeMs
+        }
       });
 
       // Handle specific error types
       if (errorMessage.includes('429')) {
-        return { success: false, error: 'Rate limit exceeded - too many concurrent requests' };
+        return { 
+          success: false, 
+          error: 'Rate limit exceeded - too many concurrent requests', 
+          processingTimeMs 
+        };
       }
       
       if (errorMessage.includes('504') || errorMessage.includes('timeout')) {
-        return { success: false, error: 'Transcription timeout - file processing exceeded 10 minutes' };
+        return { 
+          success: false, 
+          error: 'Transcription timeout - file processing exceeded 10 minutes', 
+          processingTimeMs 
+        };
       }
 
-      return { success: false, error: errorMessage };
+      return { success: false, error: errorMessage, processingTimeMs };
     }
   }
 
@@ -170,7 +251,11 @@ export class DeepgramFallbackService {
    */
   private async checkFileSize(url: string): Promise<DeepgramTranscriptResult> {
     try {
-      console.log('[DEEPGRAM_FALLBACK] Checking file size for:', url);
+      this.logger.debug('system', 'Checking file size via HEAD request', {
+        metadata: {
+          episode_url: url
+        }
+      });
       
       const headResponse = await fetch(url, { 
         method: 'HEAD',
@@ -207,7 +292,15 @@ export class DeepgramFallbackService {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during file size check';
-      console.error('[DEEPGRAM_FALLBACK] File size check error:', errorMessage);
+      
+      this.logger.error('system', 'File size check network error', {
+        metadata: {
+          episode_url: url,
+          error: errorMessage,
+          error_type: error instanceof Error ? error.constructor.name : 'unknown'
+        }
+      });
+      
       return { success: false, error: `Network error during file size check: ${errorMessage}` };
     }
   }
