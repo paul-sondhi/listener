@@ -14,8 +14,8 @@ import { NotesWorkerConfig } from '../../config/notesWorkerConfig.js';
 export interface PodcastMetadata {
   /** The podcast show title (required) */
   showTitle: string;
-  /** The podcast Spotify URL (required) */
-  spotifyUrl: string;
+  /** The podcast Spotify URL (optional - may be undefined for RSS-only podcasts) */
+  spotifyUrl?: string;
 }
 
 /**
@@ -58,7 +58,7 @@ export async function generateNotesWithPrompt(
     promptTemplateLength: config.promptTemplate.length,
     model: 'gemini-1.5-flash',
     showTitle: metadata.showTitle,
-    spotifyUrl: metadata.spotifyUrl
+    spotifyUrl: metadata.spotifyUrl || '(RSS-only)'
   });
 
   try {
@@ -148,9 +148,10 @@ export async function generateNotesWithPrompt(
  */
 function buildFullPrompt(promptTemplate: string, transcript: string, metadata: PodcastMetadata): string {
   // Replace metadata placeholders in the template
+  // For RSS-only podcasts without Spotify URLs, use a placeholder
   const prompt = promptTemplate
     .replace(/\[SHOW_TITLE\]/g, metadata.showTitle)
-    .replace(/\[SPOTIFY_URL\]/g, metadata.spotifyUrl);
+    .replace(/\[SPOTIFY_URL\]/g, metadata.spotifyUrl || '(RSS-only podcast)');
   
   // Append the transcript to the prompt
   return `${prompt.trim()}

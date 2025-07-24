@@ -792,12 +792,12 @@ __export(auth_exports, {
   default: () => auth_default
 });
 import path2 from "path";
-import { createClient as createClient9 } from "@supabase/supabase-js";
-var supabaseAdmin6, authMiddleware, auth_default;
+import { createClient as createClient10 } from "@supabase/supabase-js";
+var supabaseAdmin7, authMiddleware, auth_default;
 var init_auth = __esm({
   "middleware/auth.ts"() {
     "use strict";
-    supabaseAdmin6 = createClient9(
+    supabaseAdmin7 = createClient10(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
@@ -822,7 +822,7 @@ var init_auth = __esm({
           res.status(401).json({ error: "Not authenticated" });
           return;
         }
-        const { data: { user }, error } = await supabaseAdmin6.auth.getUser(token);
+        const { data: { user }, error } = await supabaseAdmin7.auth.getUser(token);
         if (error) {
           console.error("Auth error:", error.message);
           res.clearCookie("sb-access-token");
@@ -902,7 +902,7 @@ var init_error = __esm({
 });
 
 // server.ts
-import express6 from "express";
+import express7 from "express";
 import path3 from "path";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
@@ -922,7 +922,7 @@ if (process.env.LOG_LEVEL !== "debug") {
 }
 
 // routes/index.ts
-import express5 from "express";
+import express6 from "express";
 
 // routes/transcribe.ts
 import express from "express";
@@ -3365,15 +3365,15 @@ async function refreshUserSubscriptions(userId, jobId) {
 async function getAllUsersWithSpotifyTokens() {
   try {
     if (process.env.NODE_ENV === "test") {
-      const { data, error: error2 } = await getSupabaseAdmin5().from("users").select("id").eq("spotify_reauth_required", false);
+      const { data, error: error2 } = await getSupabaseAdmin5().from("users").select("id").eq("spotify_reauth_required", false).eq("auth_provider", "spotify");
       if (error2) {
         throw new Error(`Failed to fetch users: ${error2.message}`);
       }
       return (data || []).map((u) => u.id);
     }
     let query = getSupabaseAdmin5().from("users").select("id");
-    if (typeof query.not === "function" && typeof query.is === "function") {
-      query = query.not("spotify_tokens_enc", "is", null).is("spotify_reauth_required", false);
+    if (typeof query.not === "function" && typeof query.is === "function" && typeof query.eq === "function") {
+      query = query.not("spotify_tokens_enc", "is", null).is("spotify_reauth_required", false).eq("auth_provider", "spotify");
     }
     let users;
     let error;
@@ -3421,7 +3421,7 @@ async function getAllUsersWithSpotifyTokens() {
       }
     }
     const userIds = (users || []).map((u) => u.id);
-    console.log(`[SubscriptionRefresh] Found ${userIds.length} users with valid Spotify tokens`);
+    console.log(`[SubscriptionRefresh] Found ${userIds.length} users with valid Spotify tokens (Google OAuth users are skipped)`);
     return userIds;
   } catch (error) {
     const err = error;
@@ -6897,8 +6897,8 @@ async function buildNewsletterEditionPrompt(episodeNotesOrParams, userEmail, edi
       if (!metadata.showTitle || typeof metadata.showTitle !== "string") {
         throw new Error(`episodeMetadata[${index}].showTitle must be a non-empty string`);
       }
-      if (!metadata.spotifyUrl || typeof metadata.spotifyUrl !== "string") {
-        throw new Error(`episodeMetadata[${index}].spotifyUrl must be a non-empty string`);
+      if (metadata.spotifyUrl !== void 0 && typeof metadata.spotifyUrl !== "string") {
+        throw new Error(`episodeMetadata[${index}].spotifyUrl must be a string if provided`);
       }
     });
     if (params.episodeNotes.length === 1) {
@@ -7158,6 +7158,7 @@ function sanitizeNewsletterContent(htmlContent) {
         "font-size": [/^\d+(?:px|em|%)$/],
         "font-weight": [/^(normal|bold|bolder|lighter|\d{3})$/],
         "text-align": [/^(left|right|center|justify)$/],
+        "text-decoration": [/^(none|underline|overline|line-through)$/],
         "line-height": [/^\d+(?:\.\d+)?$/],
         "margin": [/^\d+(?:px|em|%)?$/],
         "margin-top": [/^\d+(?:px|em|%)?$/],
@@ -7287,11 +7288,11 @@ function validateNewsletterStructure(htmlContent, _episodeCount) {
     issues.push(`Unclosed td tags (${tdOpenCount} open, ${tdCloseCount} closed)`);
   }
   const requiredSections = [
-    { pattern: /Hello! I listened to \d+ episode/i, name: "Intro" },
+    { pattern: /Hello!.*I listened to \d+ episode/i, name: "Intro" },
     { pattern: /Recommended Listens/i, name: "Recommended Listens heading" },
-    { pattern: /Today I Learned/i, name: "Today I Learned heading" },
+    { pattern: /.*Today I Learned/i, name: "Today I Learned heading" },
     { pattern: /Happy listening! 🎧/, name: "Closing" },
-    { pattern: /P\.S\. Got feedback\?/i, name: "P.S. section" }
+    { pattern: /P\.S\. Got feedback/i, name: "P.S. section" }
   ];
   for (const section of requiredSections) {
     if (!section.pattern.test(htmlContent)) {
@@ -7603,7 +7604,7 @@ async function generateNotesWithPrompt(transcript, config, metadata) {
     promptTemplateLength: config.promptTemplate.length,
     model: "gemini-1.5-flash",
     showTitle: metadata.showTitle,
-    spotifyUrl: metadata.spotifyUrl
+    spotifyUrl: metadata.spotifyUrl || "(RSS-only)"
   });
   try {
     if (!transcript || transcript.trim().length === 0) {
@@ -7671,7 +7672,7 @@ async function generateNotesWithPrompt(transcript, config, metadata) {
   }
 }
 function buildFullPrompt2(promptTemplate, transcript, metadata) {
-  const prompt = promptTemplate.replace(/\[SHOW_TITLE\]/g, metadata.showTitle).replace(/\[SPOTIFY_URL\]/g, metadata.spotifyUrl);
+  const prompt = promptTemplate.replace(/\[SHOW_TITLE\]/g, metadata.showTitle).replace(/\[SPOTIFY_URL\]/g, metadata.spotifyUrl || "(RSS-only podcast)");
   return `${prompt.trim()}
 
 ---
@@ -7691,8 +7692,8 @@ function countWords3(text) {
 async function processEpisodeForNotes(supabase4, transcript, config) {
   const startTime = Date.now();
   const timing = { downloadMs: 0, generationMs: 0, databaseMs: 0 };
-  if (!transcript.episode?.podcast_shows?.title || !transcript.episode?.podcast_shows?.spotify_url) {
-    const errorMessage = "Missing required podcast metadata: title and spotify_url must be present";
+  if (!transcript.episode?.podcast_shows?.title) {
+    const errorMessage = "Missing required podcast metadata: title must be present";
     console.error("DEBUG: Failed to process episode - missing metadata", {
       episodeId: transcript.episode_id,
       hasEpisode: !!transcript.episode,
@@ -7716,7 +7717,7 @@ async function processEpisodeForNotes(supabase4, transcript, config) {
     };
   }
   const showTitle = transcript.episode.podcast_shows.title;
-  const spotifyUrl = transcript.episode.podcast_shows.spotify_url;
+  const spotifyUrl = transcript.episode.podcast_shows.spotify_url || void 0;
   const baseResult = {
     episodeId: transcript.episode_id,
     transcriptId: transcript.id,
@@ -11040,14 +11041,378 @@ router5.get("/health", async (_req, res) => {
 });
 var admin_default = router5;
 
-// routes/index.ts
+// routes/opmlUpload.ts
+import express5 from "express";
+import multer from "multer";
+import { createClient as createClient9 } from "@supabase/supabase-js";
+
+// services/opmlParserService.ts
+import { XMLParser as XMLParser4 } from "fast-xml-parser";
+import fetch2 from "node-fetch";
+var OPMLParserService = class {
+  // 10 seconds
+  constructor() {
+    this.RSS_VALIDATION_TIMEOUT = 1e4;
+    this.parser = new XMLParser4({
+      ignoreAttributes: false,
+      attributeNamePrefix: "@_",
+      textNodeName: "#text"
+    });
+  }
+  /**
+   * Parse OPML content and extract podcast feeds
+   * @param opmlContent - The OPML XML content as a string
+   * @returns Parsed podcast information
+   */
+  async parseOPML(opmlContent) {
+    try {
+      console.log("[OPML_PARSER] Starting OPML parsing");
+      const parsed = this.parser.parse(opmlContent);
+      if (!parsed.opml) {
+        return {
+          success: false,
+          podcasts: [],
+          error: "Invalid OPML structure: missing opml element",
+          totalCount: 0,
+          validCount: 0
+        };
+      }
+      if (!parsed.opml.body) {
+        return {
+          success: true,
+          podcasts: [],
+          totalCount: 0,
+          validCount: 0
+        };
+      }
+      const podcasts = this.extractPodcasts(parsed.opml.body.outline);
+      console.log(`[OPML_PARSER] Extracted ${podcasts.length} podcasts from OPML`);
+      if (podcasts.length === 0) {
+        return {
+          success: true,
+          podcasts: [],
+          totalCount: 0,
+          validCount: 0
+        };
+      }
+      const validatedPodcasts = await this.validatePodcasts(podcasts);
+      const validCount = validatedPodcasts.filter((p) => p.isValid).length;
+      console.log(`[OPML_PARSER] Validation complete: ${validCount}/${podcasts.length} valid feeds`);
+      return {
+        success: true,
+        podcasts: validatedPodcasts,
+        totalCount: validatedPodcasts.length,
+        validCount
+      };
+    } catch (error) {
+      console.error("[OPML_PARSER] Error parsing OPML:", error);
+      return {
+        success: false,
+        podcasts: [],
+        error: `Failed to parse OPML: ${error instanceof Error ? error.message : "Unknown error"}`,
+        totalCount: 0,
+        validCount: 0
+      };
+    }
+  }
+  /**
+   * Extract podcast information from OPML outline elements
+   * @param outline - The outline element(s) from OPML
+   * @returns Array of parsed podcasts
+   */
+  extractPodcasts(outline) {
+    const podcasts = [];
+    if (!outline) {
+      return podcasts;
+    }
+    const outlines = Array.isArray(outline) ? outline : [outline];
+    for (const item of outlines) {
+      if (item["@_type"] === "rss" && item["@_xmlUrl"]) {
+        const title = item["@_text"] || item["@_title"] || "Untitled Podcast";
+        const rssUrl = item["@_xmlUrl"];
+        podcasts.push({
+          title: title.trim(),
+          rssUrl: rssUrl.trim()
+        });
+      }
+      if (item.outline) {
+        const nestedPodcasts = this.extractPodcasts(item.outline);
+        podcasts.push(...nestedPodcasts);
+      }
+    }
+    return podcasts;
+  }
+  /**
+   * Validate podcast RSS URLs
+   * @param podcasts - Array of parsed podcasts
+   * @returns Array of podcasts with validation status
+   */
+  async validatePodcasts(podcasts) {
+    const validationPromises = podcasts.map(async (podcast) => {
+      const validation = await this.validateRSSUrl(podcast.rssUrl);
+      return {
+        ...podcast,
+        isValid: validation.isValid,
+        validationError: validation.error
+      };
+    });
+    return Promise.all(validationPromises);
+  }
+  /**
+   * Validate a single RSS URL
+   * @param url - The RSS feed URL to validate
+   * @returns Validation result
+   */
+  async validateRSSUrl(url) {
+    try {
+      const urlObj = new URL(url);
+      if (!["http:", "https:"].includes(urlObj.protocol)) {
+        return { isValid: false, error: "Invalid protocol: must be http or https" };
+      }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.RSS_VALIDATION_TIMEOUT);
+      try {
+        const response = await fetch2(url, {
+          method: "HEAD",
+          signal: controller.signal,
+          headers: {
+            "User-Agent": "Listener/1.0 (Podcast Aggregator)"
+          }
+        });
+        clearTimeout(timeoutId);
+        if (response.ok) {
+          return { isValid: true };
+        } else {
+          return {
+            isValid: false,
+            error: `HTTP ${response.status}: ${response.statusText}`
+          };
+        }
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === "AbortError") {
+          console.log(`[OPML_PARSER] Validation timeout for ${url}`);
+          return { isValid: false, error: "Request timeout" };
+        }
+        console.log(`[OPML_PARSER] Validation error for ${url}:`, fetchError.message);
+        return { isValid: false, error: fetchError.message };
+      }
+    } catch (error) {
+      return {
+        isValid: false,
+        error: error instanceof Error ? error.message : "Invalid URL format"
+      };
+    }
+  }
+  /**
+   * Validate OPML file size
+   * @param sizeInBytes - File size in bytes
+   * @returns true if size is acceptable
+   */
+  static isValidFileSize(sizeInBytes) {
+    const maxSizeInBytes = 5 * 1024 * 1024;
+    return sizeInBytes <= maxSizeInBytes;
+  }
+};
+
+// routes/opmlUpload.ts
 var router6 = express5.Router();
-router6.use("/transcribe", transcribe_default);
-router6.use("/store-spotify-tokens", spotifyTokens_default);
-router6.use("/sync-spotify-shows", syncShows_default);
-router6.use("/healthz", health_default);
-router6.use("/admin", admin_default);
-var routes_default = router6;
+var upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024
+    // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimeTypes = [
+      "text/xml",
+      "application/xml",
+      "text/x-opml",
+      "application/octet-stream"
+      // Some browsers send this for .opml files
+    ];
+    if (allowedMimeTypes.includes(file.mimetype) || file.originalname.toLowerCase().endsWith(".opml") || file.originalname.toLowerCase().endsWith(".xml")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only XML/OPML files are allowed"));
+    }
+  }
+});
+var supabaseAdmin6 = null;
+function getSupabaseAdmin6() {
+  if (!supabaseAdmin6) {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Missing required environment variables for Supabase");
+    }
+    supabaseAdmin6 = createClient9(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return supabaseAdmin6;
+}
+router6.post("/", upload.single("opmlFile"), async (req, res) => {
+  try {
+    console.log("[OPML_UPLOAD] Starting OPML upload processing");
+    if (!req.file) {
+      res.status(400).json({
+        success: false,
+        error: "No file uploaded. Please select an OPML file."
+      });
+      return;
+    }
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : req.cookies?.["auth-token"];
+    if (!token) {
+      res.status(401).json({
+        success: false,
+        error: "Authentication required. Please log in."
+      });
+      return;
+    }
+    const supabase4 = getSupabaseAdmin6();
+    const { data: { user }, error: authError } = await supabase4.auth.getUser(token);
+    if (authError || !user) {
+      console.error("[OPML_UPLOAD] Auth error:", authError);
+      res.status(401).json({
+        success: false,
+        error: "Invalid authentication token. Please log in again."
+      });
+      return;
+    }
+    console.log(`[OPML_UPLOAD] Processing upload for user: ${user.id}`);
+    const opmlContent = req.file.buffer.toString("utf-8");
+    const parser = new OPMLParserService();
+    const parseResult = await parser.parseOPML(opmlContent);
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        error: parseResult.error || "Failed to parse OPML file"
+      });
+      return;
+    }
+    console.log(`[OPML_UPLOAD] Parsed ${parseResult.totalCount} podcasts, ${parseResult.validCount} valid`);
+    const importResults = [];
+    let successCount = 0;
+    for (const podcast of parseResult.podcasts) {
+      try {
+        if (!podcast.isValid) {
+          importResults.push({
+            title: podcast.title,
+            rssUrl: podcast.rssUrl,
+            imported: false,
+            error: podcast.validationError || "Invalid RSS feed"
+          });
+          continue;
+        }
+        const { data: existingShow, error: showCheckError } = await supabase4.from("podcast_shows").select("id, title").eq("rss_url", podcast.rssUrl).single();
+        if (showCheckError && showCheckError.code !== "PGRST116") {
+          console.error(`[OPML_UPLOAD] Error checking show existence:`, showCheckError);
+          throw showCheckError;
+        }
+        let showId;
+        let showTitle;
+        if (existingShow) {
+          showId = existingShow.id;
+          showTitle = existingShow.title;
+          console.log(`[OPML_UPLOAD] Show already exists: ${showTitle} (${showId})`);
+        } else {
+          const { data: newShow, error: createError } = await supabase4.from("podcast_shows").insert({
+            title: podcast.title,
+            rss_url: podcast.rssUrl,
+            spotify_url: null,
+            // No Spotify URL for OPML imports
+            description: null,
+            image_url: null,
+            etag: null,
+            last_modified: null,
+            last_fetched: null,
+            last_checked_episodes: null
+          }).select("id").single();
+          if (createError) {
+            console.error(`[OPML_UPLOAD] Error creating show:`, createError);
+            throw createError;
+          }
+          showId = newShow.id;
+          showTitle = podcast.title;
+          console.log(`[OPML_UPLOAD] Created new show: ${showTitle} (${showId})`);
+        }
+        const { data: existingSub, error: subCheckError } = await supabase4.from("user_podcast_subscriptions").select("id, status").eq("user_id", user.id).eq("show_id", showId).single();
+        if (subCheckError && subCheckError.code !== "PGRST116") {
+          console.error(`[OPML_UPLOAD] Error checking subscription:`, subCheckError);
+          throw subCheckError;
+        }
+        if (existingSub) {
+          if (existingSub.status !== "active") {
+            const { error: updateError } = await supabase4.from("user_podcast_subscriptions").update({
+              status: "active",
+              subscription_source: "opml",
+              updated_at: (/* @__PURE__ */ new Date()).toISOString()
+            }).eq("id", existingSub.id);
+            if (updateError) {
+              console.error(`[OPML_UPLOAD] Error updating subscription:`, updateError);
+              throw updateError;
+            }
+            console.log(`[OPML_UPLOAD] Reactivated subscription for ${showTitle}`);
+          }
+        } else {
+          const { error: insertError } = await supabase4.from("user_podcast_subscriptions").insert({
+            user_id: user.id,
+            show_id: showId,
+            status: "active",
+            subscription_source: "opml"
+          });
+          if (insertError) {
+            console.error(`[OPML_UPLOAD] Error creating subscription:`, insertError);
+            throw insertError;
+          }
+          console.log(`[OPML_UPLOAD] Created subscription for ${showTitle}`);
+        }
+        successCount++;
+        importResults.push({
+          title: showTitle,
+          rssUrl: podcast.rssUrl,
+          imported: true
+        });
+      } catch (error) {
+        console.error(`[OPML_UPLOAD] Error importing podcast ${podcast.title}:`, error);
+        importResults.push({
+          title: podcast.title,
+          rssUrl: podcast.rssUrl,
+          imported: false,
+          error: error instanceof Error ? error.message : "Import failed"
+        });
+      }
+    }
+    console.log(`[OPML_UPLOAD] Import complete. ${successCount}/${parseResult.totalCount} shows imported`);
+    res.status(200).json({
+      success: true,
+      data: {
+        totalImported: successCount,
+        totalInFile: parseResult.totalCount,
+        validFeeds: parseResult.validCount,
+        shows: importResults
+      }
+    });
+  } catch (error) {
+    console.error("[OPML_UPLOAD] Unexpected error:", error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to process OPML file"
+    });
+  }
+});
+var opmlUpload_default = router6;
+
+// routes/index.ts
+var router7 = express6.Router();
+router7.use("/transcribe", transcribe_default);
+router7.use("/store-spotify-tokens", spotifyTokens_default);
+router7.use("/sync-spotify-shows", syncShows_default);
+router7.use("/healthz", health_default);
+router7.use("/admin", admin_default);
+router7.use("/opml-upload", opmlUpload_default);
+var routes_default = router7;
 
 // server.ts
 init_encryptedTokenHelpers();
@@ -11058,9 +11423,9 @@ var envLocalPath = path3.join(__dirname2, "../../.env.local");
 var envDefaultPath = path3.join(__dirname2, "../../.env");
 dotenv.config({ path: envDefaultPath });
 dotenv.config({ path: envLocalPath, override: true });
-var app = express6();
+var app = express7();
 app.use(cookieParser());
-app.use(express6.json());
+app.use(express7.json());
 var corsOptions = {
   origin: [
     "https://getlistener.app",

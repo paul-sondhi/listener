@@ -69,9 +69,9 @@ export async function processEpisodeForNotes(
   const startTime = Date.now();
   const timing = { downloadMs: 0, generationMs: 0, databaseMs: 0 };
   
-  // Validate required podcast metadata early
-  if (!transcript.episode?.podcast_shows?.title || !transcript.episode?.podcast_shows?.spotify_url) {
-    const errorMessage = 'Missing required podcast metadata: title and spotify_url must be present';
+  // Validate required podcast metadata early - only title is required
+  if (!transcript.episode?.podcast_shows?.title) {
+    const errorMessage = 'Missing required podcast metadata: title must be present';
     console.error('DEBUG: Failed to process episode - missing metadata', {
       episodeId: transcript.episode_id,
       hasEpisode: !!transcript.episode,
@@ -98,9 +98,9 @@ export async function processEpisodeForNotes(
     };
   }
   
-  // Extract required metadata
+  // Extract metadata - spotify_url is optional
   const showTitle = transcript.episode.podcast_shows.title;
-  const spotifyUrl = transcript.episode.podcast_shows.spotify_url;
+  const spotifyUrl = transcript.episode.podcast_shows.spotify_url || undefined;
   
   const baseResult: Omit<EpisodeProcessingResult, 'status' | 'elapsedMs'> = {
     episodeId: transcript.episode_id,
