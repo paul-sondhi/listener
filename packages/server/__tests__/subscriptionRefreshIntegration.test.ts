@@ -75,6 +75,7 @@ class IntegrationTestDataFactory {
       email: `test${i + 1}@example.com`,
       spotify_reauth_required: false,
       spotify_tokens_enc: `encrypted_tokens_user_${i + 1}`, // Add encrypted tokens so user is eligible for refresh
+      auth_provider: 'spotify', // Set auth_provider so user is picked up by subscription refresh
       created_at: new Date().toISOString()
     }));
 

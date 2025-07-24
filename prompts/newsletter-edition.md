@@ -19,7 +19,7 @@ Your goal is to help someone figure out which podcast in their feed they should 
 - **Email-friendly styling**: Use inline CSS styles for colors, spacing, and typography that work across email clients
 - **Dark mode**: Include a `<style>` block with a `@media (prefers-color-scheme: dark)` rule that flips the inner 600 px “card” to `background:#121212` and `color:#e1e1e1` so dark‑mode email clients display an appropriate theme.
 - **Categories**: Do not create categories on your own, pull them directly from the episode notes where they are documented.
-- **Podcast show names and show links** Each episode note includes metadata with the correct podcast show name and Spotify URL. You MUST use these exact show names when referring to podcasts. You also MUST hyperlink the show names using this format: <a href="[spotify_url]" target="_blank" style="text-decoration: none; color: #0f62ff; font-weight: bold;">Show Name</a>
+- **Podcast show names and show links** Each episode note includes metadata with the correct podcast show name and Spotify URL (if available). You MUST use these exact show names when referring to podcasts. When a Spotify URL is provided, hyperlink the show names using this format: <a href="[spotify_url]" target="_blank" style="text-decoration: none; color: #0f62ff; font-weight: bold;">Show Name</a>. If no Spotify URL is available (empty string), just use the show name in bold and color without a hyperlink: <span style="color: #0f62ff; font-weight: bold;">Show Name</span>
 
 
 ## Required Output Format
@@ -197,7 +197,7 @@ Your goal is to help someone figure out which podcast in their feed they should 
 - **Email-friendly styling**: Use inline CSS styles for colors, spacing, and typography that work across email clients
 - **Dark mode**: Include a `<style>` block with a `@media (prefers-color-scheme: dark)` rule that flips the inner 600 px “card” to `background:#121212` and `color:#e1e1e1` so dark‑mode email clients display an appropriate theme.
 - **Categories**: Do not create categories on your own, pull them directly from the episode notes where they are documented.
-- **Podcast show names and show links** Each episode note includes metadata with the correct podcast show name and Spotify URL. You MUST use these exact show names when referring to podcasts. You also MUST hyperlink the show names using this format: <a href="[spotify_url]" target="_blank" style="text-decoration: none; color: #0f62ff; font-weight: bold;">Show Name</a>
+- **Podcast show names and show links** Each episode note includes metadata with the correct podcast show name and Spotify URL (if available). You MUST use these exact show names when referring to podcasts. When a Spotify URL is provided, hyperlink the show names using this format: <a href="[spotify_url]" target="_blank" style="text-decoration: none; color: #0f62ff; font-weight: bold;">Show Name</a>. If no Spotify URL is available (empty string), just use the show name in bold and color without a hyperlink: <span style="color: #0f62ff; font-weight: bold;">Show Name</span>
 
 
 ## Required Output Format

@@ -26,7 +26,7 @@ export interface EpisodeNoteWithEpisode {
       id: string;
       title: string;
       rss_url: string;
-      spotify_url: string;
+      spotify_url?: string;
     };
   };
 }
@@ -43,7 +43,7 @@ export interface UserWithSubscriptions {
       id: string;
       title: string;
       rss_url: string;
-      spotify_url: string;
+      spotify_url?: string;
     };
   }[];
 }

@@ -818,12 +818,19 @@ describe('User Discovery Functions', () => {
         TestDataFactory.createMockUser({ id: 'user-3' })
       ];
 
-      // Override the .eq() method for this specific test to return the user data
-      supabaseMock.eq.mockImplementationOnce((..._args) => {
-        return {
-          ...supabaseMock,
-          then: (resolve: (value: any) => void) => resolve({ data: mockUsers, error: null })
-        };
+      // Override the .eq() method for this specific test to handle chained eq calls
+      let eqCallCount = 0;
+      supabaseMock.eq.mockImplementation((..._args) => {
+        eqCallCount++;
+        // For the second eq() call (auth_provider), return the user data
+        if (eqCallCount === 2) {
+          return {
+            ...supabaseMock,
+            then: (resolve: (value: any) => void) => resolve({ data: mockUsers, error: null })
+          };
+        }
+        // For the first eq() call (spotify_reauth_required), return the mock to allow chaining
+        return supabaseMock;
       });
 
       // Act: Get users with Spotify tokens
@@ -835,19 +842,28 @@ describe('User Discovery Functions', () => {
       // Assert: Verify correct database query was made
       expect(supabaseMock.from).toHaveBeenCalledWith('users');
       expect(supabaseMock.select).toHaveBeenCalledWith('id');
-      expect(supabaseMock.eq).toHaveBeenCalledWith('spotify_reauth_required', false);
+      expect(supabaseMock.eq).toHaveBeenCalledTimes(2);
+      expect(supabaseMock.eq).toHaveBeenNthCalledWith(1, 'spotify_reauth_required', false);
+      expect(supabaseMock.eq).toHaveBeenNthCalledWith(2, 'auth_provider', 'spotify');
     });
 
     it('should handle database errors gracefully', async () => {
-      // Arrange: Set up database error (returned by `.eq()`)
-      supabaseMock.eq.mockImplementationOnce((..._args) => {
-        return {
-          ...supabaseMock,
-          then: (resolve: (value: any) => void) => resolve({
-            data: null,
-            error: { message: 'Database connection failed' }
-          })
-        };
+      // Arrange: Set up database error (returned by second `.eq()`)
+      let eqCallCount = 0;
+      supabaseMock.eq.mockImplementation((..._args) => {
+        eqCallCount++;
+        // For the second eq() call (auth_provider), return the error
+        if (eqCallCount === 2) {
+          return {
+            ...supabaseMock,
+            then: (resolve: (value: any) => void) => resolve({
+              data: null,
+              error: { message: 'Database connection failed' }
+            })
+          };
+        }
+        // For the first eq() call (spotify_reauth_required), return the mock to allow chaining
+        return supabaseMock;
       });
 
       // Act & Assert: Verify error is thrown
@@ -1070,11 +1086,18 @@ describe('Batch Processing', () => {
 
     it('should handle empty user list gracefully', async () => {
       // Arrange: Set up empty user list for getAllUsersWithSpotifyTokens
-      supabaseMock.eq.mockImplementationOnce((..._args) => {
-        return {
-          ...supabaseMock,
-          then: (resolve: (value: any) => void) => resolve({ data: [], error: null })
-        };
+      let eqCallCount = 0;
+      supabaseMock.eq.mockImplementation((..._args) => {
+        eqCallCount++;
+        // For the second eq() call (auth_provider), return empty array
+        if (eqCallCount === 2) {
+          return {
+            ...supabaseMock,
+            then: (resolve: (value: any) => void) => resolve({ data: [], error: null })
+          };
+        }
+        // For the first eq() call (spotify_reauth_required), return the mock to allow chaining
+        return supabaseMock;
       });
 
       // Act: Execute batch processing with no users

@@ -282,4 +282,24 @@ describe('sanitizeNewsletterContent', () => {
     expect(sanitized).toContain('Test Newsletter');
     expect(sanitized).toContain('This is a test newsletter content.');
   });
+
+  it('should handle episode metadata with empty spotify_url', async () => {
+    const result = await buildNewsletterEditionPrompt({
+      episodeNotes: [
+        'AI episode about machine learning fundamentals.',
+        'Analytics show discussing data processing.'
+      ],
+      userEmail: 'test@example.com',
+      editionDate: '2025-01-27',
+      episodeMetadata: [
+        { showTitle: 'AI Podcast', spotifyUrl: '' },  // Empty spotify URL
+        { showTitle: 'Analytics Show', spotifyUrl: 'https://open.spotify.com/show/analytics' }
+      ]
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.prompt).toContain('AI Podcast');
+    expect(result.prompt).toContain('Analytics Show');
+    expect(result.error).toBeUndefined();
+  });
 }); 

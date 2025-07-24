@@ -283,8 +283,9 @@ export async function buildNewsletterEditionPrompt(
       if (!metadata.showTitle || typeof metadata.showTitle !== 'string') {
         throw new Error(`episodeMetadata[${index}].showTitle must be a non-empty string`);
       }
-      if (!metadata.spotifyUrl || typeof metadata.spotifyUrl !== 'string') {
-        throw new Error(`episodeMetadata[${index}].spotifyUrl must be a non-empty string`);
+      // spotify_url is optional for non-Spotify podcasts (e.g., OPML imports)
+      if (metadata.spotifyUrl !== undefined && typeof metadata.spotifyUrl !== 'string') {
+        throw new Error(`episodeMetadata[${index}].spotifyUrl must be a string if provided`);
       }
     });
 

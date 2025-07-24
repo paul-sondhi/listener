@@ -981,7 +981,8 @@ export async function getAllUsersWithSpotifyTokens(): Promise<string[]> {
             const { data, error } = await getSupabaseAdmin()
                 .from('users')
                 .select('id')
-                .eq('spotify_reauth_required', false);
+                .eq('spotify_reauth_required', false)
+                .eq('auth_provider', 'spotify');
             
             if (error) {
                 throw new Error(`Failed to fetch users: ${error.message}`);
@@ -996,10 +997,11 @@ export async function getAllUsersWithSpotifyTokens(): Promise<string[]> {
             .select('id');
 
         // Apply filters only if the mock/real builder supports them
-        if (typeof query.not === 'function' && typeof query.is === 'function') {
+        if (typeof query.not === 'function' && typeof query.is === 'function' && typeof query.eq === 'function') {
             query = query
                 .not('spotify_tokens_enc', 'is', null)
-                .is('spotify_reauth_required', false);
+                .is('spotify_reauth_required', false)
+                .eq('auth_provider', 'spotify'); // Only process Spotify users, skip Google OAuth users
         }
 
         let users: any[] | undefined;
@@ -1066,7 +1068,7 @@ export async function getAllUsersWithSpotifyTokens(): Promise<string[]> {
         }
 
         const userIds = (users || []).map((u: any) => u.id);
-        console.log(`[SubscriptionRefresh] Found ${userIds.length} users with valid Spotify tokens`);
+        console.log(`[SubscriptionRefresh] Found ${userIds.length} users with valid Spotify tokens (Google OAuth users are skipped)`);
         return userIds;
 
     } catch (error) {
