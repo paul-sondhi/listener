@@ -100,7 +100,7 @@ export default function OPMLUpload(): React.JSX.Element {
    */
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
     const files = e.target.files
-    if (files && files.length > 0) {
+    if (files && files.length > 0 && files[0]) {
       void handleFileUpload(files[0])
     }
   }, [handleFileUpload])
