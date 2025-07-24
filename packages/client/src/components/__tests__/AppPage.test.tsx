@@ -222,7 +222,7 @@ describe('AppPage Component', () => {
     expect(heading).toBeInTheDocument()
     
     // Check for the email notification message
-    const emailMessage = screen.getByText(/look out for an email from listener every day at 12p et \/ 9a pt/i)
+    const emailMessage = screen.getByText(/listener will be delivered to your inbox every day at 12p et \/ 9a pt/i)
     expect(emailMessage).toBeInTheDocument()
     
     // Check for the logout button

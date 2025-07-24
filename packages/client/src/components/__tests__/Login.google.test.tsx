@@ -187,27 +187,6 @@ describe('Login Component - Google Authentication', () => {
     })
   })
 
-  it('displays the authentication note about provider differences', () => {
-    // Arrange
-    mockUseAuth.mockReturnValue({
-      user: null,
-      loading: false,
-      signIn: mockSignIn,
-    })
-
-    // Act
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    )
-
-    // Assert
-    const noteText = screen.getByText(/Spotify users get automatic podcast syncing/i)
-    expect(noteText).toBeInTheDocument()
-    const googleNote = screen.getByText(/Google users can manually add podcasts to track/i)
-    expect(googleNote).toBeInTheDocument()
-  })
 
   it('disables both buttons when either provider is clicked', async () => {
     // Arrange

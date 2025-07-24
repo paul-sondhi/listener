@@ -1,7 +1,6 @@
 import React from 'react'
-import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 
 // Mock the supabase client
 vi.mock('../../lib/supabaseClient', () => ({
@@ -56,11 +55,8 @@ describe('OPMLUpload Component', () => {
   it('renders the upload interface correctly', () => {
     render(<OPMLUpload />)
 
-    expect(screen.getByText('Import Additional Podcasts from OPML')).toBeInTheDocument()
-    expect(screen.getByText('Upload an OPML file from your podcast app to import additional podcast subscriptions.')).toBeInTheDocument()
-    expect(screen.getByText('Click to select')).toBeInTheDocument()
-    expect(screen.getByText('or drag and drop your OPML file here')).toBeInTheDocument()
-    expect(screen.getByText('Supports .opml and .xml files (max 5MB)')).toBeInTheDocument()
+    expect(screen.getByText('Import OPML File')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /import opml file/i })).toBeInTheDocument()
   })
 
   it('handles file selection via click', async () => {
@@ -85,8 +81,7 @@ describe('OPMLUpload Component', () => {
 
     render(<OPMLUpload />)
 
-    const uploadZone = screen.getByRole('button')
-    const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
 
     // Simulate file selection
     Object.defineProperty(fileInput, 'files', {
@@ -117,7 +112,7 @@ describe('OPMLUpload Component', () => {
     
     render(<OPMLUpload />)
 
-    const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
 
     Object.defineProperty(fileInput, 'files', {
       value: [mockFile],
@@ -139,7 +134,7 @@ describe('OPMLUpload Component', () => {
     
     render(<OPMLUpload />)
 
-    const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
 
     Object.defineProperty(fileInput, 'files', {
       value: [largeMockFile],
@@ -165,7 +160,7 @@ describe('OPMLUpload Component', () => {
     
     render(<OPMLUpload />)
 
-    const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
 
     Object.defineProperty(fileInput, 'files', {
       value: [mockFile],
@@ -194,7 +189,7 @@ describe('OPMLUpload Component', () => {
 
     render(<OPMLUpload />)
 
-    const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
 
     Object.defineProperty(fileInput, 'files', {
       value: [mockFile],
@@ -221,7 +216,7 @@ describe('OPMLUpload Component', () => {
 
     render(<OPMLUpload />)
 
-    const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
 
     Object.defineProperty(fileInput, 'files', {
       value: [mockFile],
@@ -232,7 +227,7 @@ describe('OPMLUpload Component', () => {
 
     // Check loading state is shown
     await waitFor(() => {
-      expect(screen.getByText('Processing OPML file...')).toBeInTheDocument()
+      expect(screen.getByText('Processing...')).toBeInTheDocument()
     })
 
     // Resolve the upload
@@ -294,7 +289,7 @@ describe('OPMLUpload Component', () => {
 
     render(<OPMLUpload />)
 
-    const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
 
     Object.defineProperty(fileInput, 'files', {
       value: [mockFile],
@@ -309,99 +304,10 @@ describe('OPMLUpload Component', () => {
         return element?.textContent === '2 of 3 podcasts imported'
       })).toBeInTheDocument()
       expect(screen.getByText('(1 feeds were invalid and skipped)')).toBeInTheDocument()
-      expect(screen.getByText('Successful Podcast')).toBeInTheDocument()
-      expect(screen.getByText('Another Success')).toBeInTheDocument()
-      expect(screen.getByText('Failed Podcast')).toBeInTheDocument()
-      expect(screen.getAllByText('✓ Imported')).toHaveLength(2)
-      expect(screen.getByText('✗ Failed')).toBeInTheDocument()
-      expect(screen.getByText(': Feed not reachable')).toBeInTheDocument()
     })
   })
 
-  it('handles drag and drop', async () => {
-    const mockFile = new File(['<opml></opml>'], 'test.opml', { type: 'text/xml' })
-    
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        success: true,
-        data: {
-          totalImported: 1,
-          totalInFile: 1,
-          validFeeds: 1,
-          shows: [{
-            title: 'Test Podcast',
-            rssUrl: 'https://example.com/feed.xml',
-            imported: true
-          }]
-        }
-      })
-    })
 
-    render(<OPMLUpload />)
-
-    const uploadZone = screen.getByRole('button')
-
-    // Create a mock DataTransfer with files
-    const mockDataTransfer = {
-      files: [mockFile]
-    }
-
-    // Simulate drag over
-    fireEvent.dragOver(uploadZone, { dataTransfer: mockDataTransfer })
-    expect(uploadZone).toHaveClass('drag-over')
-
-    // Simulate drop
-    fireEvent.drop(uploadZone, { dataTransfer: mockDataTransfer })
-
-    await waitFor(() => {
-      expect(screen.getByText('Import Successful! 🎉')).toBeInTheDocument()
-    })
-  })
-
-  it('allows starting a new upload after success', async () => {
-    const mockFile = new File(['<opml></opml>'], 'test.opml', { type: 'text/xml' })
-    
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        success: true,
-        data: {
-          totalImported: 1,
-          totalInFile: 1,
-          validFeeds: 1,
-          shows: [{
-            title: 'Test Podcast',
-            rssUrl: 'https://example.com/feed.xml',
-            imported: true
-          }]
-        }
-      })
-    })
-
-    render(<OPMLUpload />)
-
-    const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement
-
-    Object.defineProperty(fileInput, 'files', {
-      value: [mockFile],
-      writable: false
-    })
-
-    fireEvent.change(fileInput)
-
-    await waitFor(() => {
-      expect(screen.getByText('Import Successful! 🎉')).toBeInTheDocument()
-    })
-
-    // Click "Import Another OPML File" button
-    const newUploadBtn = screen.getByText('Import Another OPML File')
-    fireEvent.click(newUploadBtn)
-
-    // Should show upload interface again
-    expect(screen.getByText('Click to select')).toBeInTheDocument()
-    expect(screen.queryByText('Import Successful! 🎉')).not.toBeInTheDocument()
-  })
 
   it('allows retry after error', async () => {
     const mockFile = new File(['<opml></opml>'], 'test.opml', { type: 'text/xml' })
@@ -416,7 +322,7 @@ describe('OPMLUpload Component', () => {
 
     render(<OPMLUpload />)
 
-    const fileInput = screen.getByRole('button').querySelector('input[type="file"]') as HTMLInputElement
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
 
     Object.defineProperty(fileInput, 'files', {
       value: [mockFile],
@@ -434,7 +340,7 @@ describe('OPMLUpload Component', () => {
     fireEvent.click(retryBtn)
 
     // Should show upload interface again
-    expect(screen.getByText('Click to select')).toBeInTheDocument()
+    expect(screen.getByText('Import OPML File')).toBeInTheDocument()
     expect(screen.queryByText('Network error')).not.toBeInTheDocument()
   })
 

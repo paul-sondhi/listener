@@ -27,7 +27,6 @@ interface OPMLUploadResponse {
  * Handles OPML file uploads for Google OAuth users to import podcast subscriptions
  */
 export default function OPMLUpload(): React.JSX.Element {
-  const [isDragOver, setIsDragOver] = useState<boolean>(false)
   const [isUploading, setIsUploading] = useState<boolean>(false)
   const [uploadResult, setUploadResult] = useState<OPMLUploadResponse | null>(null)
   const [error, setError] = useState<string>('')
@@ -95,28 +94,6 @@ export default function OPMLUpload(): React.JSX.Element {
     }
   }, [])
 
-  /**
-   * Handle drag and drop events
-   */
-  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>): void => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>): void => {
-    e.preventDefault()
-    setIsDragOver(false)
-  }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>): void => {
-    e.preventDefault()
-    setIsDragOver(false)
-
-    const files = Array.from(e.dataTransfer.files)
-    if (files.length > 0) {
-      void handleFileUpload(files[0])
-    }
-  }, [handleFileUpload])
 
   /**
    * Handle file input change
@@ -148,25 +125,8 @@ export default function OPMLUpload(): React.JSX.Element {
 
   return (
     <div className="opml-upload">
-      <h2>Import Additional Podcasts from OPML</h2>
-      <p>Upload an OPML file from your podcast app to import additional podcast subscriptions.</p>
-
       {!uploadResult && !error && (
-        <div
-          className={`upload-zone ${isDragOver ? 'drag-over' : ''} ${isUploading ? 'uploading' : ''}`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={handleSelectFile}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              handleSelectFile()
-            }
-          }}
-        >
+        <div className="opml-upload-button-container">
           <input
             ref={fileInputRef}
             type="file"
@@ -176,18 +136,14 @@ export default function OPMLUpload(): React.JSX.Element {
             disabled={isUploading}
           />
           
-          {isUploading ? (
-            <div className="upload-progress">
-              <div className="spinner"></div>
-              <p>Processing OPML file...</p>
-            </div>
-          ) : (
-            <div className="upload-prompt">
-              <div className="upload-icon">📁</div>
-              <p><strong>Click to select</strong> or drag and drop your OPML file here</p>
-              <p className="file-info">Supports .opml and .xml files (max 5MB)</p>
-            </div>
-          )}
+          <button
+            onClick={handleSelectFile}
+            disabled={isUploading}
+            className="opml-upload-button"
+            type="button"
+          >
+            {isUploading ? 'Processing...' : 'Import OPML File'}
+          </button>
         </div>
       )}
 
@@ -218,41 +174,6 @@ export default function OPMLUpload(): React.JSX.Element {
               </p>
             )}
           </div>
-
-          <div className="imported-shows">
-            <h4>Imported Podcasts:</h4>
-            <ul className="shows-list">
-              {uploadResult.data.shows.map((show, index) => (
-                <li key={index} className={`show-item ${show.imported ? 'imported' : 'failed'}`}>
-                  <div className="show-info">
-                    <span className="show-title">{show.title}</span>
-                    {show.imported ? (
-                      <span className="import-status success">✓ Imported</span>
-                    ) : (
-                      <div className="import-status failed">
-                        <span>✗ Failed</span>
-                        {show.error && <span className="error-reason">: {show.error}</span>}
-                      </div>
-                    )}
-                  </div>
-                  <div className="show-url">{show.rssUrl}</div>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="next-steps">
-            <h4>What's Next?</h4>
-            <p>Your imported podcasts will be included in your daily newsletter. Look out for an email from Listener every day at 12p ET / 9a PT with summaries from your subscribed shows.</p>
-          </div>
-
-          <button 
-            onClick={handleNewUpload}
-            className="new-upload-btn"
-            type="button"
-          >
-            Import Another OPML File
-          </button>
         </div>
       )}
     </div>

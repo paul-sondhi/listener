@@ -91,10 +91,6 @@ export default function Login(): React.JSX.Element {
           {loadingProvider === 'spotify' ? 'Connecting...' : 'Continue with Spotify'}
         </button>
         
-        <div className="login-divider">
-          <span>or</span>
-        </div>
-        
         <button 
           onClick={() => void handleLogin('google')}
           disabled={isLoading}
@@ -110,13 +106,6 @@ export default function Login(): React.JSX.Element {
           {error}
         </div>
       )}
-      
-      <div className="login-note">
-        <p>
-          <strong>Note:</strong> Spotify users get automatic podcast syncing. 
-          Google users can manually add podcasts to track.
-        </p>
-      </div>
     </div>
   )
 } 

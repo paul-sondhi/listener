@@ -2,7 +2,7 @@
  * Tests for OPML ingestion database migrations
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '@listener/shared';
 

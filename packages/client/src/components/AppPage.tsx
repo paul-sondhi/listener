@@ -36,7 +36,6 @@ interface SyncShowsResponse extends ApiResponse {
 const AppPage = (): React.JSX.Element => {
   const { user, signOut, clearReauthFlag, checkReauthStatus: _checkReauthStatus } = useAuth()
   const [isSyncing, setIsSyncing] = useState<boolean>(false)
-  const [userAuthProvider, setUserAuthProvider] = useState<string | null>(null)
   
   // Use ref to track if we've already synced for this user session
   const hasSynced = useRef<boolean>(false)
@@ -86,9 +85,8 @@ const AppPage = (): React.JSX.Element => {
           return
         }
 
-        // Store the auth provider for UI display
+        // Store the auth provider for checking if it's Spotify
         const provider = session.user?.app_metadata?.provider
-        setUserAuthProvider(provider || null)
         
         // Check if this is a Spotify OAuth session
         if (provider !== 'spotify') {
@@ -249,26 +247,17 @@ const AppPage = (): React.JSX.Element => {
         <>
           <div className="user-info">
             <h1>You're in!</h1>
-            {userAuthProvider === 'spotify' ? (
-              <>
-                <p>Look out for an email from Listener every day at 12p ET / 9a PT</p>
-                <p className="auth-provider-info">Authenticated with: Spotify</p>
-                <OPMLUpload />
-              </>
-            ) : (
-              <>
-                <p>Welcome to Listener!</p>
-                <p className="auth-provider-info">Authenticated with: {userAuthProvider === 'google' ? 'Google' : userAuthProvider}</p>
-                <OPMLUpload />
-              </>
-            )}
-            <button 
-              onClick={() => void handleLogout()} 
-              className="logout-btn"
-              type="button"
-            >
-              Log out
-            </button>
+            <p>Listener will be delivered to your inbox every day at 12p ET / 9a PT</p>
+            <div className="app-buttons">
+              <OPMLUpload />
+              <button 
+                onClick={() => void handleLogout()} 
+                className="logout-btn"
+                type="button"
+              >
+                Log out
+              </button>
+            </div>
           </div>
         </>
       )}

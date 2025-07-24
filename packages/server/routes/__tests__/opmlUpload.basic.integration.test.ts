@@ -36,7 +36,7 @@ vi.mock('@supabase/supabase-js', () => ({
         return { data: { user: { id: 'test-user-123' } }, error: null };
       })
     },
-    from: vi.fn((table) => {
+    from: vi.fn((_table) => {
       const queryBuilder = {
         select: vi.fn(() => queryBuilder),
         eq: vi.fn(() => queryBuilder),
