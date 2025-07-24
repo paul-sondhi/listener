@@ -1,3 +1,5 @@
+import { TranscriptSource } from './transcript.js';
+
 /**
  * Shared TranscriptResult type for all transcript lookup operations
  * 
@@ -25,6 +27,6 @@ export type TranscriptResult =
  * Used internally by clients to track source and credit consumption
  */
 export type ExtendedTranscriptResult = TranscriptResult & {
-  source?: 'taddy' | 'podcaster';
+  source?: TranscriptSource;
   creditsConsumed?: number;
 }; 

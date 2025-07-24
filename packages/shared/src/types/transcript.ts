@@ -22,6 +22,12 @@ export type TranscriptStatus =
   | 'no_match'
   | 'error';
 
+/**
+ * Valid transcript source values
+ * Indicates which service provided the transcript
+ */
+export type TranscriptSource = 'taddy' | 'podcaster' | 'deepgram';
+
 // Main transcript entity - mirrors the transcripts database table
 export interface Transcript extends BaseEntity {
   id: string;
@@ -30,6 +36,7 @@ export interface Transcript extends BaseEntity {
   initial_status: TranscriptStatus; // First status recorded by Worker A
   current_status: TranscriptStatus; // Latest status (may evolve over time)
   word_count: number | null;    // Optional analytics helper (populated after processing)
+  source: TranscriptSource | null; // Which service provided the transcript
   error_details?: string | null; // Optional details when status = error
   created_at: string;           // ISO 8601 timestamp
   updated_at: string;           // ISO 8601 timestamp (auto-updated by trigger)
