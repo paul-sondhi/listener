@@ -27,7 +27,7 @@ import { config } from 'dotenv'
 // Always look in project root directory, regardless of where script is run from
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
-const projectRoot = resolve(__dirname, '..')
+const projectRoot = resolve(__dirname, '../..')
 config({ path: resolve(projectRoot, '.env') })
 config({ path: resolve(projectRoot, '.env.local'), override: true })
 

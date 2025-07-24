@@ -195,7 +195,7 @@ router.post('/', upload.single('opmlFile'), async (req: Request, res: Response<O
               etag: null,
               last_modified: null,
               last_fetched: null,
-              last_check_episodes: null
+              last_checked_episodes: null
             })
             .select('id')
             .single();
@@ -231,7 +231,7 @@ router.post('/', upload.single('opmlFile'), async (req: Request, res: Response<O
               .update({ 
                 status: 'active',
                 subscription_source: 'opml',
-                subscribed_at: new Date().toISOString()
+                updated_at: new Date().toISOString()
               })
               .eq('id', existingSub.id);
 
@@ -249,8 +249,7 @@ router.post('/', upload.single('opmlFile'), async (req: Request, res: Response<O
               user_id: user.id,
               show_id: showId,
               status: 'active',
-              subscription_source: 'opml',
-              subscribed_at: new Date().toISOString()
+              subscription_source: 'opml'
             });
 
           if (insertError) {
