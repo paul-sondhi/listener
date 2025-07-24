@@ -51,7 +51,7 @@ interface OPMLDocument {
 
 export class OPMLParserService {
   private parser: XMLParser;
-  private readonly RSS_VALIDATION_TIMEOUT = 5000; // 5 seconds
+  private readonly RSS_VALIDATION_TIMEOUT = 10000; // 10 seconds
 
   constructor() {
     // Configure XML parser with attribute prefix for easier parsing
