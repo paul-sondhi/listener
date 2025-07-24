@@ -28,7 +28,7 @@ function getSupabaseClient(): SupabaseClient {
  * @param storagePath - Full path to the transcript file in storage bucket (can be empty for processing status)
  * @param status - Transcript status (available, processing, error, etc.)
  * @param wordCount - Optional word count for the transcript (only set if provided)
- * @param source - Optional source of the transcript ('taddy' or 'podcaster')
+ * @param source - Optional source of the transcript ('taddy', 'podcaster', or 'deepgram')
  * @returns Promise<Transcript> The created transcript record
  * @throws Error if insertion fails or episode_id doesn't exist
  */
@@ -38,7 +38,7 @@ export async function insertTranscript(
   initialStatus: TranscriptStatus,
   currentStatus?: TranscriptStatus,
   wordCount?: number,
-  source?: 'taddy' | 'podcaster',
+  source?: 'taddy' | 'podcaster' | 'deepgram',
   errorDetails?: string | null
 ): Promise<Transcript> {
   // Default currentStatus to initialStatus if not provided
@@ -363,7 +363,7 @@ export async function overwriteTranscript(
   initialStatus: TranscriptStatus,
   currentStatus: TranscriptStatus,
   wordCount?: number,
-  source?: 'taddy' | 'podcaster',
+  source?: 'taddy' | 'podcaster' | 'deepgram',
   errorDetails?: string | null
 ): Promise<Transcript> {
   const updateData: any = {

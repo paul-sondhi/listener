@@ -16,6 +16,16 @@ import { TranscriptService } from '../../lib/services/TranscriptService.js';
 // Mock TranscriptService to control transcript responses
 vi.mock('../../lib/services/TranscriptService.js');
 
+// Mock DeepgramFallbackService to prevent actual API calls during integration tests
+vi.mock('../DeepgramFallbackService.js', () => ({
+  DeepgramFallbackService: vi.fn().mockImplementation(() => ({
+    transcribeFromUrl: vi.fn().mockResolvedValue({
+      success: false,
+      error: 'Mock Deepgram service - fallback disabled for integration tests'
+    })
+  }))
+}));
+
 // Get environment variables
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -58,10 +68,24 @@ maybeDescribe('TranscriptWorker Integration Tests', () => {
   let seededShowId: string;
   let seededEpisodeIds: string[] = [];
   let mockTranscriptService: any;
+  let originalEnv: string | undefined;
 
   beforeAll(() => {
+    // Disable Deepgram fallback for integration tests to maintain test isolation
+    originalEnv = process.env.DISABLE_DEEPGRAM_FALLBACK;
+    process.env.DISABLE_DEEPGRAM_FALLBACK = 'true';
+    
     // Mock TranscriptService
     mockTranscriptService = TranscriptService as any;
+  });
+
+  afterAll(() => {
+    // Restore original environment
+    if (originalEnv !== undefined) {
+      process.env.DISABLE_DEEPGRAM_FALLBACK = originalEnv;
+    } else {
+      delete process.env.DISABLE_DEEPGRAM_FALLBACK;
+    }
   });
 
   beforeEach(async () => {

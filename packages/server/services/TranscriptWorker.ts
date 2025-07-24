@@ -9,6 +9,7 @@ import { createLogger, Logger } from '../lib/logger.js';
 import { promisify } from 'util';
 import { gzip } from 'zlib';
 import { getSharedSupabaseClient } from '../lib/db/sharedSupabaseClient.js';
+import { DeepgramFallbackService } from './DeepgramFallbackService.js';
 
 // Promisify gzip for async/await usage
 const gzipAsync = promisify(gzip);
@@ -56,6 +57,9 @@ interface TranscriptWorkerSummary {
   errorCount: number;
   totalElapsedMs: number;
   averageProcessingTimeMs: number;
+  deepgramFallbackAttempts: number;
+  deepgramFallbackSuccesses: number;
+  deepgramFallbackFailures: number;
 }
 
 /**
@@ -78,10 +82,12 @@ interface TranscriptWorkerSummary {
 export class TranscriptWorker {
   private readonly supabase: SupabaseClient<Database>;
   private readonly transcriptService: TranscriptService;
+  private readonly deepgramService: DeepgramFallbackService;
   private readonly config: TranscriptWorkerConfig;
   private readonly logger: Logger;
   private readonly bucketName = 'transcripts';
   private quotaExhausted = false;
+  private deepgramFallbackCount = 0;
 
   constructor(
     config?: Partial<TranscriptWorkerConfig>, 
@@ -97,6 +103,9 @@ export class TranscriptWorker {
 
     // Initialize transcript service
     this.transcriptService = new TranscriptService();
+    
+    // Initialize Deepgram fallback service
+    this.deepgramService = new DeepgramFallbackService();
 
     this.logger.info('system', 'TranscriptWorker initialized', {
       metadata: {
@@ -142,7 +151,10 @@ export class TranscriptWorker {
       processingCount: 0,
       errorCount: 0,
       totalElapsedMs: 0,
-      averageProcessingTimeMs: 0
+      averageProcessingTimeMs: 0,
+      deepgramFallbackAttempts: 0,
+      deepgramFallbackSuccesses: 0,
+      deepgramFallbackFailures: 0
     };
 
     try {
@@ -837,8 +849,14 @@ export class TranscriptWorker {
       }
 
       case 'not_found':
-        // Episode found but no transcript available - map to error status
+        // Episode found but no transcript available - record initial failure
         await this.recordTranscriptInDatabase(episode.id, '', 'no_transcript_found', 0, transcriptResult.source);
+        
+        // Attempt Deepgram fallback if configured and within limits
+        if (this.shouldFallbackToDeepgram(transcriptResult) && this.deepgramFallbackCount < 50 && !process.env.DISABLE_DEEPGRAM_FALLBACK) {
+          return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+        }
+        
         return {
           ...baseResult,
           status: 'no_transcript_found',
@@ -846,8 +864,14 @@ export class TranscriptWorker {
         } as EpisodeProcessingResult;
 
       case 'no_match':
-        // Episode not found in Taddy database - map to error status
+        // Episode not found in Taddy database - record initial failure
         await this.recordTranscriptInDatabase(episode.id, '', 'no_match', 0, transcriptResult.source);
+        
+        // Attempt Deepgram fallback if configured and within limits
+        if (this.shouldFallbackToDeepgram(transcriptResult) && this.deepgramFallbackCount < 50 && !process.env.DISABLE_DEEPGRAM_FALLBACK) {
+          return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+        }
+        
         return {
           ...baseResult,
           status: 'no_match',
@@ -870,6 +894,11 @@ export class TranscriptWorker {
               source: transcriptResult.source
             }
           });
+        }
+        
+        // Attempt Deepgram fallback if configured and within limits (but not if quota exhausted)
+        if (!this.quotaExhausted && this.shouldFallbackToDeepgram(transcriptResult) && this.deepgramFallbackCount < 50 && !process.env.DISABLE_DEEPGRAM_FALLBACK) {
+          return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
         }
         
         return {
@@ -964,7 +993,7 @@ export class TranscriptWorker {
     storagePath: string,
     initialStatus: TranscriptStatus,
     wordCount: number,
-    source?: 'taddy' | 'podcaster',
+    source?: 'taddy' | 'podcaster' | 'deepgram',
     errorDetails?: string | null
   ): Promise<void> {
     // Only pass wordCount if it's greater than 0 (for available transcripts)
@@ -1047,6 +1076,199 @@ export class TranscriptWorker {
   }
 
   /**
+   * Check if we should attempt Deepgram fallback for a given transcript result
+   * @param transcriptResult The result from Taddy
+   * @returns boolean True if fallback should be attempted
+   */
+  private shouldFallbackToDeepgram(transcriptResult: ExtendedTranscriptResult): boolean {
+    // Only fallback for specific failure statuses
+    const fallbackStatuses = ['no_match', 'no_transcript_found', 'error'];
+    return fallbackStatuses.includes(transcriptResult.kind);
+  }
+
+  /**
+   * Attempt Deepgram fallback transcription for a failed episode
+   * @param episode Episode to transcribe
+   * @param originalResult Original Taddy result that failed
+   * @param jobId Job identifier for logging
+   * @param baseResult Base result structure
+   * @returns Promise<EpisodeProcessingResult> Result of fallback attempt
+   */
+  private async attemptDeepgramFallback(
+    episode: EpisodeWithShow,
+    originalResult: ExtendedTranscriptResult,
+    jobId: string,
+    baseResult: Partial<EpisodeProcessingResult>
+  ): Promise<EpisodeProcessingResult> {
+    this.deepgramFallbackCount++;
+    
+    this.logger.info('system', 'Attempting Deepgram fallback transcription', {
+      metadata: {
+        job_id: jobId,
+        episode_id: episode.id,
+        episode_url: episode.episode_url,
+        original_taddy_status: originalResult.kind,
+        fallback_attempt: this.deepgramFallbackCount
+      }
+    });
+
+    try {
+      // Attempt Deepgram transcription
+      const deepgramResult = await this.deepgramService.transcribeFromUrl(episode.episode_url);
+      
+      if (deepgramResult.success && deepgramResult.transcript) {
+        // Success - store transcript and update database
+        const storagePath = await this.storeTranscriptFile(
+          episode,
+          deepgramResult.transcript,
+          jobId
+        );
+        
+        // Update existing database row with success
+        await this.updateTranscriptRecord(
+          episode.id,
+          storagePath,
+          'full',
+          null, // Deepgram doesn't provide word count
+          'deepgram',
+          null // Clear error details on success
+        );
+
+        this.logger.info('system', 'Deepgram fallback successful', {
+          metadata: {
+            job_id: jobId,
+            episode_id: episode.id,
+            storage_path: storagePath,
+            file_size_mb: deepgramResult.fileSizeMB,
+            transcript_length: deepgramResult.transcript.length
+          }
+        });
+
+        return {
+          ...baseResult,
+          status: 'full',
+          storagePath,
+          wordCount: undefined // Deepgram doesn't provide word count
+        } as EpisodeProcessingResult;
+        
+      } else {
+        // Deepgram fallback failed - update database with Deepgram error
+        await this.updateTranscriptRecord(
+          episode.id,
+          '', // No storage path
+          'error',
+          null,
+          'deepgram',
+          deepgramResult.error || 'Unknown Deepgram error'
+        );
+
+        this.logger.error('system', 'Deepgram fallback failed', {
+          metadata: {
+            job_id: jobId,
+            episode_id: episode.id,
+            deepgram_error: deepgramResult.error,
+            file_size_mb: deepgramResult.fileSizeMB,
+            original_taddy_status: originalResult.kind
+          }
+        });
+
+        // Return original Taddy failure result since Deepgram also failed
+        return {
+          ...baseResult,
+          status: originalResult.kind as TranscriptStatus,
+          error: `Taddy: ${originalResult.kind}; Deepgram: ${deepgramResult.error}`
+        } as EpisodeProcessingResult;
+      }
+      
+    } catch (error) {
+      // Exception during Deepgram fallback - update database and log
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      await this.updateTranscriptRecord(
+        episode.id,
+        '', // No storage path
+        'error',
+        null,
+        'deepgram',
+        `Deepgram fallback exception: ${errorMessage}`
+      );
+
+      this.logger.error('system', 'Deepgram fallback exception', {
+        metadata: {
+          job_id: jobId,
+          episode_id: episode.id,
+          error: errorMessage,
+          original_taddy_status: originalResult.kind
+        }
+      });
+
+      // Return original Taddy failure result since Deepgram had an exception
+      return {
+        ...baseResult,
+        status: originalResult.kind as TranscriptStatus,
+        error: `Taddy: ${originalResult.kind}; Deepgram exception: ${errorMessage}`
+      } as EpisodeProcessingResult;
+    }
+  }
+
+  /**
+   * Update an existing transcript record in the database
+   * @param episodeId Episode ID
+   * @param storagePath Storage path (empty for non-stored statuses)
+   * @param currentStatus Current transcript status
+   * @param wordCount Word count (null for Deepgram)
+   * @param source Source of the transcript ('deepgram')
+   * @param errorDetails Optional error details (null to clear)
+   */
+  private async updateTranscriptRecord(
+    episodeId: string,
+    storagePath: string,
+    currentStatus: TranscriptStatus,
+    wordCount: number | null,
+    source: 'deepgram',
+    errorDetails: string | null
+  ): Promise<void> {
+    try {
+      // Update existing transcript record
+      const { error } = await this.supabase
+        .from('transcripts')
+        .update({
+          storage_path: storagePath,
+          current_status: currentStatus,
+          word_count: wordCount,
+          source: source,
+          error_details: errorDetails,
+          updated_at: new Date().toISOString()
+        })
+        .eq('episode_id', episodeId);
+
+      if (error) {
+        throw new Error(`Failed to update transcript record: ${error.message}`);
+      }
+
+      this.logger.debug('system', 'Transcript record updated', {
+        metadata: {
+          episode_id: episodeId,
+          current_status: currentStatus,
+          storage_path: storagePath,
+          word_count: wordCount,
+          source: source,
+          error_details: errorDetails
+        }
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('system', 'Failed to update transcript record', {
+        metadata: {
+          episode_id: episodeId,
+          error: errorMessage
+        }
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Check if an error message indicates quota exhaustion
    *
    * Unified abstraction: Any upstream response that points to Taddy credit
@@ -1090,12 +1312,21 @@ export class TranscriptWorker {
     let availableTranscripts = 0;
     let processingCount = 0;
     let errorCount = 0;
+    let deepgramFallbackSuccesses = 0;
+    let deepgramFallbackFailures = 0;
 
     for (const result of results) {
       switch (result.status) {
         case 'full':
         case 'partial':
           availableTranscripts++;
+          // If error contains "Deepgram", this was a successful fallback
+          if (result.error && result.error.includes('Deepgram')) {
+            deepgramFallbackFailures++;
+          } else if (result.storagePath) {
+            // Check logs or assume successful Deepgram if this is a recovery from failure
+            // For now, we'll track this in the fallback attempt counter
+          }
           break;
         case 'processing':
           processingCount++;
@@ -1104,12 +1335,20 @@ export class TranscriptWorker {
         case 'no_match':
         case 'error':
           errorCount++;
+          // Check if this includes a Deepgram failure
+          if (result.error && result.error.includes('Deepgram')) {
+            deepgramFallbackFailures++;
+          }
           break;
         default:
           errorCount++;
           break;
       }
     }
+
+    // Calculate Deepgram successes as fallbacks attempted minus failures
+    // (This is approximate since we track the counter during execution)
+    deepgramFallbackSuccesses = Math.max(0, this.deepgramFallbackCount - deepgramFallbackFailures);
 
     const averageProcessingTimeMs = processedEpisodes > 0 
       ? Math.round(results.reduce((sum, r) => sum + r.elapsedMs, 0) / processedEpisodes)
@@ -1122,7 +1361,10 @@ export class TranscriptWorker {
       processingCount,
       errorCount,
       totalElapsedMs,
-      averageProcessingTimeMs
+      averageProcessingTimeMs,
+      deepgramFallbackAttempts: this.deepgramFallbackCount,
+      deepgramFallbackSuccesses,
+      deepgramFallbackFailures
     };
   }
 } 

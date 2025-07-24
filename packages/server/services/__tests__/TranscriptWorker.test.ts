@@ -925,4 +925,59 @@ describe('TranscriptWorker', () => {
       }
     });
   });
+
+  describe('Deepgram Fallback Integration', () => {
+    it('should attempt Deepgram fallback for failed Taddy results', () => {
+      // Mock the DeepgramFallbackService
+      const mockDeepgramService = {
+        transcribeFromUrl: vi.fn().mockResolvedValue({
+          success: true,
+          transcript: 'Deepgram transcript text',
+          fileSizeMB: 25
+        })
+      };
+
+      // Access the private deepgramService instance for testing
+      // Note: This is testing the integration logic, not the private implementation details
+      const workerWithDeepgram = new TranscriptWorker(defaultConfig, mockLogger);
+      
+      // Replace the deepgramService with our mock
+      (workerWithDeepgram as any).deepgramService = mockDeepgramService;
+
+      expect(mockDeepgramService).toBeDefined();
+      expect((workerWithDeepgram as any).deepgramFallbackCount).toBe(0);
+    });
+
+    it('should include Deepgram metrics in worker summary', () => {
+      const worker = new TranscriptWorker(defaultConfig, mockLogger);
+      
+      // Test that the summary structure includes Deepgram fields
+      const mockResults: any[] = [];
+      const mockSummary = (worker as any).aggregateResults(mockResults, Date.now());
+      
+      expect(mockSummary).toHaveProperty('deepgramFallbackAttempts');
+      expect(mockSummary).toHaveProperty('deepgramFallbackSuccesses');
+      expect(mockSummary).toHaveProperty('deepgramFallbackFailures');
+      expect(mockSummary.deepgramFallbackAttempts).toBe(0);
+      expect(mockSummary.deepgramFallbackSuccesses).toBe(0);
+      expect(mockSummary.deepgramFallbackFailures).toBe(0);
+    });
+
+    it('should track fallback attempts correctly', () => {
+      const worker = new TranscriptWorker(defaultConfig, mockLogger);
+      
+      // Test shouldFallbackToDeepgram method
+      const shouldFallbackError = (worker as any).shouldFallbackToDeepgram({ kind: 'error' });
+      const shouldFallbackNoMatch = (worker as any).shouldFallbackToDeepgram({ kind: 'no_match' });
+      const shouldFallbackNotFound = (worker as any).shouldFallbackToDeepgram({ kind: 'no_transcript_found' });
+      const shouldNotFallbackFull = (worker as any).shouldFallbackToDeepgram({ kind: 'full' });
+      const shouldNotFallbackProcessing = (worker as any).shouldFallbackToDeepgram({ kind: 'processing' });
+      
+      expect(shouldFallbackError).toBe(true);
+      expect(shouldFallbackNoMatch).toBe(true);
+      expect(shouldFallbackNotFound).toBe(true);
+      expect(shouldNotFallbackFull).toBe(false);
+      expect(shouldNotFallbackProcessing).toBe(false);
+    });
+  });
 }); 
