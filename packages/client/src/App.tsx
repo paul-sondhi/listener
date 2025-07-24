@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './components/Login'
 import AppPage from './components/AppPage'
+import PrivacyPolicy from './components/PrivacyPolicy'
 import './App.css'
 
 // Props interface for ProtectedRoute component
@@ -55,6 +56,7 @@ function AppContent(): React.JSX.Element {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route
         path="/app"
         element={

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { logger } from '../lib/logger'
 
@@ -106,6 +106,10 @@ export default function Login(): React.JSX.Element {
           {error}
         </div>
       )}
+      
+      <div className="login-footer">
+        <Link to="/privacy" className="footer-link">Privacy Policy</Link>
+      </div>
     </div>
   )
 } 
