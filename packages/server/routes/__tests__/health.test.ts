@@ -11,6 +11,7 @@ import healthRouter from '../health.js'
 
 // Create a simple express app to test the router
 const app = express()
+app.use(express.json()) // Add JSON parsing middleware
 app.use('/healthz', healthRouter) // Mount the router like it's mounted in your app
 
 describe('Health Check Route (/healthz)', () => {

@@ -24,6 +24,16 @@ vi.mock('../../lib/db/sharedSupabaseClient.js', () => {
     getSharedSupabaseClient: vi.fn()
   };
 });
+vi.mock('../DeepgramFallbackService.js', () => {
+  return {
+    DeepgramFallbackService: vi.fn().mockImplementation(() => ({
+      transcribeFromUrl: vi.fn().mockResolvedValue({
+        success: false,
+        error: 'Mock Deepgram service - fallback disabled for testing'
+      })
+    }))
+  };
+});
 
 // Mock logger
 const mockLogger = {
@@ -54,7 +64,12 @@ const defaultConfig: TranscriptWorkerConfig = {
   cronSchedule: '0 1 * * *',
   useAdvisoryLock: true,
   tier: 'business',
-  last10Mode: false
+  last10Mode: false,
+  last10Count: 10,
+  enableDeepgramFallback: true,
+  deepgramFallbackStatuses: ['no_match', 'no_transcript_found', 'error', 'processing'],
+  maxDeepgramFallbacksPerRun: 50,
+  maxDeepgramFileSizeMB: 500
 };
 
 describe('TranscriptWorker', () => {
@@ -279,6 +294,8 @@ describe('TranscriptWorker', () => {
     });
 
     it('should handle processing status from transcript service', async () => {
+      // Disable Deepgram fallback for this test to verify processing status handling
+      const configWithoutFallback = { ...defaultConfig, enableDeepgramFallback: false };
       // Mock episodes data with proper structure including joined podcast_shows
       const mockEpisodes = [{
         id: 'episode-1',
@@ -368,7 +385,7 @@ describe('TranscriptWorker', () => {
       });
 
       // Create a new worker instance to pick up the mocked TranscriptService
-      worker = new TranscriptWorker(defaultConfig, mockLogger);
+      worker = new TranscriptWorker(configWithoutFallback, mockLogger);
 
       const result = await worker.run();
 
@@ -971,13 +988,13 @@ describe('TranscriptWorker', () => {
       const shouldFallbackNoMatch = (worker as any).shouldFallbackToDeepgram({ kind: 'no_match' });
       const shouldFallbackNotFound = (worker as any).shouldFallbackToDeepgram({ kind: 'no_transcript_found' });
       const shouldNotFallbackFull = (worker as any).shouldFallbackToDeepgram({ kind: 'full' });
-      const shouldNotFallbackProcessing = (worker as any).shouldFallbackToDeepgram({ kind: 'processing' });
+      const shouldFallbackProcessing = (worker as any).shouldFallbackToDeepgram({ kind: 'processing' });
       
       expect(shouldFallbackError).toBe(true);
       expect(shouldFallbackNoMatch).toBe(true);
       expect(shouldFallbackNotFound).toBe(true);
       expect(shouldNotFallbackFull).toBe(false);
-      expect(shouldNotFallbackProcessing).toBe(false);
+      expect(shouldFallbackProcessing).toBe(true);
     });
   });
 }); 

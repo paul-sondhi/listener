@@ -844,6 +844,16 @@ export class TranscriptWorker {
           }
         });
 
+        // Attempt Deepgram fallback if configured and within limits
+        if (this.config.enableDeepgramFallback && 
+            this.shouldFallbackToDeepgram(transcriptResult)) {
+          if (this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
+            return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+          } else {
+            this.logCostLimitReached(episode.id, 'processing');
+          }
+        }
+
         return {
           ...baseResult,
           status: 'processing'

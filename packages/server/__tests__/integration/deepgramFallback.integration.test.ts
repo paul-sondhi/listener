@@ -53,7 +53,7 @@ describe('Deepgram Fallback Integration Tests', () => {
 
       // Verify Deepgram defaults are sensible
       expect(config.enableDeepgramFallback).toBe(true);
-      expect(config.deepgramFallbackStatuses).toEqual(['no_match', 'no_transcript_found', 'error']);
+      expect(config.deepgramFallbackStatuses).toEqual(['no_match', 'no_transcript_found', 'error', 'processing']);
       expect(config.maxDeepgramFallbacksPerRun).toBe(50);
       expect(config.maxDeepgramFileSizeMB).toBe(500);
     });
@@ -62,20 +62,20 @@ describe('Deepgram Fallback Integration Tests', () => {
   describe('Fallback Trigger Logic', () => {
     it('should correctly identify transcript results that trigger fallback', () => {
       // Test the fallback trigger logic with different transcript results
-      const fallbackStatuses = ['no_match', 'no_transcript_found', 'error'];
+      const fallbackStatuses = ['no_match', 'no_transcript_found', 'error', 'processing'];
       
       // Results that should trigger fallback
       const triggerResults: TranscriptResult[] = [
         { kind: 'no_match', message: 'Not found', source: 'taddy', creditsConsumed: 1 },
         { kind: 'error', message: 'API error', source: 'taddy', creditsConsumed: 1 },
-        { kind: 'no_transcript_found', message: 'No transcript', source: 'taddy', creditsConsumed: 1 }
+        { kind: 'no_transcript_found', message: 'No transcript', source: 'taddy', creditsConsumed: 1 },
+        { kind: 'processing', source: 'taddy', creditsConsumed: 1 }
       ];
 
       // Results that should NOT trigger fallback
       const noTriggerResults: TranscriptResult[] = [
         { kind: 'full', text: 'Success', wordCount: 100, source: 'taddy', creditsConsumed: 1 },
-        { kind: 'partial', text: 'Partial', wordCount: 50, reason: 'Processing', source: 'taddy', creditsConsumed: 1 },
-        { kind: 'processing', source: 'taddy', creditsConsumed: 1 }
+        { kind: 'partial', text: 'Partial', wordCount: 50, reason: 'Processing', source: 'taddy', creditsConsumed: 1 }
       ];
 
       // Test trigger logic
@@ -109,6 +109,26 @@ describe('Deepgram Fallback Integration Tests', () => {
       // Only error should trigger with custom config
       expect(customFallbackStatuses.includes(errorResult.kind)).toBe(true);
       expect(customFallbackStatuses.includes(noMatchResult.kind)).toBe(false);
+    });
+
+    it('should trigger fallback for processing status when configured', () => {
+      // Test that 'processing' status triggers Deepgram fallback
+      const processingResult: TranscriptResult = {
+        kind: 'processing',
+        source: 'taddy',
+        creditsConsumed: 1
+      };
+      
+      // Default configuration includes 'processing'
+      const defaultStatuses = ['no_match', 'no_transcript_found', 'error', 'processing'];
+      expect(defaultStatuses.includes(processingResult.kind)).toBe(true);
+      
+      // Custom configuration without 'processing'
+      const customStatuses = ['no_match', 'error'];
+      expect(customStatuses.includes(processingResult.kind)).toBe(false);
+      
+      // This ensures 'processing' episodes can get immediate transcripts via Deepgram
+      // rather than waiting for Taddy to complete processing
     });
   });
 

@@ -98,8 +98,8 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
   // Parse Deepgram fallback configuration
   const enableDeepgramFallback = process.env.DEEPGRAM_FALLBACK_ENABLED !== 'false' && process.env.DISABLE_DEEPGRAM_FALLBACK !== 'true';
 
-  // Parse fallback statuses (default: no_match, no_transcript_found, error)
-  const fallbackStatusesEnv = process.env.DEEPGRAM_FALLBACK_STATUSES || 'no_match,no_transcript_found,error';
+  // Parse fallback statuses (default: no_match, no_transcript_found, error, processing)
+  const fallbackStatusesEnv = process.env.DEEPGRAM_FALLBACK_STATUSES || 'no_match,no_transcript_found,error,processing';
   const deepgramFallbackStatuses = fallbackStatusesEnv.split(',').map(s => s.trim()) as TranscriptStatus[];
   
   // Validate fallback statuses

@@ -60,7 +60,7 @@ describe('Transcript Worker Configuration', () => {
         last10Mode: false,
         last10Count: 10,
         enableDeepgramFallback: true,
-        deepgramFallbackStatuses: ['no_match', 'no_transcript_found', 'error'],
+        deepgramFallbackStatuses: ['no_match', 'no_transcript_found', 'error', 'processing'],
         maxDeepgramFallbacksPerRun: 50,
         maxDeepgramFileSizeMB: 500
       });
@@ -632,7 +632,7 @@ describe('Transcript Worker Configuration', () => {
         last10Mode: false,
         last10Count: 10,
         enableDeepgramFallback: true,
-        deepgramFallbackStatuses: ['no_match', 'no_transcript_found', 'error'],
+        deepgramFallbackStatuses: ['no_match', 'no_transcript_found', 'error', 'processing'],
         maxDeepgramFallbacksPerRun: 50,
         maxDeepgramFileSizeMB: 500
       });
@@ -660,7 +660,7 @@ describe('Transcript Worker Configuration', () => {
         last10Mode: false,
         last10Count: 10,
         enableDeepgramFallback: true,
-        deepgramFallbackStatuses: ['no_match', 'no_transcript_found', 'error'],
+        deepgramFallbackStatuses: ['no_match', 'no_transcript_found', 'error', 'processing'],
         maxDeepgramFallbacksPerRun: 50,
         maxDeepgramFileSizeMB: 500
       });
