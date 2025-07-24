@@ -104,8 +104,10 @@ export class TranscriptWorker {
     // Initialize transcript service
     this.transcriptService = new TranscriptService();
     
-    // Initialize Deepgram fallback service
-    this.deepgramService = new DeepgramFallbackService();
+    // Initialize Deepgram fallback service with configured file size limit
+    this.deepgramService = new DeepgramFallbackService({
+      maxDeepgramFileSizeMB: this.config.maxDeepgramFileSizeMB
+    });
 
     this.logger.info('system', 'TranscriptWorker initialized', {
       metadata: {
@@ -853,7 +855,9 @@ export class TranscriptWorker {
         await this.recordTranscriptInDatabase(episode.id, '', 'no_transcript_found', 0, transcriptResult.source);
         
         // Attempt Deepgram fallback if configured and within limits
-        if (this.shouldFallbackToDeepgram(transcriptResult) && this.deepgramFallbackCount < 50 && !process.env.DISABLE_DEEPGRAM_FALLBACK) {
+        if (this.config.enableDeepgramFallback && 
+            this.shouldFallbackToDeepgram(transcriptResult) && 
+            this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
           return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
         }
         
@@ -868,7 +872,9 @@ export class TranscriptWorker {
         await this.recordTranscriptInDatabase(episode.id, '', 'no_match', 0, transcriptResult.source);
         
         // Attempt Deepgram fallback if configured and within limits
-        if (this.shouldFallbackToDeepgram(transcriptResult) && this.deepgramFallbackCount < 50 && !process.env.DISABLE_DEEPGRAM_FALLBACK) {
+        if (this.config.enableDeepgramFallback && 
+            this.shouldFallbackToDeepgram(transcriptResult) && 
+            this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
           return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
         }
         
@@ -897,7 +903,10 @@ export class TranscriptWorker {
         }
         
         // Attempt Deepgram fallback if configured and within limits (but not if quota exhausted)
-        if (!this.quotaExhausted && this.shouldFallbackToDeepgram(transcriptResult) && this.deepgramFallbackCount < 50 && !process.env.DISABLE_DEEPGRAM_FALLBACK) {
+        if (!this.quotaExhausted && 
+            this.config.enableDeepgramFallback && 
+            this.shouldFallbackToDeepgram(transcriptResult) && 
+            this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
           return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
         }
         
@@ -1081,9 +1090,8 @@ export class TranscriptWorker {
    * @returns boolean True if fallback should be attempted
    */
   private shouldFallbackToDeepgram(transcriptResult: ExtendedTranscriptResult): boolean {
-    // Only fallback for specific failure statuses
-    const fallbackStatuses = ['no_match', 'no_transcript_found', 'error'];
-    return fallbackStatuses.includes(transcriptResult.kind);
+    // Use configured fallback statuses
+    return this.config.deepgramFallbackStatuses.includes(transcriptResult.kind as any);
   }
 
   /**

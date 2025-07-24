@@ -3,6 +3,8 @@
  * Reads and validates environment variables with sensible defaults
  */
 
+import { TranscriptStatus } from '@listener/shared';
+
 export interface TranscriptWorkerConfig {
   /** Whether the transcript worker is enabled */
   enabled: boolean;
@@ -22,6 +24,16 @@ export interface TranscriptWorkerConfig {
   last10Mode: boolean;
   /** Number of most-recent episodes to process in L10 mode (default: 10) */
   last10Count: number;
+  
+  // Deepgram Fallback Configuration
+  /** Whether to enable Deepgram fallback when Taddy fails */
+  enableDeepgramFallback: boolean;
+  /** Taddy statuses that trigger Deepgram fallback */
+  deepgramFallbackStatuses: TranscriptStatus[];
+  /** Maximum number of Deepgram fallback attempts per worker run */
+  maxDeepgramFallbacksPerRun: number;
+  /** Maximum file size in megabytes for Deepgram transcription */
+  maxDeepgramFileSizeMB: number;
 }
 
 /**
@@ -83,6 +95,33 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
     throw new Error(`Invalid TRANSCRIPT_WORKER_L10_COUNT: "${last10CountEnv || ''}". Must be a number between 1 and 100.`);
   }
 
+  // Parse Deepgram fallback configuration
+  const enableDeepgramFallback = process.env.DEEPGRAM_FALLBACK_ENABLED !== 'false' && process.env.DISABLE_DEEPGRAM_FALLBACK !== 'true';
+
+  // Parse fallback statuses (default: no_match, no_transcript_found, error)
+  const fallbackStatusesEnv = process.env.DEEPGRAM_FALLBACK_STATUSES || 'no_match,no_transcript_found,error';
+  const deepgramFallbackStatuses = fallbackStatusesEnv.split(',').map(s => s.trim()) as TranscriptStatus[];
+  
+  // Validate fallback statuses
+  const validStatuses: TranscriptStatus[] = ['full', 'partial', 'processing', 'no_transcript_found', 'no_match', 'error'];
+  for (const status of deepgramFallbackStatuses) {
+    if (!validStatuses.includes(status)) {
+      throw new Error(`Invalid DEEPGRAM_FALLBACK_STATUSES: "${status}". Must be one of: ${validStatuses.join(', ')}`);
+    }
+  }
+
+  // Parse max fallbacks per run (default: 50)
+  const maxDeepgramFallbacksPerRun = parseInt(process.env.DEEPGRAM_FALLBACK_MAX_PER_RUN || '50', 10);
+  if (isNaN(maxDeepgramFallbacksPerRun) || maxDeepgramFallbacksPerRun < 0 || maxDeepgramFallbacksPerRun > 1000) {
+    throw new Error(`Invalid DEEPGRAM_FALLBACK_MAX_PER_RUN: "${process.env.DEEPGRAM_FALLBACK_MAX_PER_RUN}". Must be a number between 0 and 1000.`);
+  }
+
+  // Parse max file size (default: 500MB)
+  const maxDeepgramFileSizeMB = parseInt(process.env.DEEPGRAM_MAX_FILE_SIZE_MB || '500', 10);
+  if (isNaN(maxDeepgramFileSizeMB) || maxDeepgramFileSizeMB < 1 || maxDeepgramFileSizeMB > 2048) { // Deepgram limit is 2GB
+    throw new Error(`Invalid DEEPGRAM_MAX_FILE_SIZE_MB: "${process.env.DEEPGRAM_MAX_FILE_SIZE_MB}". Must be a number between 1 and 2048.`);
+  }
+
   return {
     enabled,
     cronSchedule,
@@ -93,6 +132,10 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
     useAdvisoryLock,
     last10Mode,
     last10Count,
+    enableDeepgramFallback,
+    deepgramFallbackStatuses,
+    maxDeepgramFallbacksPerRun,
+    maxDeepgramFileSizeMB,
   };
 }
 
@@ -147,5 +190,9 @@ export function getConfigSummary(config: TranscriptWorkerConfig): Record<string,
     advisory_lock: config.useAdvisoryLock,
     last10_mode: config.last10Mode,
     last10_count: config.last10Count,
+    deepgram_fallback_enabled: config.enableDeepgramFallback,
+    deepgram_fallback_statuses: config.deepgramFallbackStatuses,
+    deepgram_max_fallbacks_per_run: config.maxDeepgramFallbacksPerRun,
+    deepgram_max_file_size_mb: config.maxDeepgramFileSizeMB,
   };
 } 

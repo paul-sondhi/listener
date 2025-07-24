@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getTranscriptWorkerConfig } from '../transcriptWorkerConfig.js';
+import { getTranscriptWorkerConfig, getConfigSummary } from '../transcriptWorkerConfig.js';
 
 // Store original environment variables for restoration
 let originalEnv: Record<string, string | undefined>;
@@ -33,6 +33,11 @@ describe('Transcript Worker Configuration', () => {
     delete process.env.TRANSCRIPT_ADVISORY_LOCK;
     delete process.env.TRANSCRIPT_TIER;
     delete process.env.TRANSCRIPT_WORKER_L10D;
+    delete process.env.DEEPGRAM_FALLBACK_ENABLED;
+    delete process.env.DEEPGRAM_FALLBACK_STATUSES;
+    delete process.env.DEEPGRAM_FALLBACK_MAX_PER_RUN;
+    delete process.env.DEEPGRAM_MAX_FILE_SIZE_MB;
+    delete process.env.DISABLE_DEEPGRAM_FALLBACK;
   });
 
   afterEach(() => {
@@ -53,7 +58,11 @@ describe('Transcript Worker Configuration', () => {
         tier: 'business',
         useAdvisoryLock: true,
         last10Mode: false,
-        last10Count: 10
+        last10Count: 10,
+        enableDeepgramFallback: true,
+        deepgramFallbackStatuses: ['no_match', 'no_transcript_found', 'error'],
+        maxDeepgramFallbacksPerRun: 50,
+        maxDeepgramFileSizeMB: 500
       });
     });
 
@@ -621,7 +630,11 @@ describe('Transcript Worker Configuration', () => {
         tier: 'business',
         useAdvisoryLock: true,
         last10Mode: false,
-        last10Count: 10
+        last10Count: 10,
+        enableDeepgramFallback: true,
+        deepgramFallbackStatuses: ['no_match', 'no_transcript_found', 'error'],
+        maxDeepgramFallbacksPerRun: 50,
+        maxDeepgramFileSizeMB: 500
       });
     });
 
@@ -645,8 +658,84 @@ describe('Transcript Worker Configuration', () => {
         tier: 'free',
         useAdvisoryLock: false,
         last10Mode: false,
-        last10Count: 10
+        last10Count: 10,
+        enableDeepgramFallback: true,
+        deepgramFallbackStatuses: ['no_match', 'no_transcript_found', 'error'],
+        maxDeepgramFallbacksPerRun: 50,
+        maxDeepgramFileSizeMB: 500
       });
+    });
+  });
+
+  describe('Deepgram Fallback Configuration', () => {
+    it('should parse DEEPGRAM_FALLBACK_ENABLED correctly', () => {
+      process.env.DEEPGRAM_FALLBACK_ENABLED = 'false';
+      const config = getTranscriptWorkerConfig();
+      expect(config.enableDeepgramFallback).toBe(false);
+
+      process.env.DEEPGRAM_FALLBACK_ENABLED = 'true';
+      const config2 = getTranscriptWorkerConfig();
+      expect(config2.enableDeepgramFallback).toBe(true);
+    });
+
+    it('should handle DISABLE_DEEPGRAM_FALLBACK flag', () => {
+      process.env.DISABLE_DEEPGRAM_FALLBACK = 'true';
+      const config = getTranscriptWorkerConfig();
+      expect(config.enableDeepgramFallback).toBe(false);
+
+      delete process.env.DISABLE_DEEPGRAM_FALLBACK;
+      process.env.DEEPGRAM_FALLBACK_ENABLED = 'true';
+      const config2 = getTranscriptWorkerConfig();
+      expect(config2.enableDeepgramFallback).toBe(true);
+    });
+
+    it('should parse custom fallback statuses', () => {
+      process.env.DEEPGRAM_FALLBACK_STATUSES = 'error,no_match';
+      const config = getTranscriptWorkerConfig();
+      expect(config.deepgramFallbackStatuses).toEqual(['error', 'no_match']);
+    });
+
+    it('should validate fallback statuses', () => {
+      process.env.DEEPGRAM_FALLBACK_STATUSES = 'invalid_status';
+      expect(() => getTranscriptWorkerConfig()).toThrow('Invalid DEEPGRAM_FALLBACK_STATUSES: "invalid_status"');
+    });
+
+    it('should parse max fallbacks per run', () => {
+      process.env.DEEPGRAM_FALLBACK_MAX_PER_RUN = '25';
+      const config = getTranscriptWorkerConfig();
+      expect(config.maxDeepgramFallbacksPerRun).toBe(25);
+    });
+
+    it('should validate max fallbacks per run range', () => {
+      process.env.DEEPGRAM_FALLBACK_MAX_PER_RUN = '1001';
+      expect(() => getTranscriptWorkerConfig()).toThrow('Invalid DEEPGRAM_FALLBACK_MAX_PER_RUN');
+
+      process.env.DEEPGRAM_FALLBACK_MAX_PER_RUN = '-1';
+      expect(() => getTranscriptWorkerConfig()).toThrow('Invalid DEEPGRAM_FALLBACK_MAX_PER_RUN');
+    });
+
+    it('should parse max file size', () => {
+      process.env.DEEPGRAM_MAX_FILE_SIZE_MB = '1000';
+      const config = getTranscriptWorkerConfig();
+      expect(config.maxDeepgramFileSizeMB).toBe(1000);
+    });
+
+    it('should validate max file size range', () => {
+      process.env.DEEPGRAM_MAX_FILE_SIZE_MB = '3000';
+      expect(() => getTranscriptWorkerConfig()).toThrow('Invalid DEEPGRAM_MAX_FILE_SIZE_MB');
+
+      process.env.DEEPGRAM_MAX_FILE_SIZE_MB = '0';
+      expect(() => getTranscriptWorkerConfig()).toThrow('Invalid DEEPGRAM_MAX_FILE_SIZE_MB');
+    });
+
+    it('should include Deepgram config in summary', () => {
+      const config = getTranscriptWorkerConfig();
+      const summary = getConfigSummary(config);
+      
+      expect(summary).toHaveProperty('deepgram_fallback_enabled');
+      expect(summary).toHaveProperty('deepgram_fallback_statuses');
+      expect(summary).toHaveProperty('deepgram_max_fallbacks_per_run');
+      expect(summary).toHaveProperty('deepgram_max_file_size_mb');
     });
   });
 }); 
