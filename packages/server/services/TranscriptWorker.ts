@@ -141,7 +141,13 @@ export class TranscriptWorker {
         lookbackHours: this.config.lookbackHours,
         maxRequests: this.config.maxRequests,
         concurrency: this.config.concurrency,
-        useAdvisoryLock: this.config.useAdvisoryLock
+        useAdvisoryLock: this.config.useAdvisoryLock,
+        deepgram_config: {
+          enabled: this.config.enableDeepgramFallback,
+          fallback_statuses: this.config.deepgramFallbackStatuses,
+          max_per_run: this.config.maxDeepgramFallbacksPerRun,
+          max_file_size_mb: this.config.maxDeepgramFileSizeMB
+        }
       }
     });
 
@@ -864,6 +870,16 @@ export class TranscriptWorker {
         // Episode found but no transcript available - record initial failure
         await this.recordTranscriptInDatabase(episode.id, '', 'no_transcript_found', 0, transcriptResult.source);
         
+        // Log the fallback check for debugging
+        this.logger.info('system', 'Processing not_found status', {
+          metadata: {
+            job_id: jobId,
+            episode_id: episode.id,
+            fallback_enabled: this.config.enableDeepgramFallback,
+            will_check_fallback: true
+          }
+        });
+        
         // Attempt Deepgram fallback if configured and within limits
         if (this.config.enableDeepgramFallback && 
             this.shouldFallbackToDeepgram(transcriptResult)) {
@@ -872,6 +888,15 @@ export class TranscriptWorker {
           } else {
             this.logCostLimitReached(episode.id, 'no_transcript_found');
           }
+        } else {
+          this.logger.info('system', 'Skipping Deepgram fallback', {
+            metadata: {
+              job_id: jobId,
+              episode_id: episode.id,
+              reason: !this.config.enableDeepgramFallback ? 'fallback_disabled' : 'status_not_in_fallback_list',
+              transcript_status: 'no_transcript_found'
+            }
+          });
         }
         
         return {
@@ -1110,7 +1135,21 @@ export class TranscriptWorker {
    */
   private shouldFallbackToDeepgram(transcriptResult: ExtendedTranscriptResult): boolean {
     // Use configured fallback statuses
-    return this.config.deepgramFallbackStatuses.includes(transcriptResult.kind as any);
+    const shouldFallback = this.config.deepgramFallbackStatuses.includes(transcriptResult.kind as any);
+    
+    // Log the decision for debugging
+    this.logger.info('system', 'Deepgram fallback decision', {
+      metadata: {
+        transcript_result_kind: transcriptResult.kind,
+        configured_fallback_statuses: this.config.deepgramFallbackStatuses,
+        should_fallback: shouldFallback,
+        fallback_enabled: this.config.enableDeepgramFallback,
+        current_fallback_count: this.deepgramFallbackCount,
+        max_fallbacks: this.config.maxDeepgramFallbacksPerRun
+      }
+    });
+    
+    return shouldFallback;
   }
 
   /**
