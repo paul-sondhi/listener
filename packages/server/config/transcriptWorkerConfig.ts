@@ -103,7 +103,7 @@ export function getTranscriptWorkerConfig(): TranscriptWorkerConfig {
   const deepgramFallbackStatuses = fallbackStatusesEnv.split(',').map(s => s.trim()) as TranscriptStatus[];
   
   // Validate fallback statuses
-  const validStatuses: TranscriptStatus[] = ['full', 'partial', 'processing', 'no_transcript_found', 'no_match', 'error'];
+  const validStatuses: TranscriptStatus[] = ['full', 'partial', 'processing', 'no_transcript_found', 'no_match', 'error', 'not_found'];
   for (const status of deepgramFallbackStatuses) {
     if (!validStatuses.includes(status)) {
       throw new Error(`Invalid DEEPGRAM_FALLBACK_STATUSES: "${status}". Must be one of: ${validStatuses.join(', ')}`);

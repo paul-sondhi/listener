@@ -13,6 +13,7 @@ import { BaseEntity } from './common.js';
  * - no_transcript_found: Episode exists but no transcript available yet
  * - no_match: Episode (or series) not found in Taddy database
  * - error: Processing failed due to system/API error (see error_details column)
+ * - not_found: Internal status from Taddy API (mapped to no_transcript_found before DB storage)
  */
 export type TranscriptStatus =
   | 'full'
@@ -20,7 +21,8 @@ export type TranscriptStatus =
   | 'processing'
   | 'no_transcript_found'
   | 'no_match'
-  | 'error';
+  | 'error'
+  | 'not_found';
 
 /**
  * Valid transcript source values
