@@ -792,12 +792,12 @@ __export(auth_exports, {
   default: () => auth_default
 });
 import path2 from "path";
-import { createClient as createClient10 } from "@supabase/supabase-js";
+import { createClient as createClient11 } from "@supabase/supabase-js";
 var supabaseAdmin7, authMiddleware, auth_default;
 var init_auth = __esm({
   "middleware/auth.ts"() {
     "use strict";
-    supabaseAdmin7 = createClient10(
+    supabaseAdmin7 = createClient11(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
@@ -4886,6 +4886,23 @@ function getTranscriptWorkerConfig() {
   if (isNaN(last10Count) || last10Count < 1 || last10Count > 100) {
     throw new Error(`Invalid TRANSCRIPT_WORKER_L10_COUNT: "${last10CountEnv || ""}". Must be a number between 1 and 100.`);
   }
+  const enableDeepgramFallback = process.env.DEEPGRAM_FALLBACK_ENABLED !== "false" && process.env.DISABLE_DEEPGRAM_FALLBACK !== "true";
+  const fallbackStatusesEnv = process.env.DEEPGRAM_FALLBACK_STATUSES || "no_match,no_transcript_found,error,processing";
+  const deepgramFallbackStatuses = fallbackStatusesEnv.split(",").map((s) => s.trim());
+  const validStatuses = ["full", "partial", "processing", "no_transcript_found", "no_match", "error", "not_found"];
+  for (const status of deepgramFallbackStatuses) {
+    if (!validStatuses.includes(status)) {
+      throw new Error(`Invalid DEEPGRAM_FALLBACK_STATUSES: "${status}". Must be one of: ${validStatuses.join(", ")}`);
+    }
+  }
+  const maxDeepgramFallbacksPerRun = parseInt(process.env.DEEPGRAM_FALLBACK_MAX_PER_RUN || "50", 10);
+  if (isNaN(maxDeepgramFallbacksPerRun) || maxDeepgramFallbacksPerRun < 0 || maxDeepgramFallbacksPerRun > 1e3) {
+    throw new Error(`Invalid DEEPGRAM_FALLBACK_MAX_PER_RUN: "${process.env.DEEPGRAM_FALLBACK_MAX_PER_RUN}". Must be a number between 0 and 1000.`);
+  }
+  const maxDeepgramFileSizeMB = parseInt(process.env.DEEPGRAM_MAX_FILE_SIZE_MB || "500", 10);
+  if (isNaN(maxDeepgramFileSizeMB) || maxDeepgramFileSizeMB < 1 || maxDeepgramFileSizeMB > 2048) {
+    throw new Error(`Invalid DEEPGRAM_MAX_FILE_SIZE_MB: "${process.env.DEEPGRAM_MAX_FILE_SIZE_MB}". Must be a number between 1 and 2048.`);
+  }
   return {
     enabled,
     cronSchedule,
@@ -4895,7 +4912,11 @@ function getTranscriptWorkerConfig() {
     concurrency,
     useAdvisoryLock,
     last10Mode,
-    last10Count
+    last10Count,
+    enableDeepgramFallback,
+    deepgramFallbackStatuses,
+    maxDeepgramFallbacksPerRun,
+    maxDeepgramFileSizeMB
   };
 }
 function isValidCronExpression(cronExpression) {
@@ -5337,15 +5358,254 @@ async function overwriteTranscript(episodeId, storagePath, initialStatus, curren
 // services/TranscriptWorker.ts
 import { promisify } from "util";
 import { gzip } from "zlib";
+
+// services/DeepgramFallbackService.ts
+import { createClient as createClient9 } from "@deepgram/sdk";
+var DeepgramFallbackService = class {
+  constructor(config, logger) {
+    const apiKey = process.env.DEEPGRAM_API_KEY;
+    if (!apiKey) {
+      throw new Error("DEEPGRAM_API_KEY environment variable is required");
+    }
+    this.client = createClient9(apiKey);
+    this.logger = logger || console;
+    this.config = {
+      maxDeepgramFileSizeMB: 500,
+      // Conservative default
+      deepgramOptions: {
+        model: "nova-3",
+        // Latest and most accurate model
+        smart_format: true,
+        // Adds punctuation, paragraphs, formats dates/times
+        diarize: true,
+        // Identifies different speakers (essential for podcasts)
+        filler_words: false
+        // Omit "um", "uh" for cleaner transcripts
+      },
+      ...config
+    };
+    this.logger.info("system", "Deepgram fallback service initialized", {
+      metadata: {
+        max_file_size_mb: this.config.maxDeepgramFileSizeMB,
+        model: this.config.deepgramOptions.model,
+        smart_format: this.config.deepgramOptions.smart_format,
+        diarize: this.config.deepgramOptions.diarize,
+        filler_words: this.config.deepgramOptions.filler_words
+      }
+    });
+  }
+  /**
+   * Transcribe an episode from its URL using Deepgram
+   * @param episodeUrl - Direct URL to the episode audio file
+   * @returns Promise<DeepgramTranscriptResult> - Transcription result
+   */
+  async transcribeFromUrl(episodeUrl) {
+    const startTime = Date.now();
+    this.logger.info("system", "Starting Deepgram transcription", {
+      metadata: {
+        episode_url: episodeUrl,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    });
+    try {
+      if (!this.isValidUrl(episodeUrl)) {
+        const error2 = `Invalid URL format: ${episodeUrl}`;
+        const processingTimeMs2 = Date.now() - startTime;
+        this.logger.warn("system", "Deepgram URL validation failed", {
+          metadata: {
+            episode_url: episodeUrl,
+            error: error2,
+            processing_time_ms: processingTimeMs2
+          }
+        });
+        return { success: false, error: error2, processingTimeMs: processingTimeMs2 };
+      }
+      const fileSizeCheck = await this.checkFileSize(episodeUrl);
+      if (!fileSizeCheck.success) {
+        const processingTimeMs2 = Date.now() - startTime;
+        this.logger.warn("system", "Deepgram file size check failed", {
+          metadata: {
+            episode_url: episodeUrl,
+            error: fileSizeCheck.error,
+            file_size_mb: fileSizeCheck.fileSizeMB,
+            processing_time_ms: processingTimeMs2
+          }
+        });
+        return { ...fileSizeCheck, processingTimeMs: processingTimeMs2 };
+      }
+      this.logger.debug("system", "Deepgram file size check passed", {
+        metadata: {
+          episode_url: episodeUrl,
+          file_size_mb: fileSizeCheck.fileSizeMB
+        }
+      });
+      const { result, error } = await this.client.listen.prerecorded.transcribeUrl(
+        { url: episodeUrl },
+        this.config.deepgramOptions
+      );
+      if (error) {
+        const processingTimeMs2 = Date.now() - startTime;
+        const errorMessage = `Deepgram API error: ${error.message || "Unknown error"}`;
+        this.logger.error("system", "Deepgram API error", {
+          metadata: {
+            episode_url: episodeUrl,
+            error: error.message || "Unknown error",
+            error_code: error.code || "unknown",
+            file_size_mb: fileSizeCheck.fileSizeMB,
+            processing_time_ms: processingTimeMs2
+          }
+        });
+        return { success: false, error: errorMessage, fileSizeMB: fileSizeCheck.fileSizeMB, processingTimeMs: processingTimeMs2 };
+      }
+      const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript;
+      if (!transcript) {
+        const processingTimeMs2 = Date.now() - startTime;
+        const error2 = "Invalid response structure from Deepgram API";
+        this.logger.error("system", "Deepgram response missing transcript", {
+          metadata: {
+            episode_url: episodeUrl,
+            error: error2,
+            response_structure: {
+              has_results: !!result?.results,
+              has_channels: !!result?.results?.channels,
+              channels_count: result?.results?.channels?.length || 0
+            },
+            file_size_mb: fileSizeCheck.fileSizeMB,
+            processing_time_ms: processingTimeMs2
+          }
+        });
+        return { success: false, error: error2, fileSizeMB: fileSizeCheck.fileSizeMB, processingTimeMs: processingTimeMs2 };
+      }
+      const processingTimeMs = Date.now() - startTime;
+      this.logger.info("system", "Deepgram transcription successful", {
+        metadata: {
+          episode_url: episodeUrl,
+          file_size_mb: fileSizeCheck.fileSizeMB,
+          transcript_length: transcript.length,
+          processing_time_ms: processingTimeMs,
+          estimated_duration_minutes: Math.round(processingTimeMs / 6e4 * 100) / 100
+        }
+      });
+      return {
+        success: true,
+        transcript,
+        fileSizeMB: fileSizeCheck.fileSizeMB,
+        processingTimeMs
+      };
+    } catch (error) {
+      const processingTimeMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : "Unknown transcription error";
+      this.logger.error("system", "Deepgram transcription exception", {
+        metadata: {
+          episode_url: episodeUrl,
+          error: errorMessage,
+          error_type: error instanceof Error ? error.constructor.name : "unknown",
+          processing_time_ms: processingTimeMs
+        }
+      });
+      if (errorMessage.includes("429")) {
+        return {
+          success: false,
+          error: "Rate limit exceeded - too many concurrent requests",
+          processingTimeMs
+        };
+      }
+      if (errorMessage.includes("504") || errorMessage.includes("timeout")) {
+        return {
+          success: false,
+          error: "Transcription timeout - file processing exceeded 10 minutes",
+          processingTimeMs
+        };
+      }
+      return { success: false, error: errorMessage, processingTimeMs };
+    }
+  }
+  /**
+   * Validate if a URL is properly formatted and uses HTTP/HTTPS
+   * @param url - URL to validate
+   * @returns boolean - true if valid
+   */
+  isValidUrl(url) {
+    try {
+      const parsedUrl = new URL(url);
+      return parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * Check file size via HEAD request to ensure it's within limits
+   * @param url - URL to check
+   * @returns Promise<DeepgramTranscriptResult> - Size check result
+   */
+  async checkFileSize(url) {
+    try {
+      this.logger.debug("system", "Checking file size via HEAD request", {
+        metadata: {
+          episode_url: url
+        }
+      });
+      const headResponse = await fetch(url, {
+        method: "HEAD",
+        headers: {
+          "User-Agent": "Listener-Podcast-App/1.0"
+        }
+      });
+      if (!headResponse.ok) {
+        const error = `HEAD request failed: ${headResponse.status} ${headResponse.statusText}`;
+        return { success: false, error };
+      }
+      const contentLength = headResponse.headers.get("content-length");
+      if (!contentLength) {
+        const error = "Missing Content-Length header - cannot verify file size";
+        return { success: false, error };
+      }
+      const fileSizeBytes = parseInt(contentLength, 10);
+      if (isNaN(fileSizeBytes) || fileSizeBytes <= 0) {
+        const error = `Invalid Content-Length header: ${contentLength}`;
+        return { success: false, error };
+      }
+      const fileSizeMB = fileSizeBytes / (1024 * 1024);
+      if (fileSizeMB > this.config.maxDeepgramFileSizeMB) {
+        const error = `File size ${fileSizeMB.toFixed(1)}MB exceeds limit of ${this.config.maxDeepgramFileSizeMB}MB`;
+        return { success: false, error, fileSizeMB };
+      }
+      return { success: true, fileSizeMB };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error during file size check";
+      this.logger.error("system", "File size check network error", {
+        metadata: {
+          episode_url: url,
+          error: errorMessage,
+          error_type: error instanceof Error ? error.constructor.name : "unknown"
+        }
+      });
+      return { success: false, error: `Network error during file size check: ${errorMessage}` };
+    }
+  }
+  /**
+   * Get current configuration
+   * @returns DeepgramFallbackConfig - Current configuration
+   */
+  getConfig() {
+    return { ...this.config };
+  }
+};
+
+// services/TranscriptWorker.ts
 var gzipAsync = promisify(gzip);
 var TranscriptWorker = class {
   constructor(config, logger, customSupabaseClient) {
     this.bucketName = "transcripts";
     this.quotaExhausted = false;
+    this.deepgramFallbackCount = 0;
     this.config = config ? { ...getTranscriptWorkerConfig(), ...config } : getTranscriptWorkerConfig();
     this.logger = logger || createLogger();
     this.supabase = customSupabaseClient || getSharedSupabaseClient();
     this.transcriptService = new TranscriptService();
+    this.deepgramService = new DeepgramFallbackService({
+      maxDeepgramFileSizeMB: this.config.maxDeepgramFileSizeMB
+    }, this.logger);
     this.logger.info("system", "TranscriptWorker initialized", {
       metadata: {
         lookbackHours: this.config.lookbackHours,
@@ -5374,7 +5634,13 @@ var TranscriptWorker = class {
         lookbackHours: this.config.lookbackHours,
         maxRequests: this.config.maxRequests,
         concurrency: this.config.concurrency,
-        useAdvisoryLock: this.config.useAdvisoryLock
+        useAdvisoryLock: this.config.useAdvisoryLock,
+        deepgram_config: {
+          enabled: this.config.enableDeepgramFallback,
+          fallback_statuses: this.config.deepgramFallbackStatuses,
+          max_per_run: this.config.maxDeepgramFallbacksPerRun,
+          max_file_size_mb: this.config.maxDeepgramFileSizeMB
+        }
       }
     });
     let advisoryLockAcquired = false;
@@ -5385,7 +5651,10 @@ var TranscriptWorker = class {
       processingCount: 0,
       errorCount: 0,
       totalElapsedMs: 0,
-      averageProcessingTimeMs: 0
+      averageProcessingTimeMs: 0,
+      deepgramFallbackAttempts: 0,
+      deepgramFallbackSuccesses: 0,
+      deepgramFallbackFailures: 0
     };
     try {
       if (this.config.useAdvisoryLock) {
@@ -5898,6 +6167,13 @@ var TranscriptWorker = class {
             credits_consumed: transcriptResult.creditsConsumed
           }
         });
+        if (this.config.enableDeepgramFallback && this.shouldFallbackToDeepgram(transcriptResult)) {
+          if (this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
+            return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+          } else {
+            this.logCostLimitReached(episode.id, "processing");
+          }
+        }
         return {
           ...baseResult,
           status: "processing"
@@ -5905,6 +6181,30 @@ var TranscriptWorker = class {
       }
       case "not_found":
         await this.recordTranscriptInDatabase(episode.id, "", "no_transcript_found", 0, transcriptResult.source);
+        this.logger.info("system", "Processing not_found status", {
+          metadata: {
+            job_id: jobId,
+            episode_id: episode.id,
+            fallback_enabled: this.config.enableDeepgramFallback,
+            will_check_fallback: true
+          }
+        });
+        if (this.config.enableDeepgramFallback && this.shouldFallbackToDeepgram(transcriptResult)) {
+          if (this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
+            return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+          } else {
+            this.logCostLimitReached(episode.id, "no_transcript_found");
+          }
+        } else {
+          this.logger.info("system", "Skipping Deepgram fallback", {
+            metadata: {
+              job_id: jobId,
+              episode_id: episode.id,
+              reason: !this.config.enableDeepgramFallback ? "fallback_disabled" : "status_not_in_fallback_list",
+              transcript_status: "no_transcript_found"
+            }
+          });
+        }
         return {
           ...baseResult,
           status: "no_transcript_found",
@@ -5912,6 +6212,13 @@ var TranscriptWorker = class {
         };
       case "no_match":
         await this.recordTranscriptInDatabase(episode.id, "", "no_match", 0, transcriptResult.source);
+        if (this.config.enableDeepgramFallback && this.shouldFallbackToDeepgram(transcriptResult)) {
+          if (this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
+            return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+          } else {
+            this.logCostLimitReached(episode.id, "no_match");
+          }
+        }
         return {
           ...baseResult,
           status: "no_match",
@@ -5929,6 +6236,13 @@ var TranscriptWorker = class {
               source: transcriptResult.source
             }
           });
+        }
+        if (!this.quotaExhausted && this.config.enableDeepgramFallback && this.shouldFallbackToDeepgram(transcriptResult)) {
+          if (this.deepgramFallbackCount < this.config.maxDeepgramFallbacksPerRun) {
+            return await this.attemptDeepgramFallback(episode, transcriptResult, jobId, baseResult);
+          } else {
+            this.logCostLimitReached(episode.id, "error");
+          }
         }
         return {
           ...baseResult,
@@ -6066,6 +6380,196 @@ var TranscriptWorker = class {
     }
   }
   /**
+   * Check if we should attempt Deepgram fallback for a given transcript result
+   * @param transcriptResult The result from Taddy
+   * @returns boolean True if fallback should be attempted
+   */
+  shouldFallbackToDeepgram(transcriptResult) {
+    const shouldFallback = this.config.deepgramFallbackStatuses.includes(transcriptResult.kind);
+    this.logger.info("system", "Deepgram fallback decision", {
+      metadata: {
+        transcript_result_kind: transcriptResult.kind,
+        configured_fallback_statuses: this.config.deepgramFallbackStatuses,
+        should_fallback: shouldFallback,
+        fallback_enabled: this.config.enableDeepgramFallback,
+        current_fallback_count: this.deepgramFallbackCount,
+        max_fallbacks: this.config.maxDeepgramFallbacksPerRun
+      }
+    });
+    return shouldFallback;
+  }
+  /**
+   * Log when Deepgram fallback cost limit is reached
+   * @param episodeId - ID of the episode that would have been processed
+   * @param originalStatus - The original Taddy status that triggered fallback
+   */
+  logCostLimitReached(episodeId, originalStatus) {
+    this.logger.warn("system", "Deepgram fallback cost limit reached - skipping remaining episodes", {
+      metadata: {
+        episode_id: episodeId,
+        original_taddy_status: originalStatus,
+        fallback_attempts_used: this.deepgramFallbackCount,
+        max_fallbacks_per_run: this.config.maxDeepgramFallbacksPerRun,
+        limit: this.config.maxDeepgramFallbacksPerRun,
+        processed: this.deepgramFallbackCount
+      }
+    });
+  }
+  /**
+   * Attempt Deepgram fallback transcription for a failed episode
+   * @param episode Episode to transcribe
+   * @param originalResult Original Taddy result that failed
+   * @param jobId Job identifier for logging
+   * @param baseResult Base result structure
+   * @returns Promise<EpisodeProcessingResult> Result of fallback attempt
+   */
+  async attemptDeepgramFallback(episode, originalResult, jobId, baseResult) {
+    this.deepgramFallbackCount++;
+    this.logger.info("system", "Attempting Deepgram fallback transcription", {
+      metadata: {
+        job_id: jobId,
+        episode_id: episode.id,
+        episode_url: episode.episode_url,
+        original_taddy_status: originalResult.kind,
+        fallback_attempt: this.deepgramFallbackCount
+      }
+    });
+    try {
+      const deepgramResult = await this.deepgramService.transcribeFromUrl(episode.episode_url);
+      if (deepgramResult.success && deepgramResult.transcript) {
+        const storagePath = await this.storeTranscriptFile(
+          episode,
+          deepgramResult.transcript,
+          jobId
+        );
+        await this.updateTranscriptRecord(
+          episode.id,
+          storagePath,
+          "full",
+          null,
+          // Deepgram doesn't provide word count
+          "deepgram",
+          null
+          // Clear error details on success
+        );
+        const estimatedDurationMinutes = deepgramResult.processingTimeMs ? Math.round(deepgramResult.processingTimeMs / 6e4 * 100) / 100 : 0;
+        const estimatedCostUSD = estimatedDurationMinutes * 43e-4;
+        this.logger.info("system", "Deepgram fallback successful", {
+          metadata: {
+            job_id: jobId,
+            episode_id: episode.id,
+            storage_path: storagePath,
+            file_size_mb: deepgramResult.fileSizeMB,
+            transcript_length: deepgramResult.transcript.length,
+            processing_time_ms: deepgramResult.processingTimeMs,
+            estimated_duration_minutes: estimatedDurationMinutes,
+            estimated_cost_usd: Math.round(estimatedCostUSD * 1e4) / 1e4
+            // Round to 4 decimal places
+          }
+        });
+        return {
+          ...baseResult,
+          status: "full",
+          storagePath,
+          wordCount: void 0
+          // Deepgram doesn't provide word count
+        };
+      } else {
+        await this.updateTranscriptRecord(
+          episode.id,
+          "",
+          // No storage path
+          "error",
+          null,
+          "deepgram",
+          deepgramResult.error || "Unknown Deepgram error"
+        );
+        this.logger.error("system", "Deepgram fallback failed", {
+          metadata: {
+            job_id: jobId,
+            episode_id: episode.id,
+            deepgram_error: deepgramResult.error,
+            file_size_mb: deepgramResult.fileSizeMB,
+            processing_time_ms: deepgramResult.processingTimeMs,
+            original_taddy_status: originalResult.kind
+          }
+        });
+        return {
+          ...baseResult,
+          status: originalResult.kind,
+          error: `Taddy: ${originalResult.kind}; Deepgram: ${deepgramResult.error}`
+        };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.updateTranscriptRecord(
+        episode.id,
+        "",
+        // No storage path
+        "error",
+        null,
+        "deepgram",
+        `Deepgram fallback exception: ${errorMessage}`
+      );
+      this.logger.error("system", "Deepgram fallback exception", {
+        metadata: {
+          job_id: jobId,
+          episode_id: episode.id,
+          error: errorMessage,
+          original_taddy_status: originalResult.kind
+        }
+      });
+      return {
+        ...baseResult,
+        status: originalResult.kind,
+        error: `Taddy: ${originalResult.kind}; Deepgram exception: ${errorMessage}`
+      };
+    }
+  }
+  /**
+   * Update an existing transcript record in the database
+   * @param episodeId Episode ID
+   * @param storagePath Storage path (empty for non-stored statuses)
+   * @param currentStatus Current transcript status
+   * @param wordCount Word count (null for Deepgram)
+   * @param source Source of the transcript ('deepgram')
+   * @param errorDetails Optional error details (null to clear)
+   */
+  async updateTranscriptRecord(episodeId, storagePath, currentStatus, wordCount, source, errorDetails) {
+    try {
+      const { error } = await this.supabase.from("transcripts").update({
+        storage_path: storagePath,
+        current_status: currentStatus,
+        word_count: wordCount,
+        source,
+        error_details: errorDetails,
+        updated_at: (/* @__PURE__ */ new Date()).toISOString()
+      }).eq("episode_id", episodeId);
+      if (error) {
+        throw new Error(`Failed to update transcript record: ${error.message}`);
+      }
+      this.logger.debug("system", "Transcript record updated", {
+        metadata: {
+          episode_id: episodeId,
+          current_status: currentStatus,
+          storage_path: storagePath,
+          word_count: wordCount,
+          source,
+          error_details: errorDetails
+        }
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error("system", "Failed to update transcript record", {
+        metadata: {
+          episode_id: episodeId,
+          error: errorMessage
+        }
+      });
+      throw error;
+    }
+  }
+  /**
    * Check if an error message indicates quota exhaustion
    *
    * Unified abstraction: Any upstream response that points to Taddy credit
@@ -6103,11 +6607,17 @@ var TranscriptWorker = class {
     let availableTranscripts = 0;
     let processingCount = 0;
     let errorCount = 0;
+    let deepgramFallbackSuccesses = 0;
+    let deepgramFallbackFailures = 0;
     for (const result of results) {
       switch (result.status) {
         case "full":
         case "partial":
           availableTranscripts++;
+          if (result.error && result.error.includes("Deepgram")) {
+            deepgramFallbackFailures++;
+          } else if (result.storagePath) {
+          }
           break;
         case "processing":
           processingCount++;
@@ -6116,12 +6626,16 @@ var TranscriptWorker = class {
         case "no_match":
         case "error":
           errorCount++;
+          if (result.error && result.error.includes("Deepgram")) {
+            deepgramFallbackFailures++;
+          }
           break;
         default:
           errorCount++;
           break;
       }
     }
+    deepgramFallbackSuccesses = Math.max(0, this.deepgramFallbackCount - deepgramFallbackFailures);
     const averageProcessingTimeMs = processedEpisodes > 0 ? Math.round(results.reduce((sum, r) => sum + r.elapsedMs, 0) / processedEpisodes) : 0;
     return {
       totalEpisodes: processedEpisodes,
@@ -6131,7 +6645,10 @@ var TranscriptWorker = class {
       processingCount,
       errorCount,
       totalElapsedMs,
-      averageProcessingTimeMs
+      averageProcessingTimeMs,
+      deepgramFallbackAttempts: this.deepgramFallbackCount,
+      deepgramFallbackSuccesses,
+      deepgramFallbackFailures
     };
   }
 };
@@ -8000,6 +8517,7 @@ function getNotesWorkerConfig() {
   let promptTemplate;
   try {
     const fullPromptPath = resolve2(promptPath);
+    console.log(`Loading notes prompt from: ${fullPromptPath} (env: ${process.env.NOTES_PROMPT_PATH || "not set"})`);
     promptTemplate = readFileSync3(fullPromptPath, "utf-8").trim();
     if (!promptTemplate) {
       throw new Error(`Prompt template file is empty: ${fullPromptPath}`);
@@ -11044,7 +11562,7 @@ var admin_default = router5;
 // routes/opmlUpload.ts
 import express5 from "express";
 import multer from "multer";
-import { createClient as createClient9 } from "@supabase/supabase-js";
+import { createClient as createClient10 } from "@supabase/supabase-js";
 
 // services/opmlParserService.ts
 import { XMLParser as XMLParser4 } from "fast-xml-parser";
@@ -11244,7 +11762,7 @@ function getSupabaseAdmin6() {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error("Missing required environment variables for Supabase");
     }
-    supabaseAdmin6 = createClient9(
+    supabaseAdmin6 = createClient10(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );

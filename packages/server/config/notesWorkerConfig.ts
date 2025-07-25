@@ -74,6 +74,7 @@ export function getNotesWorkerConfig(): NotesWorkerConfig {
   try {
     // Resolve path relative to project root (where the server runs)
     const fullPromptPath = resolve(promptPath);
+    console.log(`Loading notes prompt from: ${fullPromptPath} (env: ${process.env.NOTES_PROMPT_PATH || 'not set'})`);
     promptTemplate = readFileSync(fullPromptPath, 'utf-8').trim();
     
     if (!promptTemplate) {
