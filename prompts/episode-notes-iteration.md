@@ -38,19 +38,19 @@ Use this exact format:
 **Podcast Name and Spotify URL**
 - Use the show name and the Spotify URL from the REQUIRED PODCAST INFORMATION section above
 
-**[Topic 1]**
+**Topic 1**
 - Synthesis
 
-**[Topic 2]**
+**Topic 2**
 - Synthesis
 
-**[Topic 3]**
+**Topic 3**
 - Synthesis
 
-**[Topic 4]**
+**Topic 4**
 - Synthesis
 
-**[Topic 5]**
+**Topic 5**
 - Synthesis
 
 **Category**:
@@ -68,7 +68,7 @@ Use this exact format:
     11. Food
 
 **Speakers**
-- List out the speakers on the podcast if they clearly say their name. Also include their occupation if they clearly state what they do. Especially for interviews this will be helpful for newsletter readers to understand who was on a podcast.
+- List out the speakers on the podcast if they clearly say their name. Also include their occupation if they clearly state what they do. Be VERY clear about who is a host and who si not. Especially for interviews this will be helpful for newsletter readers to understand who was on a podcast.
 
 **One interesting thing**:
 - Document one interesting thing you learned from this episode. It could be a fun fact or random observation. It needs to be unique and novel, something someone might only learn if they listened to the episode.
