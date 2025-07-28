@@ -36,6 +36,11 @@ You must follow this format for generating content suitable for email newsletter
   <style>
     @media (prefers-color-scheme: dark) {
       .card-bg { background:#121212 !important; color:#e1e1e1 !important; }
+      .card-bg h1 { color:#e1e1e1 !important; }
+      .card-bg h2 { color:#e1e1e1 !important; }
+      .card-bg p { color:#e1e1e1 !important; }
+      .card-bg a { color:#6bb6ff !important; }
+      .card-bg div { background-color: #444 !important; }
     }
   </style>
 </head>
@@ -96,11 +101,16 @@ Here is a perfect example of what your output should look like:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- <style>
+  <style>
     @media (prefers-color-scheme: dark) {
       .card-bg { background:#121212 !important; color:#e1e1e1 !important; }
-    } -->
-  <!-- </style> -->
+      .card-bg h1 { color:#e1e1e1 !important; }
+      .card-bg h2 { color:#e1e1e1 !important; }
+      .card-bg p { color:#e1e1e1 !important; }
+      .card-bg a { color:#6bb6ff !important; }
+      .card-bg div { background-color: #444 !important; }
+    }
+  </style>
 </head>
 <body style="margin:0; padding:0; font-family: Arial, sans-serif; background-color:#ffffff;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="600" class="card-bg" style="width:600px;background:#ffffff">
@@ -214,6 +224,11 @@ You must follow this format for generating content suitable for email newsletter
   <style>
     @media (prefers-color-scheme: dark) {
       .card-bg { background:#121212 !important; color:#e1e1e1 !important; }
+      .card-bg h1 { color:#e1e1e1 !important; }
+      .card-bg h2 { color:#e1e1e1 !important; }
+      .card-bg p { color:#e1e1e1 !important; }
+      .card-bg a { color:#6bb6ff !important; }
+      .card-bg div { background-color: #444 !important; }
     }
   </style>
 </head>
@@ -274,11 +289,16 @@ Here is a perfect example of what your output should look like:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- <style>
+  <style>
     @media (prefers-color-scheme: dark) {
       .card-bg { background:#121212 !important; color:#e1e1e1 !important; }
-    } -->
-  <!-- </style> -->
+      .card-bg h1 { color:#e1e1e1 !important; }
+      .card-bg h2 { color:#e1e1e1 !important; }
+      .card-bg p { color:#e1e1e1 !important; }
+      .card-bg a { color:#6bb6ff !important; }
+      .card-bg div { background-color: #444 !important; }
+    }
+  </style>
 </head>
 <body style="margin:0; padding:0; font-family: Arial, sans-serif; background-color:#ffffff;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="600" class="card-bg" style="width:600px;background:#ffffff">
