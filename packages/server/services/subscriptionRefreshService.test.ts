@@ -339,35 +339,62 @@ describe('refreshUserSubscriptions', () => {
     });
 
     // Arrange: Set up successful database operations
-    // The existing eq() mock needs to handle both subscription queries AND the new show lookup query
-    supabaseMock.eq.mockImplementation((...args) => {
-      // For the new select('id,rss_url').eq().maybeSingle() query
-      if (args[0] === 'spotify_url') {
+    // Mock the .from() method to handle different table queries
+    supabaseMock.from.mockImplementation((tableName: string) => {
+      if (tableName === 'podcast_shows') {
         return {
-          maybeSingle: vi.fn().mockResolvedValue({
-            data: null, // No existing show
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation((column: string) => {
+              if (column === 'spotify_url') {
+                // For existing show lookup by spotify_url - return null (no existing show)
+                return {
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+                };
+              } else if (column === 'rss_url') {
+                // For RSS URL conflict check - return null (no conflict)
+                return {
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+                };
+              }
+              return {
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+              };
+            })
+          }),
+          upsert: vi.fn().mockReturnValue({
+            select: vi.fn().mockResolvedValue({
+              data: [{ id: 'show-123' }],
+              error: null
+            })
+          })
+        };
+      } else if (tableName === 'user_podcast_subscriptions') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              data: [], // No existing subscriptions
+              error: null,
+              then: (resolve: (value: any) => void) => resolve({ data: [], error: null })
+            })
+          }),
+          upsert: vi.fn().mockResolvedValue({
+            data: [{ id: 'sub-123' }],
             error: null
+          }),
+          update: vi.fn().mockResolvedValue({
+            data: [],
+            error: null
+          }),
+          in: vi.fn().mockReturnValue({
+            data: [],
+            error: null,
+            then: (resolve: (value: any) => void) => resolve({ data: [], error: null })
           })
         };
       }
-      // For existing subscription queries
-      return {
-        data: [], // No existing subscriptions
-        error: null,
-        then: (resolve: (value: any) => void) => resolve({ data: [], error: null })
-      };
+      // Default fallback
+      return supabaseMock;
     });
-    
-    // Mock upsert to return an object that supports .select() chaining
-    const upsertResult = {
-      data: [{ id: 'new-sub-123', user_id: 'user-123', show_id: 'show-123', status: 'active' }],
-      error: null,
-      select: vi.fn().mockResolvedValue({
-        data: [{ id: 'new-sub-123', user_id: 'user-123', show_id: 'show-123', status: 'active' }],
-        error: null
-      })
-    };
-    supabaseMock.upsert.mockReturnValue(upsertResult);
 
     // Act: Execute the subscription refresh
     const result = await refreshUserSubscriptions('user-123');
@@ -392,7 +419,7 @@ describe('refreshUserSubscriptions', () => {
 
     // Assert: Verify database operations were performed
     expect(supabaseMock.from).toHaveBeenCalledWith('user_podcast_subscriptions');
-    expect(supabaseMock.upsert).toHaveBeenCalled();
+    expect(supabaseMock.from).toHaveBeenCalledWith('podcast_shows');
   });
 
   /**
