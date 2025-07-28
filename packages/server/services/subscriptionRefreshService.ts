@@ -550,24 +550,53 @@ async function updateSubscriptionStatus(
                 });
             }
 
-            // Upsert the show into podcast_shows table
-            const showUpsertResult = await safeAwait(
-                getSupabaseAdmin()
-                    .from('podcast_shows')
-                    .upsert([upsertData], { 
-                        onConflict: 'spotify_url',
-                        ignoreDuplicates: false 
-                    })
-                    .select('id')
-            );
-
-            if (showUpsertResult?.error) {
-                console.error(`[SubscriptionRefresh] Error upserting podcast show for user ${userId}:`, showUpsertResult.error.message);
-                throw new Error(`Database show upsert failed: ${showUpsertResult.error.message}`);
+            // First check if a show with this RSS URL already exists
+            let actualShowId: string | undefined;
+            
+            if (rssUrl && rssUrl !== spotifyUrl) {
+                // Check if another show already has this RSS URL
+                const existingRssShow = await safeAwait(
+                    getSupabaseAdmin()
+                        .from('podcast_shows')
+                        .select('id, spotify_url')
+                        .eq('rss_url', rssUrl)
+                        .maybeSingle()
+                );
+                
+                if (existingRssShow?.data) {
+                    // Use the existing show with this RSS URL
+                    actualShowId = existingRssShow.data.id;
+                    log.info('subscription_refresh', `Using existing show with same RSS URL for ${spotifyUrl}`, {
+                        user_id: userId,
+                        new_spotify_url: spotifyUrl,
+                        existing_spotify_url: existingRssShow.data.spotify_url,
+                        shared_rss_url: rssUrl,
+                        show_id: actualShowId
+                    });
+                }
             }
+            
+            // If no existing show with this RSS URL, proceed with normal upsert
+            if (!actualShowId) {
+                // Upsert the show into podcast_shows table
+                const showUpsertResult = await safeAwait(
+                    getSupabaseAdmin()
+                        .from('podcast_shows')
+                        .upsert([upsertData], { 
+                            onConflict: 'spotify_url',
+                            ignoreDuplicates: false 
+                        })
+                        .select('id')
+                );
 
-            // Get the show ID for the subscription
-            const actualShowId = showUpsertResult?.data?.[0]?.id;
+                if (showUpsertResult?.error) {
+                    console.error(`[SubscriptionRefresh] Error upserting podcast show for user ${userId}:`, showUpsertResult.error.message);
+                    throw new Error(`Database show upsert failed: ${showUpsertResult.error.message}`);
+                }
+
+                // Get the show ID for the subscription
+                actualShowId = showUpsertResult?.data?.[0]?.id;
+            }
             if (!actualShowId) {
                 throw new Error('Failed to get show ID after upsert');
             }
