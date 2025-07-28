@@ -749,7 +749,7 @@ export function sanitizeNewsletterContent(htmlContent: string): string {
       // HTML document structure (for complete HTML documents)
       'html', 'head', 'body', 'meta', 'style',
       // Table structure for email layout
-      'table', 'tr', 'td',
+      'table', 'thead', 'tbody', 'tr', 'td', 'th',
       // Headings
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
       // Paragraphs and line breaks
@@ -778,9 +778,12 @@ export function sanitizeNewsletterContent(htmlContent: string): string {
       'meta': ['charset', 'name', 'content'],
       'style': [],
       // Table attributes for email layout
-      'table': ['role', 'cellpadding', 'cellspacing', 'border', 'align', 'width', 'style'],
+      'table': ['role', 'cellpadding', 'cellspacing', 'border', 'align', 'width', 'style', 'class'],
+      'thead': ['style'],
+      'tbody': ['style'],
       'tr': ['style'],
-      'td': ['style'],
+      'td': ['style', 'colspan', 'rowspan', 'align', 'valign'],
+      'th': ['style', 'colspan', 'rowspan', 'align', 'valign'],
       // Link attributes
       'a': ['href', 'title', 'target'],
       // Image attributes
@@ -808,7 +811,7 @@ export function sanitizeNewsletterContent(htmlContent: string): string {
         'font-weight': [/^(normal|bold|bolder|lighter|\d{3})$/],
         'text-align': [/^(left|right|center|justify)$/],
         'text-decoration': [/^(none|underline|overline|line-through)$/],
-        'line-height': [/^\d+(?:\.\d+)?$/],
+        'line-height': [/^\d+(?:\.\d+)?(?:px|em|%)?$/],
         'margin': [/^\d+(?:px|em|%)?$/],
         'margin-top': [/^\d+(?:px|em|%)?$/],
         'margin-bottom': [/^\d+(?:px|em|%)?$/],
@@ -821,8 +824,14 @@ export function sanitizeNewsletterContent(htmlContent: string): string {
         'padding-right': [/^\d+(?:px|em|%)?$/],
         // Additional styles for table layout
         'width': [/^\d+(?:px|em|%)?$/],
+        'height': [/^\d+(?:px|em|%)?$/],
         'font-family': [/^[a-zA-Z\s,]+$/],
-        'background': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/]
+        'background': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/],
+        'border': [/^\d+px\s+(solid|dashed|dotted)\s+#(0x)?[0-9a-f]+$/i],
+        'border-radius': [/^\d+(?:px|em|%)?$/],
+        // Allow !important for dark mode styles
+        'color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/, /^#(0x)?[0-9a-f]+\s*!important$/i],
+        'background-color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/, /^#(0x)?[0-9a-f]+\s*!important$/i]
       }
     },
     // Allow safe URL schemes

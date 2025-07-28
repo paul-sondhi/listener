@@ -250,20 +250,32 @@ export function validateNewsletterStructure(htmlContent: string, _episodeCount: 
     issues.push('Unclosed table tag');
   }
   
-  // Check for any unclosed td tags
-  const tdOpenCount = (htmlContent.match(/<td[^>]*>/g) || []).length;
-  const tdCloseCount = (htmlContent.match(/<\/td>/g) || []).length;
-  if (tdOpenCount !== tdCloseCount) {
-    issues.push(`Unclosed td tags (${tdOpenCount} open, ${tdCloseCount} closed)`);
+  // Check for dark mode styles
+  if (!htmlContent.includes('@media (prefers-color-scheme: dark)')) {
+    issues.push('Missing dark mode styles');
+  }
+  
+  // Check for proper list structure
+  const ulOpenCount = (htmlContent.match(/<ul[^>]*>/g) || []).length;
+  const ulCloseCount = (htmlContent.match(/<\/ul>/g) || []).length;
+  if (ulOpenCount !== ulCloseCount) {
+    issues.push(`Unclosed ul tags (${ulOpenCount} open, ${ulCloseCount} closed)`);
+  }
+  
+  const liOpenCount = (htmlContent.match(/<li[^>]*>/g) || []).length;
+  const liCloseCount = (htmlContent.match(/<\/li>/g) || []).length;
+  if (liOpenCount !== liCloseCount) {
+    issues.push(`Unclosed li tags (${liOpenCount} open, ${liCloseCount} closed)`);
   }
   
   // 2. Check required sections exist and are complete
   const requiredSections = [
     { pattern: /Hello!.*I listened to \d+ episode/i, name: 'Intro' },
+    { pattern: /TL;DL/i, name: 'TL;DL heading' },
     { pattern: /Recommended Listens/i, name: 'Recommended Listens heading' },
-    { pattern: /.*Today I Learned/i, name: 'Today I Learned heading' },
+    { pattern: /💡\s*Today I Learned/i, name: 'Today I Learned heading' },
     { pattern: /Happy listening! 🎧/, name: 'Closing' },
-    { pattern: /P\.S\. Got feedback/i, name: 'P.S. section' }
+    { pattern: /P\.S\. Got feedback or want to unsubscribe\?/i, name: 'P.S. section' }
   ];
   
   for (const section of requiredSections) {
@@ -297,7 +309,8 @@ export function validateNewsletterStructure(htmlContent: string, _episodeCount: 
   const lastFewChars = textContent.slice(-10);
   const hasProperEnding = endsWithPunctuation || 
     lastFewChars.includes('let me know') || 
-    lastFewChars.includes('feedback');
+    lastFewChars.includes('feedback') ||
+    lastFewChars.includes('unsubscribe');
   
   if (!hasProperEnding && textContent.length > 0) {
     // Get last 50 characters for context in error message
