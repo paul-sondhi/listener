@@ -39,7 +39,7 @@ You must follow this format for generating content suitable for email newsletter
       .card-bg h1 { color:#e1e1e1 !important; }
       .card-bg h2 { color:#e1e1e1 !important; }
       .card-bg p { color:#e1e1e1 !important; }
-      .card-bg a { color:#6bb6ff !important; }
+      .card-bg a { color:#0f62ff !important; }
       .card-bg div { background-color: #444 !important; }
     }
   </style>
@@ -107,7 +107,7 @@ Here is a perfect example of what your output should look like:
       .card-bg h1 { color:#e1e1e1 !important; }
       .card-bg h2 { color:#e1e1e1 !important; }
       .card-bg p { color:#e1e1e1 !important; }
-      .card-bg a { color:#6bb6ff !important; }
+      .card-bg a { color:#0f62ff !important; }
       .card-bg div { background-color: #444 !important; }
     }
   </style>
@@ -227,7 +227,7 @@ You must follow this format for generating content suitable for email newsletter
       .card-bg h1 { color:#e1e1e1 !important; }
       .card-bg h2 { color:#e1e1e1 !important; }
       .card-bg p { color:#e1e1e1 !important; }
-      .card-bg a { color:#6bb6ff !important; }
+      .card-bg a { color:#0f62ff !important; }
       .card-bg div { background-color: #444 !important; }
     }
   </style>
@@ -295,7 +295,7 @@ Here is a perfect example of what your output should look like:
       .card-bg h1 { color:#e1e1e1 !important; }
       .card-bg h2 { color:#e1e1e1 !important; }
       .card-bg p { color:#e1e1e1 !important; }
-      .card-bg a { color:#6bb6ff !important; }
+      .card-bg a { color:#0f62ff !important; }
       .card-bg div { background-color: #444 !important; }
     }
   </style>
