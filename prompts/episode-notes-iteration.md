@@ -37,7 +37,7 @@ Use this exact format:
 - Use the show name and the Spotify URL from the REQUIRED PODCAST INFORMATION section above
 
 **Topic**
-- Write out the topic itself in less than ten words. Then write a synthesis of the topic that aligns with the Do's and Don'ts above. Write as many of these topic sections as needed to comprehensively document an episode.
+- Write out the topic itself in less than ten words. Then write a synthesis of the topic that aligns with the Do's and Don'ts above. Write up to ten topic sections.
 
 **Category**:
 - Categorize the podcast into one of these categories: 
