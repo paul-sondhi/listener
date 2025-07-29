@@ -287,7 +287,20 @@ Here are the types of sections you will be generating, including guidelines for 
   You would, of course, replace X in that with the actual episode count. Do not try to address the reader by name, email address, or any other way. Do not write anything before this section.
 </intro>
 
-<tldl>
+<optional-catch-up>
+  This is an optional section to include after the `intro` of the newsletter.
+
+  Each episode note has a `Breaking news about current events` section. Share up to three pieces of breaking news in this `catch-up` section. (Note that sometimes episodes notes will not have any breaking news.)
+  
+  This section should only be included if it has genuinely timely and valuable information from that day that the reader should know. One way to decide whether or not to include something here is if it would make sense on the front page of that day's newspaper or on the breaking news chyron of a news broadcast. 
+  
+  If it's information even older than one day, then do not include it. It must be incredibly timely and relevant. If there is no information to include in this section, that's okay. It's better to include no information then to include information that is truly not breaking news.
+</optional-catch-up>
+
+<optional-dynamic-topic>
+  
+  This is another optional section to include 
+  
   Using the topics from each episode's notes, mention any common topics in this section and share a short gist of the topic. These topics must be timely or relevant to current events. Think of this section as when a reader has just a few seconds to read the newsletter and is trying to get a pulse on any new information before they move on with their day.
   
   Only include topics in this section that are common across three or more podcast episodes. It is okay for this section not to be included if there are no topics that meet this criteria.
@@ -297,7 +310,7 @@ Here are the types of sections you will be generating, including guidelines for 
   Each topic should be bulleted in an unordered list and the beginning of each bullet point should be less than six words and a colon, bolded that encapsulates the topic. That should be followed by a description of no longer than one sentence.
 
   Do not include more than three topics in this section.
-</tldl>
+</optional-dynamic-topic>
 
 <recommended-listens>
   Share three distinct recommendations from the collection of episodes that you've been given. 
