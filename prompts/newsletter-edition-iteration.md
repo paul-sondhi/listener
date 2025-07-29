@@ -288,29 +288,30 @@ Here are the types of sections you will be generating, including guidelines for 
 </intro>
 
 <optional-catch-up>
-  This is an optional section to include after the `intro` of the newsletter.
+  This section is optional to include.
 
-  Each episode note has a `Breaking news about current events` section. Share up to three pieces of breaking news in this `catch-up` section. (Note that sometimes episodes notes will not have any breaking news.)
+  Each episode note has a `Breaking news about current events` section. Share up to three pieces of breaking news in this `catch-up` section. Each piece of breaking news should be separated by a bullet point. (Note that sometimes episodes notes will not have any breaking news.)
+
+  Each piece of breaking news should be bulleted in an unordered list and the beginning of each bullet point should be less than six words and a colon, bolded that encapsulates the topic. That should be followed by a description of no longer than one sentence.
   
   This section should only be included if it has genuinely timely and valuable information from that day that the reader should know. One way to decide whether or not to include something here is if it would make sense on the front page of that day's newspaper or on the breaking news chyron of a news broadcast. 
   
   If it's information even older than one day, then do not include it. It must be incredibly timely and relevant. If there is no information to include in this section, that's okay. It's better to include no information then to include information that is truly not breaking news.
 </optional-catch-up>
 
-<optional-dynamic-topic>
-  
-  This is another optional section to include 
+<optional-common-topic>
+  These sections are optional to include.
+
+  Each episode note has `Topics` that were discussed listed out.
+
+  If there are three or more podcasts that covered the exact same or incredibly similar topics, include an optional-common-topic section for it. The goal with this type of section is for a reader to be able to quickly understand, across their podcast feed, what the different perspectives and opinions on a common topic are. 
+
+  You should be sure to include the podcast names, in the correct hyperlinked format, of any shows that mention this topic. Give the reader an idea of what the different podcasts said about this one common topic so they can understand the range of views on it.
+
+  These topics must be timely or relevant to current events. Never include more than three `optional-common-topic` sections in one edition. It is okay to not include any of these sections if there are no topics that meet the criteria.
   
   Using the topics from each episode's notes, mention any common topics in this section and share a short gist of the topic. These topics must be timely or relevant to current events. Think of this section as when a reader has just a few seconds to read the newsletter and is trying to get a pulse on any new information before they move on with their day.
-  
-  Only include topics in this section that are common across three or more podcast episodes. It is okay for this section not to be included if there are no topics that meet this criteria.
-  
-  Do not refer to any specific podcast show in this section.
-
-  Each topic should be bulleted in an unordered list and the beginning of each bullet point should be less than six words and a colon, bolded that encapsulates the topic. That should be followed by a description of no longer than one sentence.
-
-  Do not include more than three topics in this section.
-</optional-dynamic-topic>
+</optional-common-topic>
 
 <recommended-listens>
   Share three distinct recommendations from the collection of episodes that you've been given. 
