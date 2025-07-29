@@ -20,7 +20,7 @@
       <td style="padding:20px">
         <h1 id="intro" style="font-size: 32px; font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px;">Listener: July 29, 2025</h1>  
                 
-        <p style="line-height:1.6;margin-bottom:20px; font-family: Arial; font-size: 16px;">Hello! 👋 <br></br> I listened to 16 episodes for you since yesterday. Here's what stood out to me.</p>
+        <p style="line-height:1.6;margin-bottom:20px; font-family: Arial; font-size: 16px;">Hello! 👋 <br></br> I listened to 11 episodes for you since yesterday. Here's what I heard.</p>
 
             <ul id="optional-catch-up" style="padding-left: 20px; line-height: 1.6; font-family: Arial; font-size: 16px">
                 <li style="line-height:1.6;margin-bottom:20px; font-family: Arial"> <strong>The Late Show was cancelled:</strong> Paramount cancelled <em>The Late Show With Stephen Colbert</em> amidst an ongoing lawsuit with the Trump Administration.
@@ -53,7 +53,7 @@
 
               <h2 id="the-rest" style="font-size: 24px; font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">The Rest</h2>
 
-              <h3 id="category" style="font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">News &amp; Politics</h3>
+              <h3 id="category" style="font-size:20px; font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">News &amp; Politics</h3>
               <ul style="padding-left: 20px; line-height: 1.6; font-family: Arial; font-size: 16px">
                 <li>
                   <a href="https://open.spotify.com/show/4aBkZbDqL5q44JPnmNj6Hq" target="_blank" style="text-decoration: none; color: #0f62ff; font-weight: bold;">The Press Box</a> explored the financial struggles leading to Stephen Colbert's show cancellation and the potential defunding of public media, while also featuring an insightful interview with a top New York Times interviewer. 
@@ -66,27 +66,24 @@
                 </li>
               </ul>
 
-              <h3 id="category" style="font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">Sports</h3>
+              <h3 id="category" style="font-size:20px; font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">Sports</h3>
               <ul style="padding-left: 20px; line-height: 1.6; font-family: Arial; font-size: 16px">
                 <li>
-                  The <a href="https://open.spotify.com/show/4mOLvZqMud0JromeBgLpIh" target="_blank" style="text-decoration: none; color: #0f62ff; font-weight: bold;">Brian Windhorst &amp; The Hoop Collective</a> podcast broke down the Clippers' deep veteran roster, with Chris Paul joining as a reserve, and the Lakers' reliance on Luka Doncic's newfound recruitment efforts. 
-                </li>
-                <li>
-                  Meanwhile, <a href="https://open.spotify.com/show/7odspoIkzPJSTsiwffW20f" target="_blank"  style="text-decoration: none; color: #0f62ff; font-weight: bold;">The Zach Lowe Show</a>  also discussed Chris Paul's surprising reunion with the Clippers, as well as Damian Lillard's romantic return to the Blazers, analyzing how these moves impact team defense and offensive flow. 
+                  The <a href="https://open.spotify.com/show/4mOLvZqMud0JromeBgLpIh" target="_blank" style="text-decoration: none; color: #0f62ff; font-weight: bold;">Brian Windhorst &amp; The Hoop Collective</a> podcast broke down the Clippers' deep veteran roster, with Chris Paul joining as a reserve, and the Lakers' reliance on Luka Doncic's newfound recruitment efforts. Meanwhile, <a href="https://open.spotify.com/show/7odspoIkzPJSTsiwffW20f" target="_blank"  style="text-decoration: none; color: #0f62ff; font-weight: bold;">The Zach Lowe Show</a>  also discussed Chris Paul's surprising reunion with the Clippers, as well as Damian Lillard's romantic return to the Blazers, analyzing how these moves impact team defense and offensive flow. 
                 </li>
                 <li>
                   On the gridiron, <a href="https://open.spotify.com/show/0XLPhMzcKmxoNziHkVkYpR" target="_blank"  style="text-decoration: none; color: #0f62ff; font-weight: bold;">The Ringer Fantasy Football Show</a> covered NFL player legal issues, the Detroit Lions' early season woes, and the NFLPA scandal involving executive expenses, alongside their usual fantasy sleeper picks.
                 </li>
               </ul>
 
-              <h3 id="category" style="font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">Entertainment &amp; Pop Culture</h3>
+              <h3 id="category" style="font-size:20px; font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">Entertainment &amp; Pop Culture</h3>
               <ul style="padding-left: 20px; line-height: 1.6; font-family: Arial; font-size: 16px">
                 <li>
                   Filmmaker Ari Aster joined <a href="https://open.spotify.com/show/4ZTHlQzCm7ipnRn1ypnl1Z" target="_blank"  style="text-decoration: none; color: #0f62ff; font-weight: bold;">The New Yorker Radio Hour</a> to discuss his new film <em>Eddington</em>, set during the chaotic period of May 2020. He explained how the film satirizes societal polarization and the mainstreaming of conspiracy theories, aiming to capture a moment when "nobody can agree on what is real." 
                 </li>
               </ul>
 
-              <h3 id="category" style="font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">Business &amp; Finance</h3>
+              <h3 id="category" style="font-size:20px; font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">Business &amp; Finance</h3>
               <ul style="padding-left: 20px; line-height: 1.6; font-family: Arial; font-size: 16px">
                 <li>
                   The latest from <a href="https://open.spotify.com/show/4uXizLZjslhw7nyDPocta2" target="_blank"  style="text-decoration: none; color: #0f62ff; font-weight: bold;">The Town</a> podcast dissected Netflix's Q2 earnings, noting Wall Street's high expectations and concerns over flat viewing share despite strong profits. The hosts also explored the financial and political implications of Stephen Colbert's show cancellation, the challenges of Netflix poaching YouTube talent, and the quiet but growing adoption of AI in Hollywood production, highlighting how studios are framing it as an "innovation tool" to combat rising costs.
@@ -95,7 +92,7 @@
 
               <div style="height: 1px; background-color: #ccc; margin: 20px 0;"></div>
 
-              <h2 id="today-i-learned" style="font-size: 18.72px; font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">💡 Today I Learned</h2>
+              <h2 id="today-i-learned" style="font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">💡 Today I Learned</h2>
               <p style="line-height:1.6;margin-bottom:20px; font-family: Arial; font-size: 16px;">
                 Staff Sergeant Reckless, a decorated war horse in the U.S. Marine Corps during the Korean War, was known for eating scrambled eggs, beer, Coca-Cola, and once, 30 poker chips (<a href="https://open.spotify.com/show/0XLPhMzcKmxoNziHkVkYpR" target="_blank" style="text-decoration: none; color: #0f62ff; font-weight: bold;">The Ringer Fantasy Football Show</a>).
               </p>
