@@ -20,7 +20,7 @@
       <td style="padding:20px">
         <h1 id="intro" style="font-size: 32px; font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px;">Listener: July 29, 2025</h1>  
                 
-        <p style="line-height:1.6;margin-bottom:20px; font-family: Arial; font-size: 16px;">Hello! 👋 <br></br> I listened to 11 episodes for you since yesterday. Here's what I heard.</p>
+        <p style="line-height:1.6;margin-bottom:20px; font-family: Arial; font-size: 16px;">Hello! 👋 <br></br> I listened to 11 episodes for you since yesterday. Here's what I heard:</p>
 
             <ul id="optional-catch-up" style="padding-left: 20px; line-height: 1.6; font-family: Arial; font-size: 16px">
                 <li style="line-height:1.6;margin-bottom:20px; font-family: Arial"> <strong>The Late Show was cancelled:</strong> Paramount cancelled <em>The Late Show With Stephen Colbert</em> amidst an ongoing lawsuit with the Trump Administration.
