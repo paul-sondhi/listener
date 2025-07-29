@@ -271,11 +271,15 @@ export function validateNewsletterStructure(htmlContent: string, _episodeCount: 
   // 2. Check required sections exist and are complete
   const requiredSections = [
     { pattern: /Hello!.*I listened to \d+ episode/i, name: 'Intro' },
-    { pattern: /TL;DL/i, name: 'TL;DL heading' },
     { pattern: /Recommended Listens/i, name: 'Recommended Listens heading' },
     { pattern: /💡\s*Today I Learned/i, name: 'Today I Learned heading' },
     { pattern: /Happy listening! 🎧/, name: 'Closing' },
     { pattern: /P\.S\. Got feedback or want to unsubscribe\?/i, name: 'P.S. section' }
+  ];
+  
+  // Optional sections - check but don't require
+  const optionalSections = [
+    { pattern: /TL;DL/i, name: 'TL;DL heading' }
   ];
   
   for (const section of requiredSections) {

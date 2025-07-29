@@ -464,11 +464,12 @@ describe('validateNewsletterStructure', () => {
     const result = validateNewsletterStructure(invalidHtml, 3)
     expect(result.isValid).toBe(false)
     expect(result.issues).toContain('Missing Intro')
-    expect(result.issues).toContain('Missing TL;DL heading')
     expect(result.issues).toContain('Missing Recommended Listens heading')
     expect(result.issues).toContain('Missing Today I Learned heading')
     expect(result.issues).toContain('Missing Closing')
     expect(result.issues).toContain('Missing P.S. section')
+    // TL;DL is now optional, so it should NOT be in the issues
+    expect(result.issues).not.toContain('Missing TL;DL heading')
   })
   
   it('detects truncated content', () => {
