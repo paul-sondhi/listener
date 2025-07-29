@@ -352,13 +352,15 @@ export async function queryEpisodeNotesForUser(
 }
 
 /**
- * Query the last 3 newsletter editions for L10 test mode
+ * Query the last N newsletter editions for L10 test mode
  * 
  * @param supabase - Supabase client instance
+ * @param count - Number of editions to query (default: 3)
  * @returns Array of newsletter edition IDs to overwrite
  */
-export async function queryLast3NewsletterEditions(
-  supabase: SupabaseClient<Database>
+export async function queryLastNewsletterEditions(
+  supabase: SupabaseClient<Database>,
+  count: number = 3
 ): Promise<string[]> {
   debugDatabase('Starting L10 newsletter editions query');
 
@@ -367,7 +369,7 @@ export async function queryLast3NewsletterEditions(
       .from('newsletter_editions')
       .select('id')
       .order('created_at', { ascending: false })
-      .limit(3);
+      .limit(count);
 
     debugDatabase('L10 newsletter editions query completed', {
       error: !!queryError,
@@ -376,7 +378,7 @@ export async function queryLast3NewsletterEditions(
     });
 
     if (queryError) {
-      throw new Error(`Failed to query last 3 newsletter editions: ${queryError.message}`);
+      throw new Error(`Failed to query last ${count} newsletter editions: ${queryError.message}`);
     }
 
     if (!editions || editions.length === 0) {
@@ -394,19 +396,21 @@ export async function queryLast3NewsletterEditions(
     return editionIds;
 
   } catch (error) {
-    console.error('ERROR: Failed to query last 3 newsletter editions:', error);
+    console.error(`ERROR: Failed to query last ${count} newsletter editions:`, error);
     throw error;
   }
 }
 
 /**
- * Query the last 3 newsletter editions with full details for L10 test mode updates
+ * Query the last N newsletter editions with full details for L10 test mode updates
  * 
  * @param supabase - Supabase client instance
+ * @param count - Number of editions to query (default: 3)
  * @returns Array of newsletter editions with user_id and edition_date for updating
  */
-export async function queryLast3NewsletterEditionsForUpdate(
-  supabase: SupabaseClient<Database>
+export async function queryLastNewsletterEditionsForUpdate(
+  supabase: SupabaseClient<Database>,
+  count: number = 3
 ): Promise<Array<{ id: string; user_id: string; edition_date: string; user_email: string }>> {
   debugDatabase('Starting L10 newsletter editions query for updates');
 
@@ -415,7 +419,7 @@ export async function queryLast3NewsletterEditionsForUpdate(
       .from('newsletter_editions')
       .select('id, user_id, edition_date, user_email')
       .order('created_at', { ascending: false })
-      .limit(3);
+      .limit(count);
 
     debugDatabase('L10 newsletter editions query for updates completed', {
       error: !!queryError,
@@ -424,7 +428,7 @@ export async function queryLast3NewsletterEditionsForUpdate(
     });
 
     if (queryError) {
-      throw new Error(`Failed to query last 3 newsletter editions for updates: ${queryError.message}`);
+      throw new Error(`Failed to query last ${count} newsletter editions for updates: ${queryError.message}`);
     }
 
     if (!editions || editions.length === 0) {
@@ -440,7 +444,11 @@ export async function queryLast3NewsletterEditionsForUpdate(
     return editions;
 
   } catch (error) {
-    console.error('ERROR: Failed to query last 3 newsletter editions for updates:', error);
+    console.error(`ERROR: Failed to query last ${count} newsletter editions for updates:`, error);
     throw error;
   }
-} 
+}
+
+// Backwards compatibility exports
+export const queryLast3NewsletterEditions = queryLastNewsletterEditions;
+export const queryLast3NewsletterEditionsForUpdate = queryLastNewsletterEditionsForUpdate;

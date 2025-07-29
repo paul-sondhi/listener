@@ -34,7 +34,7 @@ import { getSendNewsletterWorkerConfig, validateDependencies } from '../config/s
 import { getSharedSupabaseClient } from '../lib/db/sharedSupabaseClient.js';
 import { 
   queryNewsletterEditionsForSending,
-  queryLast3NewsletterEditionsForSending,
+  queryLastNewsletterEditionsForSending,
   updateNewsletterEditionSentAt,
   type NewsletterEditionWithUser
 } from '../lib/db/sendNewsletterQueries.js';
@@ -42,6 +42,7 @@ import '../lib/debugFilter.js';
 import { createEmailClient } from '../lib/clients/emailClient.js';
 import { buildSubject } from '../lib/utils/subjectBuilder.js';
 import { injectEditionPlaceholders } from '../lib/utils/injectEditionPlaceholders.js';
+import { getEditionWorkerConfig } from '../config/editionWorkerConfig.js';
 
 // Define interfaces for type safety
 interface SendWorkerSummary {
@@ -105,10 +106,14 @@ export class SendNewsletterWorker {
       let editions: NewsletterEditionWithUser[];
       
       if (config.last10Mode) {
-        this.logger.info('system', 'Using L10 mode - querying last 3 newsletter editions', {
-          metadata: { job_id: jobId }
+        // Get the L10 count from edition worker config
+        const editionConfig = getEditionWorkerConfig();
+        const l10Count = editionConfig.last10Count;
+        
+        this.logger.info('system', `Using L10 mode - querying last ${l10Count} newsletter editions`, {
+          metadata: { job_id: jobId, l10_count: l10Count }
         });
-        editions = await queryLast3NewsletterEditionsForSending(supabase);
+        editions = await queryLastNewsletterEditionsForSending(supabase, l10Count);
       } else {
         this.logger.info('system', 'Using normal mode - querying editions within lookback window', {
           metadata: { 

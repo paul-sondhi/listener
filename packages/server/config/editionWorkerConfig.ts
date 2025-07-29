@@ -13,6 +13,8 @@ export interface EditionWorkerConfig {
   lookbackHours: number;
   /** When true, overwrite the last 10 newsletter editions (testing mode); when false, run in normal mode */
   last10Mode: boolean;
+  /** Number of editions to overwrite in L10 mode (1-10) */
+  last10Count: number;
   /** Path to the prompt template file */
   promptPath: string;
   /** Cached content of the prompt template */
@@ -38,6 +40,12 @@ export function getEditionWorkerConfig(): EditionWorkerConfig {
 
   // Parse last10Mode flag (strict boolean semantics) – any value other than the string "true" yields false
   const last10Mode: boolean = process.env.EDITION_WORKER_L10 === 'true';
+
+  // Parse last10Count with validation
+  const last10Count = parseInt(process.env.EDITION_WORKER_L10_COUNT || '3', 10);
+  if (isNaN(last10Count) || last10Count < 1 || last10Count > 10) {
+    throw new Error(`Invalid EDITION_WORKER_L10_COUNT: "${process.env.EDITION_WORKER_L10_COUNT}". Must be a number between 1 and 10.`);
+  }
 
   // Validate Gemini API key first (required)
   const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -81,6 +89,7 @@ export function getEditionWorkerConfig(): EditionWorkerConfig {
     enabled,
     lookbackHours,
     last10Mode,
+    last10Count,
     promptPath,
     promptTemplate,
     geminiApiKey: geminiApiKey.trim(),
@@ -96,6 +105,7 @@ export function getConfigSummary(config: EditionWorkerConfig): Record<string, un
     enabled: config.enabled,
     lookback_hours: config.lookbackHours,
     last10_mode: config.last10Mode,
+    last10_count: config.last10Count,
     prompt_path: config.promptPath,
     prompt_template_length: config.promptTemplate.length,
     gemini_api_key_configured: config.geminiApiKey.length > 0,

@@ -39,6 +39,7 @@ describe('Edition Worker Configuration', () => {
       expect(config.enabled).toBe(true);
       expect(config.lookbackHours).toBe(24);
       expect(config.last10Mode).toBe(false);
+      expect(config.last10Count).toBe(3);
       expect(config.promptPath).toBe('prompts/newsletter-edition.md');
       expect(config.geminiApiKey).toBe('AIzaTestKey123456789');
       expect(config.promptTemplate).toBeTruthy();
@@ -48,12 +49,14 @@ describe('Edition Worker Configuration', () => {
     it('should parse custom environment variables', () => {
       process.env.EDITION_LOOKBACK_HOURS = '48';
       process.env.EDITION_WORKER_L10 = 'true';
+      process.env.EDITION_WORKER_L10_COUNT = '5';
       process.env.EDITION_PROMPT_PATH = 'prompts/newsletter-edition.md';
 
       const config = getEditionWorkerConfig();
 
       expect(config.lookbackHours).toBe(48);
       expect(config.last10Mode).toBe(true);
+      expect(config.last10Count).toBe(5);
       expect(config.promptPath).toBe('prompts/newsletter-edition.md');
     });
 
@@ -83,6 +86,34 @@ describe('Edition Worker Configuration', () => {
 
       process.env.EDITION_LOOKBACK_HOURS = 'invalid';
       expect(() => getEditionWorkerConfig()).toThrow('Invalid EDITION_LOOKBACK_HOURS');
+    });
+
+    it('should validate last10Count range', () => {
+      // Reset to default values
+      process.env.EDITION_LOOKBACK_HOURS = '24';
+      
+      // Test minimum value
+      process.env.EDITION_WORKER_L10_COUNT = '1';
+      expect(() => getEditionWorkerConfig()).not.toThrow();
+
+      // Test maximum value
+      process.env.EDITION_WORKER_L10_COUNT = '10';
+      expect(() => getEditionWorkerConfig()).not.toThrow();
+
+      // Test default value
+      delete process.env.EDITION_WORKER_L10_COUNT;
+      const config = getEditionWorkerConfig();
+      expect(config.last10Count).toBe(3);
+
+      // Test invalid values
+      process.env.EDITION_WORKER_L10_COUNT = '0';
+      expect(() => getEditionWorkerConfig()).toThrow('Invalid EDITION_WORKER_L10_COUNT');
+
+      process.env.EDITION_WORKER_L10_COUNT = '11';
+      expect(() => getEditionWorkerConfig()).toThrow('Invalid EDITION_WORKER_L10_COUNT');
+
+      process.env.EDITION_WORKER_L10_COUNT = 'invalid';
+      expect(() => getEditionWorkerConfig()).toThrow('Invalid EDITION_WORKER_L10_COUNT');
     });
 
     it('should require GEMINI_API_KEY', () => {

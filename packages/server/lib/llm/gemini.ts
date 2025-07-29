@@ -278,7 +278,7 @@ export function validateNewsletterStructure(htmlContent: string, _episodeCount: 
   ];
   
   // Optional sections - check but don't require
-  const optionalSections = [
+  const _optionalSections = [
     { pattern: /TL;DL/i, name: 'TL;DL heading' }
   ];
   

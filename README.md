@@ -1076,8 +1076,10 @@ EDITION_LOOKBACK_HOURS=24
 # Configure prompt template file (default: prompts/newsletter-edition.md)
 EDITION_PROMPT_PATH=prompts/newsletter-edition.md
 
-# Testing mode: overwrite the last 10 newsletter editions regardless of user
+# Testing mode: overwrite the last N newsletter editions regardless of user
 EDITION_WORKER_L10=false
+# Number of editions to overwrite in L10 mode (default: 3, range: 1-10)
+EDITION_WORKER_L10_COUNT=3
 ```
 
 **Job Configuration Examples:**
@@ -1093,6 +1095,7 @@ EDITION_WORKER_L10=false
 # Testing configuration (overwrites last 3 editions)
 EDITION_LOOKBACK_HOURS=24
 EDITION_WORKER_L10=true
+EDITION_WORKER_L10_COUNT=3  # Can be 1-10
 
 # Disable the job entirely
 EDITION_WORKER_ENABLED=false
@@ -1104,8 +1107,11 @@ EDITION_WORKER_ENABLED=false
 cd packages/server
 npx tsx jobs/editionGenerator.ts
 
-# Run in testing mode (last 10 editions)
+# Run in testing mode (last 3 editions by default)
 EDITION_WORKER_L10=true npx tsx jobs/editionGenerator.ts
+
+# Run in testing mode with custom count (last 5 editions)
+EDITION_WORKER_L10=true EDITION_WORKER_L10_COUNT=5 npx tsx jobs/editionGenerator.ts
 ```
 
 **Prompt Customization:**

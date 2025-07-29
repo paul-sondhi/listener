@@ -805,8 +805,8 @@ export function sanitizeNewsletterContent(htmlContent: string): string {
     // Allow safe CSS properties in style attributes
     allowedStyles: {
       '*': {
-        'color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/],
-        'background-color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/],
+        'color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/, /^#(0x)?[0-9a-f]+\s*!important$/i],
+        'background-color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/, /^#(0x)?[0-9a-f]+\s*!important$/i],
         'font-size': [/^\d+(?:px|em|%)$/],
         'font-weight': [/^(normal|bold|bolder|lighter|\d{3})$/],
         'text-align': [/^(left|right|center|justify)$/],
@@ -828,10 +828,7 @@ export function sanitizeNewsletterContent(htmlContent: string): string {
         'font-family': [/^[a-zA-Z\s,]+$/],
         'background': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/],
         'border': [/^\d+px\s+(solid|dashed|dotted)\s+#(0x)?[0-9a-f]+$/i],
-        'border-radius': [/^\d+(?:px|em|%)?$/],
-        // Allow !important for dark mode styles
-        'color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/, /^#(0x)?[0-9a-f]+\s*!important$/i],
-        'background-color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/, /^#(0x)?[0-9a-f]+\s*!important$/i]
+        'border-radius': [/^\d+(?:px|em|%)?$/]
       }
     },
     // Allow safe URL schemes

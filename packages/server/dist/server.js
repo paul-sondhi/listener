@@ -3033,17 +3033,35 @@ async function updateSubscriptionStatus(userId, currentPodcastUrls) {
           had_spotify_metadata: !!showMetadata?.originalName
         });
       }
-      const showUpsertResult = await safeAwait2(
-        getSupabaseAdmin5().from("podcast_shows").upsert([upsertData], {
-          onConflict: "spotify_url",
-          ignoreDuplicates: false
-        }).select("id")
-      );
-      if (showUpsertResult?.error) {
-        console.error(`[SubscriptionRefresh] Error upserting podcast show for user ${userId}:`, showUpsertResult.error.message);
-        throw new Error(`Database show upsert failed: ${showUpsertResult.error.message}`);
+      let actualShowId;
+      if (rssUrl && rssUrl !== spotifyUrl) {
+        const existingRssShow = await safeAwait2(
+          getSupabaseAdmin5().from("podcast_shows").select("id, spotify_url").eq("rss_url", rssUrl).maybeSingle()
+        );
+        if (existingRssShow?.data) {
+          actualShowId = existingRssShow.data.id;
+          log.info("subscription_refresh", `Using existing show with same RSS URL for ${spotifyUrl}`, {
+            user_id: userId,
+            new_spotify_url: spotifyUrl,
+            existing_spotify_url: existingRssShow.data.spotify_url,
+            shared_rss_url: rssUrl,
+            show_id: actualShowId
+          });
+        }
       }
-      const actualShowId = showUpsertResult?.data?.[0]?.id;
+      if (!actualShowId) {
+        const showUpsertResult = await safeAwait2(
+          getSupabaseAdmin5().from("podcast_shows").upsert([upsertData], {
+            onConflict: "spotify_url",
+            ignoreDuplicates: false
+          }).select("id")
+        );
+        if (showUpsertResult?.error) {
+          console.error(`[SubscriptionRefresh] Error upserting podcast show for user ${userId}:`, showUpsertResult.error.message);
+          throw new Error(`Database show upsert failed: ${showUpsertResult.error.message}`);
+        }
+        actualShowId = showUpsertResult?.data?.[0]?.id;
+      }
       if (!actualShowId) {
         throw new Error("Failed to get show ID after upsert");
       }
@@ -7601,8 +7619,11 @@ function sanitizeNewsletterContent(htmlContent) {
       "style",
       // Table structure for email layout
       "table",
+      "thead",
+      "tbody",
       "tr",
       "td",
+      "th",
       // Headings
       "h1",
       "h2",
@@ -7646,9 +7667,12 @@ function sanitizeNewsletterContent(htmlContent) {
       "meta": ["charset", "name", "content"],
       "style": [],
       // Table attributes for email layout
-      "table": ["role", "cellpadding", "cellspacing", "border", "align", "width", "style"],
+      "table": ["role", "cellpadding", "cellspacing", "border", "align", "width", "style", "class"],
+      "thead": ["style"],
+      "tbody": ["style"],
       "tr": ["style"],
-      "td": ["style"],
+      "td": ["style", "colspan", "rowspan", "align", "valign"],
+      "th": ["style", "colspan", "rowspan", "align", "valign"],
       // Link attributes
       "a": ["href", "title", "target"],
       // Image attributes
@@ -7676,7 +7700,7 @@ function sanitizeNewsletterContent(htmlContent) {
         "font-weight": [/^(normal|bold|bolder|lighter|\d{3})$/],
         "text-align": [/^(left|right|center|justify)$/],
         "text-decoration": [/^(none|underline|overline|line-through)$/],
-        "line-height": [/^\d+(?:\.\d+)?$/],
+        "line-height": [/^\d+(?:\.\d+)?(?:px|em|%)?$/],
         "margin": [/^\d+(?:px|em|%)?$/],
         "margin-top": [/^\d+(?:px|em|%)?$/],
         "margin-bottom": [/^\d+(?:px|em|%)?$/],
@@ -7689,8 +7713,14 @@ function sanitizeNewsletterContent(htmlContent) {
         "padding-right": [/^\d+(?:px|em|%)?$/],
         // Additional styles for table layout
         "width": [/^\d+(?:px|em|%)?$/],
+        "height": [/^\d+(?:px|em|%)?$/],
         "font-family": [/^[a-zA-Z\s,]+$/],
-        "background": [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/]
+        "background": [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/],
+        "border": [/^\d+px\s+(solid|dashed|dotted)\s+#(0x)?[0-9a-f]+$/i],
+        "border-radius": [/^\d+(?:px|em|%)?$/],
+        // Allow !important for dark mode styles
+        "color": [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/, /^#(0x)?[0-9a-f]+\s*!important$/i],
+        "background-color": [/^#(0x)?[0-9a-f]+$/i, /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/, /^#(0x)?[0-9a-f]+\s*!important$/i]
       }
     },
     // Allow safe URL schemes
@@ -7799,17 +7829,28 @@ function validateNewsletterStructure(htmlContent, _episodeCount) {
   if (!htmlContent.includes("</table>")) {
     issues.push("Unclosed table tag");
   }
-  const tdOpenCount = (htmlContent.match(/<td[^>]*>/g) || []).length;
-  const tdCloseCount = (htmlContent.match(/<\/td>/g) || []).length;
-  if (tdOpenCount !== tdCloseCount) {
-    issues.push(`Unclosed td tags (${tdOpenCount} open, ${tdCloseCount} closed)`);
+  if (!htmlContent.includes("@media (prefers-color-scheme: dark)")) {
+    issues.push("Missing dark mode styles");
+  }
+  const ulOpenCount = (htmlContent.match(/<ul[^>]*>/g) || []).length;
+  const ulCloseCount = (htmlContent.match(/<\/ul>/g) || []).length;
+  if (ulOpenCount !== ulCloseCount) {
+    issues.push(`Unclosed ul tags (${ulOpenCount} open, ${ulCloseCount} closed)`);
+  }
+  const liOpenCount = (htmlContent.match(/<li[^>]*>/g) || []).length;
+  const liCloseCount = (htmlContent.match(/<\/li>/g) || []).length;
+  if (liOpenCount !== liCloseCount) {
+    issues.push(`Unclosed li tags (${liOpenCount} open, ${liCloseCount} closed)`);
   }
   const requiredSections = [
     { pattern: /Hello!.*I listened to \d+ episode/i, name: "Intro" },
     { pattern: /Recommended Listens/i, name: "Recommended Listens heading" },
-    { pattern: /.*Today I Learned/i, name: "Today I Learned heading" },
+    { pattern: /💡\s*Today I Learned/i, name: "Today I Learned heading" },
     { pattern: /Happy listening! 🎧/, name: "Closing" },
-    { pattern: /P\.S\. Got feedback/i, name: "P.S. section" }
+    { pattern: /P\.S\. Got feedback or want to unsubscribe\?/i, name: "P.S. section" }
+  ];
+  const optionalSections = [
+    { pattern: /TL;DL/i, name: "TL;DL heading" }
   ];
   for (const section of requiredSections) {
     if (!section.pattern.test(htmlContent)) {
@@ -7827,7 +7868,7 @@ function validateNewsletterStructure(htmlContent, _episodeCount) {
   const lastChar = textContent[textContent.length - 1];
   const endsWithPunctuation = [".", "!", "?", '"', ")", "]", "\u{1F3A7}", "\u{1F4E7}"].includes(lastChar);
   const lastFewChars = textContent.slice(-10);
-  const hasProperEnding = endsWithPunctuation || lastFewChars.includes("let me know") || lastFewChars.includes("feedback");
+  const hasProperEnding = endsWithPunctuation || lastFewChars.includes("let me know") || lastFewChars.includes("feedback") || lastFewChars.includes("unsubscribe");
   if (!hasProperEnding && textContent.length > 0) {
     const context = textContent.slice(-50);
     issues.push(`Content appears truncated mid-sentence. Ends with: "${context}"`);
@@ -8957,17 +8998,17 @@ async function queryEpisodeNotesForUser(supabase4, userId, lookbackHours, nowOve
     throw error;
   }
 }
-async function queryLast3NewsletterEditionsForUpdate(supabase4) {
+async function queryLastNewsletterEditionsForUpdate(supabase4, count = 3) {
   debugDatabase("Starting L10 newsletter editions query for updates");
   try {
-    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("id, user_id, edition_date, user_email").order("created_at", { ascending: false }).limit(3);
+    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("id, user_id, edition_date, user_email").order("created_at", { ascending: false }).limit(count);
     debugDatabase("L10 newsletter editions query for updates completed", {
       error: !!queryError,
       dataLength: editions?.length || 0,
       errorMessage: queryError?.message || "none"
     });
     if (queryError) {
-      throw new Error(`Failed to query last 3 newsletter editions for updates: ${queryError.message}`);
+      throw new Error(`Failed to query last ${count} newsletter editions for updates: ${queryError.message}`);
     }
     if (!editions || editions.length === 0) {
       debugDatabase("No newsletter editions found for L10 mode updates");
@@ -8979,7 +9020,7 @@ async function queryLast3NewsletterEditionsForUpdate(supabase4) {
     });
     return editions;
   } catch (error) {
-    console.error("ERROR: Failed to query last 3 newsletter editions for updates:", error);
+    console.error(`ERROR: Failed to query last ${count} newsletter editions for updates:`, error);
     throw error;
   }
 }
@@ -9584,7 +9625,7 @@ async function prepareUsersForNewsletters(supabase4, config) {
     let existingEditionsToUpdate = [];
     if (config.last10Mode) {
       debugSubscriptionRefresh("L10 mode active - preparing existing editions for update");
-      const editionIds = await queryLast3NewsletterEditionsForUpdate(supabase4);
+      const editionIds = await queryLastNewsletterEditionsForUpdate(supabase4, config.last10Count);
       if (editionIds.length > 0) {
         existingEditionsToUpdate = editionIds;
         debugSubscriptionRefresh("Successfully prepared existing editions for update in L10 mode", {
@@ -9877,6 +9918,10 @@ function getEditionWorkerConfig() {
     throw new Error(`Invalid EDITION_LOOKBACK_HOURS: "${process.env.EDITION_LOOKBACK_HOURS}". Must be a number between 1 and 168 (hours).`);
   }
   const last10Mode = process.env.EDITION_WORKER_L10 === "true";
+  const last10Count = parseInt(process.env.EDITION_WORKER_L10_COUNT || "3", 10);
+  if (isNaN(last10Count) || last10Count < 1 || last10Count > 10) {
+    throw new Error(`Invalid EDITION_WORKER_L10_COUNT: "${process.env.EDITION_WORKER_L10_COUNT}". Must be a number between 1 and 10.`);
+  }
   const geminiApiKey = process.env.GEMINI_API_KEY;
   if (!geminiApiKey || geminiApiKey.trim().length === 0) {
     throw new Error("GEMINI_API_KEY environment variable is required but not set.");
@@ -9906,6 +9951,7 @@ function getEditionWorkerConfig() {
     enabled,
     lookbackHours,
     last10Mode,
+    last10Count,
     promptPath,
     promptTemplate,
     geminiApiKey: geminiApiKey.trim()
@@ -10160,16 +10206,16 @@ async function queryNewsletterEditionsForSending(supabase4, lookbackHours = 24, 
     throw error;
   }
 }
-async function queryLast3NewsletterEditionsForSending(supabase4) {
-  debugDatabase("Starting L10 newsletter editions query for sending (last 3)");
+async function queryLastNewsletterEditionsForSending(supabase4, count = 3) {
+  debugDatabase(`Starting L10 newsletter editions query for sending (last ${count})`);
   try {
-    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("*").eq("status", "generated").is("deleted_at", null).order("updated_at", { ascending: false }).limit(3);
+    const { data: editions, error: queryError } = await supabase4.from("newsletter_editions").select("*").eq("status", "generated").is("deleted_at", null).order("updated_at", { ascending: false }).limit(count);
     if (queryError) {
-      throw new Error(`Failed to query last 3 newsletter editions for sending: ${queryError.message}`);
+      throw new Error(`Failed to query last ${count} newsletter editions for sending: ${queryError.message}`);
     }
     return (editions || []).reverse();
   } catch (error) {
-    console.error("ERROR: Failed to query last 3 newsletter editions for sending:", error);
+    console.error(`ERROR: Failed to query last ${count} newsletter editions for sending:`, error);
     throw error;
   }
 }
@@ -10374,10 +10420,12 @@ var SendNewsletterWorker = class {
     try {
       let editions;
       if (config.last10Mode) {
-        this.logger.info("system", "Using L10 mode - querying last 3 newsletter editions", {
-          metadata: { job_id: jobId }
+        const editionConfig = getEditionWorkerConfig();
+        const l10Count = editionConfig.last10Count;
+        this.logger.info("system", `Using L10 mode - querying last ${l10Count} newsletter editions`, {
+          metadata: { job_id: jobId, l10_count: l10Count }
         });
-        editions = await queryLast3NewsletterEditionsForSending(supabase4);
+        editions = await queryLastNewsletterEditionsForSending(supabase4, l10Count);
       } else {
         this.logger.info("system", "Using normal mode - querying editions within lookback window", {
           metadata: {

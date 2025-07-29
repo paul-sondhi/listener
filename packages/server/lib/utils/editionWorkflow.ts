@@ -8,7 +8,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../../../shared/src/types/supabase.js';
 import { EditionWorkerConfig } from '../../config/editionWorkerConfig.js';
-import { queryUsersWithActiveSubscriptions, queryLast3NewsletterEditionsForUpdate } from '../db/editionQueries.js';
+import { queryUsersWithActiveSubscriptions, queryLastNewsletterEditionsForUpdate } from '../db/editionQueries.js';
 import { processUserForNewsletter, UserProcessingResult, aggregateUserProcessingResults } from './editionProcessor.js';
 import { _updateNewsletterEdition } from '../db/newsletter-editions.ts';
 import { debugSubscriptionRefresh } from '../debugLogger';
@@ -140,7 +140,7 @@ export async function prepareUsersForNewsletters(
     if (config.last10Mode) {
       debugSubscriptionRefresh('L10 mode active - preparing existing editions for update');
       
-      const editionIds = await queryLast3NewsletterEditionsForUpdate(supabase);
+      const editionIds = await queryLastNewsletterEditionsForUpdate(supabase, config.last10Count);
       
       if (editionIds.length > 0) {
         existingEditionsToUpdate = editionIds;
