@@ -65,8 +65,8 @@ Use this exact format:
 	8.	Q&A – The host answers listener questions in a mailbag style.
 	9.	Critique – Hosts assess movies, books, products, or events and give ratings.
 
-**New Information about Current Events**:
-- List out any new facts about current events that was shared in this podcast. This information will be surfaced to the eventual newsletter reader so they can quickly catch up on that day's events. If there is no information to include in this section, that's okay.
+**Breaking news about current events**:
+- List out breaking news about current events that were shared in this podcast. You should only include information that would be useful for someone who is trying to understand developments from that specific day. One way to decide whether or not to include something here is if it would make sense on the front page of that day's newspaper or on the breaking news chyron of a news broadcast. If it's information even older than one day, then do not include it. It must be incredibly timely and relevant. If there is no information to include in this section, that's okay. It's better to include no information then to include information that is not breaking news.
 
 **Speakers**
 - List out the speakers on the podcast if they clearly say their name. Also include their occupation if they clearly state what they do. Be VERY clear about who is a host and who is not. Especially for interviews this will be helpful for newsletter readers to understand who was on a podcast.
