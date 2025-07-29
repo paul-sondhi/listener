@@ -299,19 +299,21 @@ Here are the types of sections you will be generating, including guidelines for 
   If it's information even older than one day, then do not include it. It must be incredibly timely and relevant. If there is no information to include in this section, that's okay. It's better to include no information then to include information that is truly not breaking news.
 </optional-catch-up>
 
-<optional-common-topic>
-  These sections are optional to include.
-
+<dynamic-section>
   Each episode note has `Topics` that were discussed listed out.
 
-  If there are three or more podcasts that covered the exact same or incredibly similar topics, include an optional-common-topic section for it. The goal with this type of section is for a reader to be able to quickly understand, across their podcast feed, what the different perspectives and opinions on a common topic are. 
+  Choose one topic to write this section about. It should be one that is an incredibly interesting story. Strongly favor choosing a topic that is covered on multiple podcasts, especially if it's a timely and relevant one. If there isn't a topic covered by multiple podcasts, then fallback to choosing the most interesting topic that you can write a story about.
 
-  You should be sure to include the podcast names, in the correct hyperlinked format, of any shows that mention this topic. Give the reader an idea of what the different podcasts said about this one common topic so they can understand the range of views on it.
+  There are two goals for this section.
 
-  These topics must be timely or relevant to current events. Never include more than three `optional-common-topic` sections in one edition. It is okay to not include any of these sections if there are no topics that meet the criteria.
-  
-  Using the topics from each episode's notes, mention any common topics in this section and share a short gist of the topic. These topics must be timely or relevant to current events. Think of this section as when a reader has just a few seconds to read the newsletter and is trying to get a pulse on any new information before they move on with their day.
-</optional-common-topic>
+  The first goal is to have a new story every day so the newsletter is fresh and interesting.
+
+  The second goal is to give the reader an idea of what the different podcasts said about this one common topic so they can understand the range of perspectives on it.
+
+  You should be sure to include the podcast names, in the correct hyperlinked format, of any shows that mention this topic. 
+
+  Never include more than one `dynamic-section` in one edition. This section should be two paragraphs exactly, and at most seven sentences. You are not allowed to write more than that here.
+</dynamic-section>
 
 <recommended-listens>
   Share three distinct recommendations from the collection of episodes that you've been given. 
@@ -333,33 +335,35 @@ Here are the types of sections you will be generating, including guidelines for 
   DO NOT REPEAT EPISODES IN THIS SECTION. If there aren't enough episodes to give three recommendations, that's okay. Still do NOT repeat episodes in this section.
 </recommended-listens>
 
-<category>
-  Synthesis of episodes in the same category. 
+<the-rest>
+  <category>
+    Synthesis of episodes in the same category. 
 
-  Category comes from the episode notes, where it is clearly documented. 
+    Category comes from the episode notes, where it is clearly documented. 
 
-  If an episode in this category was mentioned in the above recommendations section, do not include it here.
+    If an episode in this category was mentioned in the above recommendations section, do not include it here.
 
-  If there are connections between the episodes, you can make them, but don't force it. 
+    If there are connections between the episodes, you can make them, but don't force it. 
 
-  Let the synthesis do the work of explaining the episode to the reader. Episode types are useful in these syntheses, too.
+    Let the synthesis do the work of explaining the episode to the reader. Episode types are useful in these syntheses, too.
 
-  The idea is to give someone an understanding of what was discussed in that category in their podcast feed. 
-                
-  This is CRITICALLY important: You may write at most two sentences about a podcast here. 
+    The idea is to give someone an understanding of what was discussed in that category in their podcast feed. 
+                  
+    This is CRITICALLY important: You may write at most two sentences about a podcast here. 
 
-  For readability's sake, each `category` section should begin with one episode that is the most unique of all the episodes in that section. Think of it as: if the reader was to listen to one podcast in this section, that should be the episode that is at the beginning.
+    For readability's sake, each `category` section should begin with one episode that is the most unique of all the episodes in that section. Think of it as: if the reader was to listen to one podcast in this section, that should be the episode that is at the beginning.
 
-  The rest of the episodes in the section should be in an unordered list with short descriptions of each.
-                
-  This whole section should not be longer than 250 words. 
+    The rest of the episodes in the section should be in an unordered list with short descriptions of each.
+                  
+    This whole section should not be longer than 250 words. 
 
-  Create as many of these category sections as needed to encapsulate all the categories from a user's episode notes. 
+    Create as many of these category sections as needed to encapsulate all the categories from a user's episode notes. 
 
-  Do not create a category section if there are no episodes in that category, including if the only episodes were already used in the recommendation section.
+    Do not create a category section if there are no episodes in that category, including if the only episodes were already used in the recommendation section.
 
-  It's good to mention specific entities that the episode notes highlight.
-</category>
+    It's good to mention specific entities that the episode notes highlight.
+  </category>
+</the-rest>
 
 <today-i-learned>
   Source what you deem the most interesting thing from the episode notes "One Interesting Thing" sections.
