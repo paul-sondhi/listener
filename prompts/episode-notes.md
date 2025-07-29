@@ -34,7 +34,7 @@ You have one goal: capture the story the podcast is trying to tell. Make the cor
 Use this exact format:
 
 **Podcast Name and Spotify URL**
-- Use the show name and the Spotify URL from the REQUIRED PODCAST INFORMATION section above. 
+- Use the show name and the Spotify URL from the REQUIRED PODCAST INFORMATION section above
 
 **Topics**
 - Write out the topic itself in less than ten words. Then write a synthesis of the topic that aligns with the Do's and Don'ts above. Write up to ten topic sections.
@@ -65,6 +65,9 @@ Use this exact format:
 	8.	Q&A – The host answers listener questions in a mailbag style.
 	9.	Critique – Hosts assess movies, books, products, or events and give ratings.
 
+**Breaking news about current events**:
+- List out breaking news about current events that were shared in this podcast. You should only include information that would be useful for someone who is trying to understand developments from that specific day. One way to decide whether or not to include something here is if it would make sense on the front page of that day's newspaper or on the breaking news chyron of a news broadcast. If it's information even older than one day, then do not include it. It must be incredibly timely and relevant. If there is no information to include in this section, that's okay. It's better to include no information then to include information that is not breaking news.
+
 **Speakers**
 - List out the speakers on the podcast if they clearly say their name. Also include their occupation if they clearly state what they do. Be VERY clear about who is a host and who is not. Especially for interviews this will be helpful for newsletter readers to understand who was on a podcast.
 
@@ -82,46 +85,39 @@ Use this exact format:
 Here is a perfect example of what your output should look like:
 
 **Podcast Name and Spotify URL**
-Good Bad Billionaire
-https://open.spotify.com/show/5SPdIblwAoR0fcArYqE6Xq
+Yaron Brook Show
+https://open.spotify.com/show/6danf2AxP46Igtv9bwbnOX
 
 **Topics**
-- **Sam Walton's Early Life and Entrepreneurial Spirit**: Sam Walton was born in rural Oklahoma in 1918. His family, initially farmers, faced hardship during the Great Depression, which instilled a strong work ethic in him. From a young age, Sam took on various jobs like selling milk, raising animals, and delivering newspapers, demonstrating an early drive for earning his own money. He excelled in academics and sports, showing a competitive nature. After graduating from the University of Missouri with an economics degree, he worked as a management trainee at JCPenney, where he was inspired by his workaholic boss and the potential for large bonuses.
-
-- **First Foray into Retail and Innovative Strategies**: After serving in the army, Sam, at 27, used his savings and a $20,000 loan from his father-in-law, Ellis Robson, to buy a Ben Franklin five-and-dime franchise in Newport, Arkansas, in 1945. Despite a bad lease and strong competition, Sam innovated by buying stock directly from suppliers at lower prices, allowing him to sell items for less and achieve higher sales volume with smaller profit margins per item. He also introduced attractions like popcorn machines and ice cream to draw customers. Within five years, his store became the top-performing Ben Franklin in six states.
-
-- **Learning from Setbacks and Strategic Expansion**: A major setback occurred when his landlord refused to renew his lease, wanting the franchise for his own son. This experience, though devastating, taught Sam the importance of securing property. In 1950, he used the proceeds from selling his first store to open another Ben Franklin franchise in Bentonville, Arkansas, this time buying the building outright and securing a 99-year lease for future expansion. He introduced self-service, a novel concept in the US at the time, and offered managers a share of the profits, which was unusual for the era. He also obtained a pilot's license to scout new store locations from the sky.
-
-- **The Birth of Walmart and the Discount Store Model**: By 1960, Sam had 15 stores, but profits were underwhelming. Observing the rise of discount stores, he pitched the idea to Ben Franklin, but they declined due to concerns about upsetting suppliers by ignoring manufacturer-recommended prices. Undeterred, Sam opened the first Walmart in Rogers, Arkansas, in 1962, putting his home up as collateral. Early Walmarts were chaotic, with concrete floors and cluttered stock, but customers were drawn by the consistently low prices, a core philosophy of passing on buying power savings directly to the consumer.
-
-- **Technological Revolution and Logistics Mastery**: Walmart went public in 1970, raising $4.6 million. This capital allowed Sam to invest in distribution and technology. Despite his initial skepticism about computers, he trusted executives like Ron Mayer and later David Glass to implement advanced systems. By 1973, they had a computer system to track inventory across stores, and by 1977-1983, Walmart invested $500 million into a system connecting every store and distribution center to IBM mainframes, enabling real-time sales data and faster restocking. The introduction of barcode scanners in 1980 significantly boosted checkout productivity. Walmart adopted a ""hub and spoke"" logistics model, building distribution centers first and then expanding stores within a day's drive, allowing for faster deliveries and lower costs than competitors.
-
-- **Walmart's Unique Culture and Labor Practices**: Sam Walton believed in sharing profits with employees, or ""associates,"" expanding the profit-sharing scheme beyond managers in 1971. He also introduced unique workplace practices, inspired by a trip to Japan, such as company cheers and calisthenics, believing culture was key to the enterprise. However, Walmart also faced challenges with labor relations. In 1982, during a unionization attempt at a distribution center in Searcy, Arkansas, Sam made it clear that voting for the union would result in losing profit-sharing benefits, leading to the union's defeat.
-
-- **Expansion, Diversification, and Billionaire Status**: Walmart continued its rapid expansion, acquiring other chains like Kuhn's and launching Sam's Club in 1983, a membership warehouse offering bulk goods at low prices, inspired by Sol Price's Price Club. In 1985, Forbes officially declared Sam Walton the richest man in America with $2.8 billion. Despite this, Sam maintained a famously frugal and humble public image, driving a beat-up pickup truck and dismissing the ""hullabaloo"" about his net worth.
-
-- **Legacy, Controversies, and Enduring Impact**: Sam Walton died in 1992, the same year Walmart surpassed Kmart to become the number one retailer in America. His family partnership, Walton Enterprises, ensured his wealth passed to his wife and children with minimal inheritance tax, making the Walton family the richest in America today. Post-Sam's death, Walmart faced significant controversies, including a Dateline NBC report in 1992 showing child labor in Bangladesh factories and questioning the ""Buy America"" campaign while Walmart became the largest importer of Chinese goods. The company also faced numerous lawsuits regarding employment practices, low wages, and poor working conditions, leading to high employee turnover.
-
-- **Walmart's Economic Impact and Ongoing Debate**: Walmart's enormous scale and buying power have profoundly impacted retail, influencing suppliers to change packaging (e.g., deodorants) and driving down costs. While some argue Walmart provides jobs and affordable goods, others criticize its negative impact on small towns, leading to the closure of local ""mom and pop"" businesses. Recent research suggests Walmart's presence can lead to lower wages and higher unemployment in local economies, outweighing consumer savings. Despite Amazon's rise, Walmart still holds the title of the world's largest retailer by sales, though Amazon's overall market value is significantly higher due to its diverse ventures like cloud computing.
+-   **Host's Activities and Peterson Academy Courses**: The host, Yaron Brook, is in Scottsdale, Arizona, teaching courses for the Peterson Academy. He recently finished an eight-hour course on money and is starting another eight-hour course on trade and globalization. These are part of a series of five courses, with plans to propose more, potentially including one on Ayn Rand. He notes the significant work involved in preparing these courses and mentions that attendees receive a free year of Peterson Academy access. He also shares his upcoming travel plans to Europe for two months, where he expects to maintain a regular show schedule from a rented office.
+-   **Gaza Conflict and Propaganda Campaign**: The discussion centers on the intensified campaign around supposed mass starvation and child malnutrition in Gaza. Yaron Brook asserts that this is an orchestrated propaganda campaign by Hamas, designed to pressure Israel. He identifies three key leverages Hamas possesses: the hostages (knowing Israel's priority to free them), their ability to terrorize Palestinians and divert aid (selling it for profit), and the West's gullibility in believing Hamas's narratives, often amplified by organizations like the United Nations, BBC, and Al Jazeera. He highlights a shift in public opinion, including among American Jews and Israeli newspapers, condemning Israel.
+-   **Israel's Strategic Failures and Altruism's Impact**: Yaron Brook argues that Israel's slow offensive and willingness to negotiate with Hamas, particularly under pressure from figures like Donald Trump, has emboldened Hamas. He contends that Israel's decision to withdraw from negotiations and become more aggressive led to Hamas's intensified starvation propaganda campaign. He criticizes Israel for succumbing to international pressure to provide humanitarian aid, including daily 10-hour ceasefires for aid delivery and new water projects funded by the UAE. He attributes Israel's predicament to the ""overwhelming impact of altruism,"" which he believes makes the world turn against Israel for being strong and self-interested, especially as the memory of October 7th fades. He argues Israel should have acted decisively and quickly after October 7th, even if it meant sacrificing hostages and causing more immediate civilian casualties, to achieve a swift victory and avoid the current prolonged conflict and international condemnation.
+-   **US Trade Policy and Tariffs**: The host discusses Donald Trump's new trade deal with Europe, which he views as a ""victory"" for Trump but a ""stupid"" economic policy. He explains that Americans will now pay a 15% tax on imports from Europe, a significant increase from the previous average of 1.2%. He clarifies that while these tariffs are not catastrophic for the U.S. economy, they are distortive, inefficient, and detrimental to productivity and living standards. He criticizes the random nature of the tariff percentages applied to various countries (e.g., 10% for the U.K., 15% for the EU and Japan, 20% for Vietnam). He notes that markets are reacting positively due to reduced uncertainty, but emphasizes that tariffs are an ""unmitigated evil"" that damage the economy for no good reason.
+-   **Benefits of Globalization**: Yaron Brook extols globalization as an ""unequivocal good"" that massively increases the division of labor and raises the global standard of living. He uses the example of LeBron James earning more than Michael Jordan due to basketball's global market. He explains how globalization allows companies like Apple to sell to billions worldwide, leading to increased profitability and value. He also highlights globalization's role in exporting Enlightenment ideas like science, reason, and individualism, fostering entrepreneurship and knowledge dispersion globally, which he sees as a safeguard against a new ""Dark Ages.""
+-   **Ideology vs. Conditions in Extremism**: In response to a listener comment, Yaron Brook strongly refutes the idea that ""conditions create extremists."" He argues that ideas and ideology are the true drivers of extremism, citing examples like Hassan al-Banna and Osama bin Laden, who came from privileged backgrounds. He asserts that the bad conditions in Gaza are a *consequence* of Hamas's extremist ideology and choices (e.g., building tunnels instead of infrastructure), not the cause of Palestinian extremism. He draws parallels to post-WWII Japan and Germany, arguing that humiliation and realizing one's wrongness, rather than improved conditions, lead to change.
 
 **Category**:
-Business & Finance
+News & Politics
 
 **Episode Type**:
-Story
+Monologue
+
+**Breaking news about current events**:
+-   Video of aid being parachuted from the air all over Gaza was released today.
+-   The UAE announced today it is funding a project to pump water from Egypt into the Gaza Strip.
+-   Donald Trump announced today a new trade deal with Europe, which will impose a 15% tax on imports from Europe into the United States.
 
 **Speakers**
-- Simon Jack: Host, BBC's business editor
-- Zing Zing: Host, journalist, author, and podcaster
+-   Yaron Brook: Host
 
 **One interesting thing**:
-Sam Walton once danced the hula on Wall Street, wearing a grass skirt and a Hawaiian shirt over his business suit, to fulfill a bet with his executives after Walmart hit 8% pre-tax profits.
+More Europeans die from heat stroke due to lack of air conditioning than Americans die from gunshot wounds.
 
 **One sentence summary**:
-This episode chronicles the life of Sam Walton, from his humble beginnings and innovative retail strategies with Ben Franklin stores to the founding and massive expansion of Walmart, detailing his unique business philosophies, the company's technological advancements, its cultural impact, and the controversies surrounding its labor practices and effect on local economies.
+Yaron Brook critiques Israel's handling of the Gaza conflict, arguing that its slow response and susceptibility to altruistic pressure have backfired, while also condemning Trump's new trade tariffs as economically damaging and advocating for the unequivocal benefits of globalization.
 
 **Why you should listen**:
-Listen to understand the remarkable story of Sam Walton, a man who, despite his humble origins and initial setbacks, revolutionized the retail industry and built the world's largest private employer, Walmart. The episode reveals the specific strategies he employed, from pioneering self-service and direct supplier relationships to investing heavily in logistics and technology, all while maintaining a relentless focus on low prices. It also delves into the complexities of Walmart's culture, its controversial labor practices, and its enduring, often debated, impact on American towns and the global economy, offering a comprehensive look at how one man's vision transformed how people shop and work.
+This episode offers a strong, contrarian viewpoint on the ongoing Gaza conflict, arguing that Israel's strategic missteps and the pervasive influence of altruism have led to its current international isolation. Yaron Brook also provides a passionate defense of globalization and a critical analysis of current U.S. trade policies, offering listeners a clear, objectivist perspective on these complex geopolitical and economic issues. The episode aims to get the listener to understand how ideological frameworks, particularly altruism, can distort perceptions of conflict and policy, and to appreciate the profound benefits of free trade and global interconnectedness.
 
 --
 
