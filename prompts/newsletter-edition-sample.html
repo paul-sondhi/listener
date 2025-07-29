@@ -92,7 +92,7 @@
 
               <div style="height: 1px; background-color: #ccc; margin: 20px 0;"></div>
 
-              <h2 id="today-i-learned" style="font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">💡 Today I Learned</h2>
+              <h2 id="today-i-learned" style="font-size: 24px; font-family: Georgia; color:#000000;margin-top:25px;margin-bottom:15px">💡 Today I Learned</h2>
               <p style="line-height:1.6;margin-bottom:20px; font-family: Arial; font-size: 16px;">
                 Staff Sergeant Reckless, a decorated war horse in the U.S. Marine Corps during the Korean War, was known for eating scrambled eggs, beer, Coca-Cola, and once, 30 poker chips (<a href="https://open.spotify.com/show/0XLPhMzcKmxoNziHkVkYpR" target="_blank" style="text-decoration: none; color: #0f62ff; font-weight: bold;">The Ringer Fantasy Football Show</a>).
               </p>
