@@ -173,6 +173,7 @@ Here is the perfect example of what your output should look like:
                 <li style="line-height:1.6;margin-bottom:20px; font-family: Arial"> <strong>The Late Show was cancelled:</strong> Paramount cancelled <em>The Late Show With Stephen Colbert</em> amidst an ongoing lawsuit with the Trump Administration.
                 </li>
                 <li style="line-height:1.6;margin-bottom:20px; font-family: Arial"> <strong>Chris Paul is back:</strong> The Los Angeles Clippers have signed veteran point guard Chris Paul seven seasons after he was traded to the Houston Rockets.
+                </li>
             </ul>
 
               <div style="height: 1px; background-color: #ccc; margin: 20px 0;"></div>
@@ -448,6 +449,7 @@ Here is the perfect example of what your output should look like:
                 <li style="line-height:1.6;margin-bottom:20px; font-family: Arial"> <strong>The Late Show was cancelled:</strong> Paramount cancelled <em>The Late Show With Stephen Colbert</em> amidst an ongoing lawsuit with the Trump Administration.
                 </li>
                 <li style="line-height:1.6;margin-bottom:20px; font-family: Arial"> <strong>Chris Paul is back:</strong> The Los Angeles Clippers have signed veteran point guard Chris Paul seven seasons after he was traded to the Houston Rockets.
+                </li>
             </ul>
 
               <div style="height: 1px; background-color: #ccc; margin: 20px 0;"></div>
