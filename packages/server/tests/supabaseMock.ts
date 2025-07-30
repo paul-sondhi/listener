@@ -34,6 +34,7 @@ const db: Record<string, any[]> = {
   podcast_episodes: [],
   transcripts: [],
   episode_transcript_notes: [],
+  newsletter_editions: [],
 
   // Information schema tables for debugging
   'information_schema.tables': [
@@ -42,7 +43,8 @@ const db: Record<string, any[]> = {
     { table_name: 'user_podcast_subscriptions' },
     { table_name: 'podcast_episodes' },
     { table_name: 'transcripts' },
-    { table_name: 'episode_transcript_notes' }
+    { table_name: 'episode_transcript_notes' },
+    { table_name: 'newsletter_editions' }
   ],
   'information_schema.columns': [
     // users table columns
@@ -99,7 +101,22 @@ const db: Record<string, any[]> = {
     { table_name: 'episode_transcript_notes', column_name: 'episode_id', data_type: 'uuid', is_nullable: 'NO' },
     { table_name: 'episode_transcript_notes', column_name: 'note', data_type: 'text', is_nullable: 'YES' },
     { table_name: 'episode_transcript_notes', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
-    { table_name: 'episode_transcript_notes', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' }
+    { table_name: 'episode_transcript_notes', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    
+    // newsletter_editions table columns
+    { table_name: 'newsletter_editions', column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
+    { table_name: 'newsletter_editions', column_name: 'user_id', data_type: 'uuid', is_nullable: 'NO' },
+    { table_name: 'newsletter_editions', column_name: 'edition_date', data_type: 'date', is_nullable: 'NO' },
+    { table_name: 'newsletter_editions', column_name: 'status', data_type: 'text', is_nullable: 'NO' },
+    { table_name: 'newsletter_editions', column_name: 'user_email', data_type: 'text', is_nullable: 'NO' },
+    { table_name: 'newsletter_editions', column_name: 'content', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'newsletter_editions', column_name: 'model', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'newsletter_editions', column_name: 'error_message', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'newsletter_editions', column_name: 'subject_line', data_type: 'text', is_nullable: 'YES' },
+    { table_name: 'newsletter_editions', column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'newsletter_editions', column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'newsletter_editions', column_name: 'deleted_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    { table_name: 'newsletter_editions', column_name: 'sent', data_type: 'boolean', is_nullable: 'NO' }
   ]
 };
 
@@ -124,7 +141,8 @@ export function resetDb() {
     { table_name: 'user_podcast_subscriptions' },
     { table_name: 'podcast_episodes' },
     { table_name: 'transcripts' },
-    { table_name: 'episode_transcript_notes' }
+    { table_name: 'episode_transcript_notes' },
+    { table_name: 'newsletter_editions' }
   );
 }
 
@@ -383,6 +401,11 @@ function buildQuery(table?: string) {
         idx = db[state.table!].findIndex(r => 
           r.user_id === row.user_id && r.show_id === row.show_id
         );
+      } else if (state.table === 'newsletter_editions') {
+        // Newsletter editions are unique by user_id + edition_date combination
+        idx = db[state.table!].findIndex(r => 
+          r.user_id === row.user_id && r.edition_date === row.edition_date && !r.deleted_at
+        );
       } else {
         // Default: use id field for other tables
         idx = db[state.table!].findIndex(r => r.id === row.id);
@@ -488,6 +511,23 @@ function buildQuery(table?: string) {
         status: 201
       };
     }
+    
+    // If this is immediately after an update, apply the update and return the first matching row
+    if (state.pendingUpdate) {
+      const rows = db[state.table!] ?? [];
+      const targets = applyFilters(rows);
+      
+      // Apply the update to matching rows
+      targets.forEach(r => Object.assign(r, state.pendingUpdate));
+      
+      // Return the first updated row
+      return {
+        data: targets[0] ?? null,
+        error: null,
+        status: targets.length > 0 ? 200 : 404
+      };
+    }
+    
     const rows = applyFilters(db[state.table!] ?? []);
     return {
       data: rows[0] ?? null,

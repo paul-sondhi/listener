@@ -9,7 +9,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../../../shared/src/types/supabase.js';
 import { EditionWorkerConfig } from '../../config/editionWorkerConfig.js';
 import { UserWithSubscriptions, EpisodeNoteWithEpisode, queryEpisodeNotesForUser } from '../db/editionQueries.js';
-import { generateNewsletterEdition } from '../llm/gemini.js';
+import { generateNewsletterEdition, generateNewsletterSubjectLine } from '../llm/gemini.js';
 import { sanitizeNewsletterContent } from './buildNewsletterEditionPrompt.js';
 import { upsertNewsletterEdition } from '../db/newsletter-editions.ts';
 import { insertNewsletterEditionEpisodes } from '../db/newsletter-edition-episodes.ts';
@@ -178,6 +178,7 @@ export async function processUserForNewsletter(
     let newsletterContent: string;
     let generationResult: any; // Make generationResult available in the DB save phase
     let retryResult: RetryResult<any>;
+    let subjectLine: string | null = null; // Subject line for the newsletter
 
     try {
       const editionDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -221,6 +222,38 @@ export async function processUserForNewsletter(
         wasRetried: retryResult.attemptsUsed > 1,
         totalRetryTimeMs: retryResult.totalElapsedMs
       });
+      
+      // Phase 2b: Generate subject line for the newsletter
+      const subjectLineStart = Date.now();
+      
+      try {
+        const subjectLineResult = await generateNewsletterSubjectLine(generationResult.htmlContent);
+        
+        if (subjectLineResult.success) {
+          subjectLine = subjectLineResult.subjectLine;
+          
+          debugSubscriptionRefresh('Successfully generated subject line', {
+            userId: user.id,
+            subjectLine: subjectLine,
+            wordCount: subjectLineResult.wordCount,
+            subjectLineMs: Date.now() - subjectLineStart
+          });
+        } else {
+          debugSubscriptionRefresh('Failed to generate subject line', {
+            userId: user.id,
+            error: subjectLineResult.error,
+            subjectLineMs: Date.now() - subjectLineStart
+          });
+          // Continue without subject line - it's optional
+        }
+      } catch (error) {
+        debugSubscriptionRefresh('Error generating subject line', {
+          userId: user.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          subjectLineMs: Date.now() - subjectLineStart
+        });
+        // Continue without subject line - it's optional
+      }
       
     } catch (error) {
       timing.generationMs = Date.now() - generationStart;
@@ -288,6 +321,7 @@ export async function processUserForNewsletter(
         status: 'generated',
         model: generationResult.model,
         error_message: null,
+        subject_line: subjectLine,
         edition_id: targetEditionId
       });
       
