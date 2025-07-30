@@ -846,7 +846,7 @@ export async function generateNewsletterSubjectLine(
       }],
       generationConfig: {
         temperature: 0.7, // Slightly lower for more consistent subject lines
-        maxOutputTokens: 1000, // Increased to allow for thinking tokens and subject line
+        maxOutputTokens: 5000, // Further increased due to high thinking token usage
         topP: 0.9,
         topK: 20
       }
