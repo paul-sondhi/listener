@@ -53,9 +53,9 @@ Here are the types of sections you will be generating, including guidelines for 
 
   Each piece of breaking news should be bulleted in an unordered list and the beginning of each bullet point should be less than six words and a colon, bolded that encapsulates the topic. That should be followed by a description of no longer than one sentence.
   
-  This section should only be included if it has genuinely timely and valuable information from that day that the reader should know. One way to decide whether or not to include something here is if it would make sense on the front page of that day's newspaper or on the breaking news chyron of a news broadcast. 
+  This section should only be included if it has genuinely timely and valuable information from the past 24 hours that the reader should know. One way to decide whether or not to include something here is if it would make sense on the front page of that day's newspaper or on the breaking news chyron of a news broadcast.
   
-  If it's information even older than one day, then do not include it. It must be incredibly timely and relevant. If there is no information to include in this section, that's okay. It's better to include no information then to include information that is truly not breaking news.
+  If it's information older than one day, then do not include it. It must be incredibly timely and relevant. If there is no information to include in this section, that's okay. It's better to include no information then to include information that is truly not breaking news.
 </optional-catch-up>
 
 <dynamic-section>
@@ -319,9 +319,9 @@ Here are the types of sections you will be generating, including guidelines for 
 
   Each piece of breaking news should be bulleted in an unordered list and the beginning of each bullet point should be less than six words and a colon, bolded that encapsulates the topic. That should be followed by a description of no longer than one sentence.
   
-  This section should only be included if it has genuinely timely and valuable information from that day that the reader should know. One way to decide whether or not to include something here is if it would make sense on the front page of that day's newspaper or on the breaking news chyron of a news broadcast. 
+  This section should only be included if it has genuinely timely and valuable information from the past 24 hours that the reader should know. One way to decide whether or not to include something here is if it would make sense on the front page of that day's newspaper or on the breaking news chyron of a news broadcast.
   
-  If it's information even older than one day, then do not include it. It must be incredibly timely and relevant. If there is no information to include in this section, that's okay. It's better to include no information then to include information that is truly not breaking news.
+  If it's information older than one day, then do not include it. It must be incredibly timely and relevant. If there is no information to include in this section, that's okay. It's better to include no information then to include information that is truly not breaking news.
 </optional-catch-up>
 
 <dynamic-section>
