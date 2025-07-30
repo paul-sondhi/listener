@@ -165,7 +165,7 @@ export class SendNewsletterWorker {
           }
 
           // Build subject line
-          const subject = buildSubject(edition.edition_date);
+          const subject = buildSubject(edition.edition_date, edition.subject_line);
 
           // Prepare placeholder replacements
           const replacements = {
