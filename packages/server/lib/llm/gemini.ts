@@ -855,7 +855,10 @@ export async function generateNewsletterSubjectLine(
     debugLog('Making Gemini API request for subject line', { 
       model,
       promptLength: prompt.length,
-      requestUrl: url.replace(/key=.*/, 'key=***')
+      requestUrl: url.replace(/key=.*/, 'key=***'),
+      // Log first 200 chars of prompt to verify it's correct
+      promptPreview: prompt.substring(0, 200) + '...',
+      generationConfig: requestBody.generationConfig
     });
 
     const response = await fetch(url, {
@@ -881,15 +884,49 @@ export async function generateNewsletterSubjectLine(
     }
 
     if (responseData.error) {
+      debugLog('Gemini API returned error in response body', {
+        error: responseData.error,
+        fullResponse: responseData
+      });
       throw new GeminiAPIError(
         responseData.error.message || 'Unknown Gemini API error',
         responseData.error.code || response.status
       );
     }
 
+    // Add comprehensive logging to debug response structure
+    debugLog('Gemini API response structure for subject line', {
+      hasResponseData: !!responseData,
+      hasCandidates: !!responseData.candidates,
+      candidatesLength: responseData.candidates?.length || 0,
+      firstCandidate: responseData.candidates?.[0],
+      hasContent: !!responseData.candidates?.[0]?.content,
+      hasParts: !!responseData.candidates?.[0]?.content?.parts,
+      partsLength: responseData.candidates?.[0]?.content?.parts?.length || 0,
+      firstPart: responseData.candidates?.[0]?.content?.parts?.[0],
+      hasText: !!responseData.candidates?.[0]?.content?.parts?.[0]?.text,
+      textPreview: responseData.candidates?.[0]?.content?.parts?.[0]?.text?.substring(0, 100)
+    });
+
+    // Also log the full response for debugging (but limit size)
+    const responseStr = JSON.stringify(responseData);
+    if (responseStr.length < 5000) {
+      debugLog('Full Gemini response for subject line', { response: responseData });
+    } else {
+      debugLog('Full Gemini response too large to log', { 
+        responseSize: responseStr.length,
+        responseKeys: Object.keys(responseData)
+      });
+    }
+
     const subjectLine = responseData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
     if (!subjectLine) {
+      debugLog('Subject line extraction failed', {
+        candidates: responseData.candidates,
+        extractionPath: 'candidates[0].content.parts[0].text',
+        actualValue: subjectLine
+      });
       throw new Error('No subject line generated from Gemini response');
     }
 
