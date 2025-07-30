@@ -15,6 +15,8 @@ import {
   sanitizeNewsletterContent,
   EpisodeMetadata
 } from '../utils/buildNewsletterEditionPrompt';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Gemini API response types
 interface GeminiCandidate {
@@ -749,6 +751,209 @@ export async function generateNewsletterEdition(
       episodeCount: 0,
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred during newsletter generation'
+    };
+  }
+}
+
+// ===================================================================
+// Subject Line Generation
+// ===================================================================
+
+/**
+ * Result returned by generateNewsletterSubjectLine function
+ */
+export interface SubjectLineResult {
+  /** The generated subject line */
+  subjectLine: string;
+  /** Whether the generation was successful */
+  success: boolean;
+  /** Error message if generation failed */
+  error?: string;
+  /** Number of words in the subject line */
+  wordCount: number;
+}
+
+/**
+ * Generate a personalized subject line for a newsletter edition
+ * 
+ * This function analyzes the HTML content of a generated newsletter and creates
+ * a compelling subject line that captures the key themes in 10 words or less.
+ * 
+ * @param {string} htmlContent - The HTML content of the newsletter
+ * @param {string} [promptTemplatePath] - Optional path to custom prompt template
+ * @returns {Promise<SubjectLineResult>} The generated subject line or error
+ * 
+ * @example
+ * ```typescript
+ * const result = await generateNewsletterSubjectLine(newsletterHtml);
+ * if (result.success) {
+ *   console.log('Subject line:', result.subjectLine);
+ *   console.log('Word count:', result.wordCount);
+ * } else {
+ *   console.error('Failed to generate subject:', result.error);
+ * }
+ * ```
+ */
+export async function generateNewsletterSubjectLine(
+  htmlContent: string,
+  promptTemplatePath?: string
+): Promise<SubjectLineResult> {
+  // Validate environment first
+  validateEnvironment();
+  
+  const startTime = Date.now();
+  
+  debugLog('Starting subject line generation', {
+    htmlContentLength: htmlContent.length
+  });
+
+  try {
+    // Apply rate limiting before making API request (skip in tests)
+    if (process.env.NODE_ENV !== 'test') {
+      await GeminiRateLimiter.getInstance().throttleRequest();
+    }
+
+    // Load and prepare the prompt
+    const promptPath = promptTemplatePath || path.join(
+      process.cwd(), 
+      'prompts/newsletter-subject-line.md'
+    );
+    
+    let promptTemplate: string;
+    try {
+      promptTemplate = fs.readFileSync(promptPath, 'utf-8');
+    } catch (error) {
+      debugLog('Failed to read subject line prompt template', { 
+        promptPath,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw new Error(`Failed to read subject line prompt template at ${promptPath}`);
+    }
+
+    // Replace placeholder with actual content
+    const prompt = promptTemplate.replace('[NEWSLETTER_HTML_CONTENT]', htmlContent);
+
+    // Make API request
+    const model = getModelName();
+    const apiKey = process.env.GEMINI_API_KEY!; // Validated above
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const requestBody = {
+      contents: [{
+        parts: [{
+          text: prompt
+        }]
+      }],
+      generationConfig: {
+        temperature: 0.7, // Slightly lower for more consistent subject lines
+        maxOutputTokens: 50, // Very small limit for subject lines
+        topP: 0.9,
+        topK: 20
+      }
+    };
+
+    debugLog('Making Gemini API request for subject line', { 
+      model,
+      promptLength: prompt.length,
+      requestUrl: url.replace(/key=.*/, 'key=***')
+    });
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const responseData = await response.json() as GeminiResponse;
+
+    if (!response.ok) {
+      debugLog('Gemini API error response for subject line', { 
+        status: response.status, 
+        data: responseData 
+      });
+      
+      throw new GeminiAPIError(
+        responseData.error?.message || 'Unknown Gemini API error',
+        response.status
+      );
+    }
+
+    if (responseData.error) {
+      throw new GeminiAPIError(
+        responseData.error.message || 'Unknown Gemini API error',
+        responseData.error.code || response.status
+      );
+    }
+
+    const subjectLine = responseData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+    if (!subjectLine) {
+      throw new Error('No subject line generated from Gemini response');
+    }
+
+    // Count words (split by spaces and filter empty strings)
+    const wordCount = subjectLine.split(/\s+/).filter(word => word.length > 0).length;
+
+    // Validate word count
+    if (wordCount > 10) {
+      debugLog('Generated subject line exceeds 10 word limit', { 
+        subjectLine,
+        wordCount,
+        elapsedMs: Date.now() - startTime
+      });
+      
+      // Truncate to 10 words
+      const words = subjectLine.split(/\s+/).filter(word => word.length > 0);
+      const truncatedSubject = words.slice(0, 10).join(' ');
+      
+      return {
+        subjectLine: truncatedSubject,
+        success: true,
+        wordCount: 10
+      };
+    }
+
+    debugLog('Successfully generated subject line', { 
+      subjectLine,
+      wordCount,
+      elapsedMs: Date.now() - startTime
+    });
+
+    return {
+      subjectLine,
+      success: true,
+      wordCount
+    };
+
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    
+    if (error instanceof GeminiAPIError) {
+      debugLog('Gemini API error in subject line generation', { 
+        error: error.message, 
+        statusCode: error.statusCode,
+        elapsedMs 
+      });
+      return {
+        subjectLine: '',
+        success: false,
+        error: error.message,
+        wordCount: 0
+      };
+    }
+
+    debugLog('Unexpected error in generateNewsletterSubjectLine', { 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      elapsedMs 
+    });
+
+    return {
+      subjectLine: '',
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred during subject line generation',
+      wordCount: 0
     };
   }
 } 

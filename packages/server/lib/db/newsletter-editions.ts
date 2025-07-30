@@ -58,6 +58,7 @@ export interface CreateNewsletterEditionParams {
   content?: string | null;
   model?: string | null;
   error_message?: string | null;
+  subject_line?: string | null; // Optional: personalized subject line for the newsletter
   episode_ids?: string[]; // Optional: episode IDs to link to this newsletter edition
   edition_id?: string; // Optional: existing edition ID for L10 mode updates
 }
@@ -264,6 +265,7 @@ export async function upsertNewsletterEdition(
     content: params.content ?? null,
     model: params.model ?? null,
     error_message: params.error_message ?? null,
+    subject_line: params.subject_line ?? null,
     deleted_at: null
   };
 

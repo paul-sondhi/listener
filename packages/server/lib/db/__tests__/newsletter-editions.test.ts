@@ -583,5 +583,57 @@ describe('Newsletter Editions Database Helpers', () => {
     const withDeleted = await getByUserAndDate(userId, editionDate, true);
     expect(withDeleted).not.toBeNull();
     });
+
+  it('should save subject_line when provided in upsert', async () => {
+    const userId = uniqueId('user');
+    await createTestUser(userId, 'test@example.com');
+    testUserId = userId;
+
+    // Upsert with subject line
+    const upserted = await upsertNewsletterEdition({
+      user_id: userId,
+      edition_date: editionDate,
+      status: 'generated',
+      content: '<p>Newsletter content</p>',
+      model: 'gemini-1.5-flash',
+      subject_line: 'AI Ethics, Tech News & Startup Insights'
+    });
+
+    expect(upserted.subject_line).toBe('AI Ethics, Tech News & Startup Insights');
+
+    // Verify it persists in database
+    const fetched = await getByUserAndDate(userId, editionDate);
+    expect(fetched).not.toBeNull();
+    expect(fetched!.subject_line).toBe('AI Ethics, Tech News & Startup Insights');
+  });
+
+  it('should handle null subject_line in upsert', async () => {
+    const userId = uniqueId('user');
+    await createTestUser(userId, 'test@example.com');
+    testUserId = userId;
+
+    // Upsert without subject line
+    const upserted = await upsertNewsletterEdition({
+      user_id: userId,
+      edition_date: editionDate,
+      status: 'generated',
+      content: '<p>Newsletter content</p>',
+      model: 'gemini-1.5-flash'
+    });
+
+    expect(upserted.subject_line).toBeNull();
+
+    // Update with subject line
+    const updated = await upsertNewsletterEdition({
+      user_id: userId,
+      edition_date: editionDate,
+      status: 'generated',
+      content: '<p>Updated content</p>',
+      model: 'gemini-1.5-flash',
+      subject_line: 'Updated Subject Line'
+    });
+
+    expect(updated.subject_line).toBe('Updated Subject Line');
+  });
   });
 }); 

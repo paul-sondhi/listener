@@ -19,6 +19,7 @@ export interface NewsletterEditionWithUser {
   updated_at: string;
   deleted_at: string | null;
   sent_at: string | null;
+  subject_line: string | null;
 }
 
 export async function queryNewsletterEditionsForSending(

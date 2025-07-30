@@ -141,6 +141,7 @@ export type Database = {
           model: string | null
           sent_at: string | null
           status: string
+          subject_line: string | null
           updated_at: string
           user_email: string
           user_id: string
@@ -155,6 +156,7 @@ export type Database = {
           model?: string | null
           sent_at?: string | null
           status: string
+          subject_line?: string | null
           updated_at?: string
           user_email: string
           user_id: string
@@ -169,6 +171,7 @@ export type Database = {
           model?: string | null
           sent_at?: string | null
           status?: string
+          subject_line?: string | null
           updated_at?: string
           user_email?: string
           user_id?: string
