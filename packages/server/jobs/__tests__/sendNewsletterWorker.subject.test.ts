@@ -33,7 +33,7 @@ describe('Send Worker Subject Line Building', () => {
       };
       
       const subject = buildSubject(edition.edition_date, edition.subject_line);
-      expect(subject).toBe('July 8, 2025: AI Ethics, Tech News & Startup Insights');
+      expect(subject).toBe('🎧 July 8, 2025: AI Ethics, Tech News & Startup Insights');
     });
 
     it('should fallback to default subject when subject_line is null', () => {
@@ -54,7 +54,7 @@ describe('Send Worker Subject Line Building', () => {
       };
       
       const subject = buildSubject(edition.edition_date, edition.subject_line);
-      expect(subject).toBe('Your Podcast Newsletter: July 8, 2025');
+      expect(subject).toBe('🎧 Your Podcast Newsletter: July 8, 2025');
     });
 
     it('should handle empty subject lines as fallback', () => {
@@ -75,7 +75,7 @@ describe('Send Worker Subject Line Building', () => {
       };
       
       const subject = buildSubject(edition.edition_date, edition.subject_line);
-      expect(subject).toBe('Your Podcast Newsletter: December 25, 2025');
+      expect(subject).toBe('🎧 Your Podcast Newsletter: December 25, 2025');
     });
 
     it('should handle whitespace-only subject lines as fallback', () => {
@@ -96,7 +96,7 @@ describe('Send Worker Subject Line Building', () => {
       };
       
       const subject = buildSubject(edition.edition_date, edition.subject_line);
-      expect(subject).toBe('Your Podcast Newsletter: January 1, 2025');
+      expect(subject).toBe('🎧 Your Podcast Newsletter: January 1, 2025');
     });
 
     it('should simulate send worker subject line usage', () => {
@@ -143,11 +143,11 @@ describe('Send Worker Subject Line Building', () => {
       expect(emailSubjects).toEqual([
         {
           to: 'user1@example.com',
-          subject: 'July 8, 2025: AI Ethics & Innovation Updates'
+          subject: '🎧 July 8, 2025: AI Ethics & Innovation Updates'
         },
         {
           to: 'user2@example.com',
-          subject: 'Your Podcast Newsletter: July 9, 2025'
+          subject: '🎧 Your Podcast Newsletter: July 9, 2025'
         }
       ]);
     });

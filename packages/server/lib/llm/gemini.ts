@@ -933,25 +933,6 @@ export async function generateNewsletterSubjectLine(
     // Count words (split by spaces and filter empty strings)
     const wordCount = subjectLine.split(/\s+/).filter(word => word.length > 0).length;
 
-    // Validate word count
-    if (wordCount > 10) {
-      debugLog('Generated subject line exceeds 10 word limit', { 
-        subjectLine,
-        wordCount,
-        elapsedMs: Date.now() - startTime
-      });
-      
-      // Truncate to 10 words
-      const words = subjectLine.split(/\s+/).filter(word => word.length > 0);
-      const truncatedSubject = words.slice(0, 10).join(' ');
-      
-      return {
-        subjectLine: truncatedSubject,
-        success: true,
-        wordCount: 10
-      };
-    }
-
     debugLog('Successfully generated subject line', { 
       subjectLine,
       wordCount,

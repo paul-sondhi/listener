@@ -224,7 +224,7 @@ describe('Newsletter Subject Line Integration Tests', () => {
       
       // Verify subject building
       const subject = buildSubject(editions[0].edition_date, editions[0].subject_line);
-      expect(subject).toBe('July 8, 2025: Tech Trends & AI Innovations');
+      expect(subject).toBe('🎧 July 8, 2025: Tech Trends & AI Innovations');
     });
 
     it('should fallback to default subject when subject_line is null', async () => {
@@ -257,7 +257,7 @@ describe('Newsletter Subject Line Integration Tests', () => {
       
       // Verify subject building with fallback
       const subject = buildSubject(editions[0].edition_date, editions[0].subject_line);
-      expect(subject).toBe('Your Podcast Newsletter: July 8, 2025');
+      expect(subject).toBe('🎧 Your Podcast Newsletter: July 8, 2025');
     });
   });
 
@@ -453,7 +453,7 @@ describe('Newsletter Subject Line Integration Tests', () => {
       
       // Verify complete flow
       expect(edition.subject_line).toBe('Complete Workflow Test Results');
-      expect(emailSubject).toBe('July 8, 2025: Complete Workflow Test Results');
+      expect(emailSubject).toBe('🎧 July 8, 2025: Complete Workflow Test Results');
       expect(edition.content).toContain('Complete Workflow Newsletter');
       expect(edition.status).toBe('generated');
       // sent_at should be null or undefined for unsent editions

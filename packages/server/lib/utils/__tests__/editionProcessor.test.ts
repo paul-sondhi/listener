@@ -24,7 +24,7 @@ vi.mock('../../llm/gemini.js', () => ({
 // Import the processor after mocks are set up
 import { processUserForNewsletter, UserProcessingResult } from '../editionProcessor.js';
 import { retryWithBackoff } from '../retryWithBackoff.js';
-import { generateNewsletterEdition, generateNewsletterSubjectLine } from '../../llm/gemini.js';
+import { generateNewsletterSubjectLine } from '../../llm/gemini.js';
 
 // Helper function to generate unique IDs for testing
 function uniqueId(prefix: string) {

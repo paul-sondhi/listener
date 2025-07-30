@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { generateNewsletterSubjectLine } from '../gemini';
 import * as fs from 'fs';
-import * as path from 'path';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -125,7 +124,7 @@ describe('generateNewsletterSubjectLine', () => {
       }
     });
 
-    it('should truncate subject lines exceeding 10 words', async () => {
+    it('should NOT truncate subject lines exceeding 10 words', async () => {
       const longSubject = 'This Is A Very Long Subject Line That Exceeds The Ten Word Maximum Limit Set';
       
       mockFetch.mockResolvedValueOnce({
@@ -146,8 +145,8 @@ describe('generateNewsletterSubjectLine', () => {
       const result = await generateNewsletterSubjectLine('<p>Content</p>');
 
       expect(result.success).toBe(true);
-      expect(result.wordCount).toBe(10);
-      expect(result.subjectLine).toBe('This Is A Very Long Subject Line That Exceeds The');
+      expect(result.wordCount).toBe(15); // Count all words
+      expect(result.subjectLine).toBe(longSubject); // Full subject line returned
     });
 
     it('should trim whitespace from generated subject lines', async () => {

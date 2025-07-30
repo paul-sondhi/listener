@@ -200,7 +200,7 @@ describe('SendNewsletterWorker L10 Mode (integration)', () => {
       expect(params.to).toBe('test+receiver@example.com');
       
       // Task 5.4: Verify email parameters in L10 mode
-      expect(params.subject).toMatch(/^Your Podcast Newsletter: [A-Za-z]+ \d{1,2}, \d{4}$/);
+      expect(params.subject).toMatch(/^🎧 Your Podcast Newsletter: [A-Za-z]+ \d{1,2}, \d{4}$/);
       expect(params.html).toContain('Integration test content');
       // Note: Placeholders are not being injected, so we'll check for the original content
       // expect(params.html).toContain('[USER_EMAIL]');
