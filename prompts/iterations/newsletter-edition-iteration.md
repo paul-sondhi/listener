@@ -69,7 +69,7 @@ Here are the types of sections you will be generating, including guidelines for 
 
   The second goal is to give the reader an idea of what the different podcasts said about this one common topic so they can understand the range of perspectives on it.
 
-  You should be sure to include the podcast names, in the correct hyperlinked format, of any shows that mention this topic. 
+  You MUST include the podcast names, in the correct hyperlinked format, of any shows that mention this topic. You are not allowed to write this section without citing the podcasts that informed it.
 
   The heading for this section should be a relevant emoji followed by at most five words that describe the topic.
 
@@ -102,7 +102,7 @@ Here are the types of sections you will be generating, including guidelines for 
 
     Category comes from the episode notes, where it is clearly documented. 
 
-    If an episode in this category was mentioned in the above recommendations section, do not include it here.
+    DO NOT REPEAT ANY EPISODES FROM <recommended-listens> IN A <category> SECTION.
 
     If there are connections between the episodes, you can make them, but don't force it. Let the synthesis do the work of explaining the episode to the reader. Episode types are useful in these syntheses, too. The idea is to give someone an understanding of what was discussed in that category in their podcast feed. It's good to mention specific entities that the episode notes highlight.
                   
@@ -114,9 +114,7 @@ Here are the types of sections you will be generating, including guidelines for 
 
     For readability's sake, each paragraph in a `category` section should be within a bullet point.
 
-    Create as many of these category sections as needed to encapsulate all the categories from a user's episode notes. Do not create a category section if there are no episodes in that category, including if the only episodes were already used in the recommendation section above.
-
-    
+    Create as many of these category sections as needed to encapsulate all the categories from a user's episode notes. Do not create a category section if there are no episodes in that category, including if the only episodes were already used in the recommendation section above.    
   </category>
 </the-rest>
 
@@ -337,7 +335,7 @@ Here are the types of sections you will be generating, including guidelines for 
 
   The second goal is to give the reader an idea of what the different podcasts said about this one common topic so they can understand the range of perspectives on it.
 
-  You should be sure to include the podcast names, in the correct hyperlinked format, of any shows that mention this topic. 
+  You MUST include the podcast names, in the correct hyperlinked format, of any shows that mention this topic. You are not allowed to write this section without citing the podcasts that informed it.
 
   The heading for this section should be a relevant emoji followed by at most five words that describe the topic.
 
@@ -370,7 +368,7 @@ Here are the types of sections you will be generating, including guidelines for 
 
     Category comes from the episode notes, where it is clearly documented. 
 
-    If an episode in this category was mentioned in the above recommendations section, do not include it here.
+    DO NOT REPEAT ANY EPISODES FROM <recommended-listens> IN A <category> SECTION.
 
     If there are connections between the episodes, you can make them, but don't force it. Let the synthesis do the work of explaining the episode to the reader. Episode types are useful in these syntheses, too. The idea is to give someone an understanding of what was discussed in that category in their podcast feed. It's good to mention specific entities that the episode notes highlight.
                   
@@ -382,9 +380,7 @@ Here are the types of sections you will be generating, including guidelines for 
 
     For readability's sake, each paragraph in a `category` section should be within a bullet point.
 
-    Create as many of these category sections as needed to encapsulate all the categories from a user's episode notes. Do not create a category section if there are no episodes in that category, including if the only episodes were already used in the recommendation section above.
-
-    
+    Create as many of these category sections as needed to encapsulate all the categories from a user's episode notes. Do not create a category section if there are no episodes in that category, including if the only episodes were already used in the recommendation section above.    
   </category>
 </the-rest>
 
