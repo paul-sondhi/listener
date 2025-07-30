@@ -271,6 +271,11 @@ export async function executeEditionWorkflow(
 ): Promise<EditionWorkflowResult> {
   const startTime = Date.now();
   
+  // Handle subject line test mode separately
+  if (config.subjLineTest) {
+    return executeSubjectLineTestWorkflow(supabase, config);
+  }
+  
   debugSubscriptionRefresh('Starting newsletter edition workflow', {
     lookbackHours: config.lookbackHours,
     last10Mode: config.last10Mode,
@@ -525,6 +530,174 @@ export async function executeEditionWorkflow(
 
   } catch (error) {
     console.error('ERROR: Failed to execute newsletter edition workflow:', error);
+    throw error;
+  }
+}
+
+/**
+ * Execute subject line test workflow
+ * Generates subject lines for existing editions without regenerating content
+ * 
+ * @param supabase - Initialized Supabase client
+ * @param config - Edition worker configuration with subjLineTest settings
+ * @returns Promise<EditionWorkflowResult> - Workflow results
+ */
+async function executeSubjectLineTestWorkflow(
+  supabase: SupabaseClient<Database>,
+  config: EditionWorkerConfig
+): Promise<EditionWorkflowResult> {
+  const startTime = Date.now();
+  
+  debugSubscriptionRefresh('Starting subject line test workflow', {
+    subjLineTestCount: config.subjLineTestCount,
+    mode: 'SUBJECT_LINE_TEST'
+  });
+  
+  try {
+    // Import the necessary functions
+    const { queryNewsletterEditionsForSubjectLineTest } = await import('../db/editionQueries.js');
+    const { processEditionForSubjectLineOnly } = await import('./editionProcessor.js');
+    
+    // Query editions that need subject lines
+    const editions = await queryNewsletterEditionsForSubjectLineTest(
+      supabase,
+      config.subjLineTestCount
+    );
+    
+    debugSubscriptionRefresh('Found editions for subject line generation', {
+      count: editions.length,
+      requestedCount: config.subjLineTestCount
+    });
+    
+    if (editions.length === 0) {
+      return {
+        totalCandidates: 0,
+        processedUsers: 0,
+        successfulNewsletters: 0,
+        errorCount: 0,
+        noContentCount: 0,
+        totalElapsedMs: Date.now() - startTime,
+        averageProcessingTimeMs: 0,
+        successRate: 100,
+        averageTiming: { queryMs: 0, generationMs: 0, databaseMs: 0 },
+        retryStats: {
+          totalRetries: 0,
+          usersWhoRetried: 0,
+          averageAttemptsPerUser: 0,
+          maxAttempts: 0,
+          retrySuccessRate: 0
+        },
+        errorBreakdown: {},
+        contentStats: { minLength: 0, maxLength: 0, averageLength: 0, totalLength: 0 },
+        episodeStats: { minEpisodes: 0, maxEpisodes: 0, averageEpisodes: 0, totalEpisodes: 0 }
+      };
+    }
+    
+    // Process each edition
+    const results = [];
+    let successCount = 0;
+    let errorCount = 0;
+    let overwriteCount = 0;
+    let newSubjectLineCount = 0;
+    const processingTimes: number[] = [];
+    
+    for (let i = 0; i < editions.length; i++) {
+      const edition = editions[i];
+      const isLastEdition = i === editions.length - 1;
+      
+      debugSubscriptionRefresh(`Processing edition ${i + 1}/${editions.length}`, {
+        editionId: edition.id,
+        userEmail: edition.user_email,
+        hasExistingSubjectLine: edition.subject_line !== null
+      });
+      
+      const result = await processEditionForSubjectLineOnly(supabase, edition);
+      results.push(result);
+      processingTimes.push(result.elapsedMs);
+      
+      if (result.status === 'success') {
+        successCount++;
+        if (result.previousSubjectLine !== null) {
+          overwriteCount++;
+        } else {
+          newSubjectLineCount++;
+        }
+      } else {
+        errorCount++;
+      }
+      
+      // Add delay between editions (except for the last one and in test mode)
+      if (!isLastEdition && process.env.NODE_ENV !== 'test') {
+        debugSubscriptionRefresh('Adding delay between editions', {
+          delayMs: 5000,
+          editionIndex: i,
+          totalEditions: editions.length
+        });
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 seconds
+      }
+    }
+    
+    // Calculate statistics
+    const totalElapsedMs = Date.now() - startTime;
+    const averageProcessingTimeMs = processingTimes.length > 0
+      ? processingTimes.reduce((a, b) => a + b, 0) / processingTimes.length
+      : 0;
+    const successRate = editions.length > 0
+      ? (successCount / editions.length) * 100
+      : 100;
+    
+    const workflowResult: EditionWorkflowResult = {
+      totalCandidates: editions.length,
+      processedUsers: editions.length,
+      successfulNewsletters: successCount,
+      errorCount: errorCount,
+      noContentCount: 0, // Not applicable for subject line test
+      totalElapsedMs,
+      averageProcessingTimeMs,
+      successRate,
+      averageTiming: {
+        queryMs: 0, // Not tracked for subject line test
+        generationMs: averageProcessingTimeMs, // All time is generation
+        databaseMs: 0 // Included in generation time
+      },
+      retryStats: {
+        totalRetries: 0, // No retries for subject line test
+        usersWhoRetried: 0,
+        averageAttemptsPerUser: 1,
+        maxAttempts: 1,
+        retrySuccessRate: 0
+      },
+      errorBreakdown: {},
+      contentStats: {
+        minLength: 0, // Not applicable
+        maxLength: 0,
+        averageLength: 0,
+        totalLength: 0
+      },
+      episodeStats: {
+        minEpisodes: 0, // Not applicable
+        maxEpisodes: 0,
+        averageEpisodes: 0,
+        totalEpisodes: 0
+      }
+    };
+    
+    debugSubscriptionRefresh('Subject line test workflow completed', {
+      totalEditions: editions.length,
+      successCount,
+      errorCount,
+      overwriteCount,
+      newSubjectLineCount,
+      successRate: successRate.toFixed(1),
+      totalElapsedMs,
+      averageProcessingTimeMs: Math.round(averageProcessingTimeMs),
+      summary: `Processed ${editions.length} editions (${overwriteCount} overwrote existing, ${newSubjectLineCount} were new)`
+    });
+    
+    return workflowResult;
+    
+  } catch (error) {
+    console.error('ERROR: Failed to execute subject line test workflow:', error);
     throw error;
   }
 } 

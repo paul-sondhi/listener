@@ -452,3 +452,56 @@ export async function queryLastNewsletterEditionsForUpdate(
 // Backwards compatibility exports
 export const queryLast3NewsletterEditions = queryLastNewsletterEditions;
 export const queryLast3NewsletterEditionsForUpdate = queryLastNewsletterEditionsForUpdate;
+
+/**
+ * Query newsletter editions for subject line test mode
+ * Returns editions with their HTML content for subject line generation or regeneration
+ * Note: This will return ALL editions with content, allowing overwriting of existing subject lines
+ * 
+ * @param supabase - Initialized Supabase client
+ * @param count - Number of editions to fetch
+ * @returns Array of editions for subject line testing
+ */
+export async function queryNewsletterEditionsForSubjectLineTest(
+  supabase: SupabaseClient<Database>,
+  count: number = 5
+): Promise<Array<{ 
+  id: string; 
+  user_id: string; 
+  edition_date: string; 
+  user_email: string; 
+  content: string;
+  subject_line: string | null;
+}>> {
+  debugDatabase('Starting subject line test editions query');
+  
+  try {
+    const { data: editions, error: queryError } = await supabase
+      .from('newsletter_editions')
+      .select('id, user_id, edition_date, user_email, content, subject_line')
+      .not('content', 'is', null)
+      .eq('status', 'generated')
+      .order('created_at', { ascending: false })
+      .limit(count);
+
+    debugDatabase('Subject line test editions query completed', {
+      error: !!queryError,
+      dataLength: editions?.length || 0,
+      errorMessage: queryError?.message || 'none'
+    });
+
+    if (queryError) {
+      throw new Error(`Failed to query editions for subject line test: ${queryError.message}`);
+    }
+
+    if (!editions || editions.length === 0) {
+      debugDatabase('No editions found for subject line testing');
+      return [];
+    }
+
+    return editions;
+  } catch (error) {
+    debugDatabase('Failed to query editions for subject line test', { error });
+    throw error;
+  }
+}

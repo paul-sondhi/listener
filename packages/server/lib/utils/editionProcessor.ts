@@ -628,4 +628,112 @@ function extractErrorType(errorMessage: string): string {
   }
   
   return 'unknown_error';
+}
+
+/**
+ * Process an existing newsletter edition to generate only a subject line
+ * Used in subject line test mode - will overwrite existing subject lines
+ * 
+ * @param supabase - Initialized Supabase client
+ * @param edition - Existing edition with HTML content
+ * @returns Processing result
+ */
+export async function processEditionForSubjectLineOnly(
+  supabase: SupabaseClient<Database>,
+  edition: { 
+    id: string; 
+    user_id: string; 
+    edition_date: string; 
+    user_email: string; 
+    content: string;
+    subject_line: string | null;
+  }
+): Promise<{
+  editionId: string;
+  userId: string;
+  userEmail: string;
+  status: 'success' | 'error';
+  subjectLine?: string;
+  previousSubjectLine?: string | null;
+  error?: string;
+  elapsedMs: number;
+}> {
+  const startTime = Date.now();
+  const isOverwriting = edition.subject_line !== null;
+  
+  debugSubscriptionRefresh('Processing edition for subject line only', {
+    editionId: edition.id,
+    userId: edition.user_id,
+    userEmail: edition.user_email,
+    contentLength: edition.content.length,
+    hasExistingSubjectLine: isOverwriting,
+    existingSubjectLine: edition.subject_line
+  });
+  
+  try {
+    // Generate subject line from existing content
+    const subjectLineResult = await generateNewsletterSubjectLine(edition.content);
+    
+    if (!subjectLineResult.success) {
+      throw new Error(subjectLineResult.error || 'Failed to generate subject line');
+    }
+    
+    // Update the edition with the new subject line
+    const { error: updateError } = await supabase
+      .from('newsletter_editions')
+      .update({ 
+        subject_line: subjectLineResult.subjectLine,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', edition.id);
+    
+    if (updateError) {
+      throw new Error(`Failed to update subject line: ${updateError.message}`);
+    }
+    
+    if (isOverwriting) {
+      debugSubscriptionRefresh('Successfully overwrote existing subject line', {
+        editionId: edition.id,
+        oldSubjectLine: edition.subject_line,
+        newSubjectLine: subjectLineResult.subjectLine,
+        wordCount: subjectLineResult.wordCount,
+        elapsedMs: Date.now() - startTime
+      });
+    } else {
+      debugSubscriptionRefresh('Successfully generated and saved subject line', {
+        editionId: edition.id,
+        subjectLine: subjectLineResult.subjectLine,
+        wordCount: subjectLineResult.wordCount,
+        elapsedMs: Date.now() - startTime
+      });
+    }
+    
+    return {
+      editionId: edition.id,
+      userId: edition.user_id,
+      userEmail: edition.user_email,
+      status: 'success',
+      subjectLine: subjectLineResult.subjectLine,
+      previousSubjectLine: edition.subject_line,
+      elapsedMs: Date.now() - startTime
+    };
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    debugSubscriptionRefresh('Failed to process edition for subject line', {
+      editionId: edition.id,
+      error: errorMessage,
+      elapsedMs: Date.now() - startTime
+    });
+    
+    return {
+      editionId: edition.id,
+      userId: edition.user_id,
+      userEmail: edition.user_email,
+      status: 'error',
+      error: errorMessage,
+      elapsedMs: Date.now() - startTime
+    };
+  }
 } 

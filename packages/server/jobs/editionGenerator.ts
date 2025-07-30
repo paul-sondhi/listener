@@ -10,12 +10,15 @@
  * Usage:
  *   npx tsx jobs/editionGenerator.ts                    # Normal mode
  *   EDITION_WORKER_L10=true npx tsx jobs/editionGenerator.ts  # Testing mode (last 3)
+ *   SUBJ_LINE_TEST=true npx tsx jobs/editionGenerator.ts  # Subject line test mode (overwrites existing)
  * 
  * Environment Variables:
  *   EDITION_LOOKBACK_HOURS    - Hours to look back for episode notes (default: 24)
  *   EDITION_WORKER_L10        - Testing mode: overwrite last 3 newsletter editions (default: false)
  *   EDITION_PROMPT_PATH       - Path to prompt template file (default: prompts/newsletter-edition.md)
  *   GEMINI_API_KEY            - Google Gemini API key (required)
+ *   SUBJ_LINE_TEST            - Subject line test mode: regenerate subject lines for existing editions (default: false)
+ *   SUBJ_LINE_TEST_COUNT      - Number of editions to process in subject line test mode (default: 5)
  * 
  * Exit Codes:
  *   0 - Success (all eligible users processed)
@@ -75,8 +78,11 @@ export class NewsletterEditionWorker {
     this.logger.info('system', 'Newsletter Edition Worker starting', {
       metadata: {
         job_id: jobId,
+        mode: config.subjLineTest ? 'SUBJECT_LINE_TEST' : (config.last10Mode ? 'L10_TESTING' : 'NORMAL'),
         lookback_hours: config.lookbackHours,
         last10_mode: config.last10Mode,
+        subj_line_test: config.subjLineTest,
+        subj_line_test_count: config.subjLineTestCount,
         prompt_path: config.promptPath,
         prompt_template_length: config.promptTemplate.length
       }
@@ -105,12 +111,13 @@ export class NewsletterEditionWorker {
       this.logger.info('system', 'Newsletter Edition Worker completed', {
         metadata: {
           job_id: jobId,
+          mode: config.subjLineTest ? 'SUBJECT_LINE_TEST' : (config.last10Mode ? 'L10_TESTING' : 'NORMAL'),
           ...summary,
           success_rate: workflowResult.successRate.toFixed(1),
           avg_timing_ms: workflowResult.averageTiming,
           error_breakdown: workflowResult.errorBreakdown,
-          content_stats: workflowResult.contentStats,
-          episode_stats: workflowResult.episodeStats
+          content_stats: config.subjLineTest ? undefined : workflowResult.contentStats,
+          episode_stats: config.subjLineTest ? undefined : workflowResult.episodeStats
         }
       });
 
@@ -147,11 +154,14 @@ async function _main(): Promise<void> {
   setupUnhandledExceptionHandlers();
 
   try {
-    console.log('🚀 Starting Newsletter Edition Generator Worker...');
+    const config = getEditionWorkerConfig();
+    const mode = config.subjLineTest ? 'Subject Line Test Mode' : (config.last10Mode ? 'L10 Testing Mode' : 'Normal Mode');
+    console.log(`🚀 Starting Newsletter Edition Generator Worker in ${mode}...`);
     
     const result = await worker.run();
     
     console.log('✅ Newsletter Edition Worker completed successfully', {
+      mode: mode,
       totalUsers: result.totalCandidates,
       processedUsers: result.processedUsers,
       successfulNewsletters: result.successfulNewsletters,

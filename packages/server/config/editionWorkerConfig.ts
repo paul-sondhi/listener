@@ -15,6 +15,10 @@ export interface EditionWorkerConfig {
   last10Mode: boolean;
   /** Number of editions to overwrite in L10 mode (1-10) */
   last10Count: number;
+  /** When true, only generate subject lines for existing editions (testing mode) - overwrites existing subject lines */
+  subjLineTest: boolean;
+  /** Number of editions to process in subject line test mode (1-100) */
+  subjLineTestCount: number;
   /** Path to the prompt template file */
   promptPath: string;
   /** Cached content of the prompt template */
@@ -45,6 +49,20 @@ export function getEditionWorkerConfig(): EditionWorkerConfig {
   const last10Count = parseInt(process.env.EDITION_WORKER_L10_COUNT || '3', 10);
   if (isNaN(last10Count) || last10Count < 1 || last10Count > 10) {
     throw new Error(`Invalid EDITION_WORKER_L10_COUNT: "${process.env.EDITION_WORKER_L10_COUNT}". Must be a number between 1 and 10.`);
+  }
+
+  // Parse subjLineTest flag (strict boolean semantics) – any value other than the string "true" yields false
+  const subjLineTest: boolean = process.env.SUBJ_LINE_TEST === 'true';
+
+  // Parse subjLineTestCount with validation
+  const subjLineTestCount = parseInt(process.env.SUBJ_LINE_TEST_COUNT || '5', 10);
+  if (isNaN(subjLineTestCount) || subjLineTestCount < 1 || subjLineTestCount > 100) {
+    throw new Error(`Invalid SUBJ_LINE_TEST_COUNT: "${process.env.SUBJ_LINE_TEST_COUNT}". Must be a number between 1 and 100.`);
+  }
+
+  // Validate that L10 mode and subject line test mode are not both enabled
+  if (last10Mode && subjLineTest) {
+    throw new Error('Cannot enable both EDITION_WORKER_L10 and SUBJ_LINE_TEST at the same time. Please choose one testing mode.');
   }
 
   // Validate Gemini API key first (required)
@@ -90,6 +108,8 @@ export function getEditionWorkerConfig(): EditionWorkerConfig {
     lookbackHours,
     last10Mode,
     last10Count,
+    subjLineTest,
+    subjLineTestCount,
     promptPath,
     promptTemplate,
     geminiApiKey: geminiApiKey.trim(),
@@ -106,6 +126,8 @@ export function getConfigSummary(config: EditionWorkerConfig): Record<string, un
     lookback_hours: config.lookbackHours,
     last10_mode: config.last10Mode,
     last10_count: config.last10Count,
+    subj_line_test: config.subjLineTest,
+    subj_line_test_count: config.subjLineTestCount,
     prompt_path: config.promptPath,
     prompt_template_length: config.promptTemplate.length,
     gemini_api_key_configured: config.geminiApiKey.length > 0,
