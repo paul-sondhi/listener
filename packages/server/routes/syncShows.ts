@@ -330,8 +330,23 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
             const now: string = new Date().toISOString();
             const showIds: string[] = [];
             
-            // Emit the legacy rss_url warning only once per sync call
-            let legacyRssWarningEmitted = false;
+            // Check if database has legacy rss_url NOT NULL constraint
+            // We do this once before processing any shows
+            let hasLegacyRssConstraint = false;
+            const constraintCheckResult = await safeAwait(
+                getSupabaseAdmin()
+                    .from('podcast_shows')
+                    .insert([{ 
+                        spotify_url: 'https://open.spotify.com/show/constraint-check-' + Date.now(),
+                        title: 'Constraint Check',
+                        // Intentionally omit rss_url to check for NOT NULL constraint
+                    }])
+            );
+            
+            if (constraintCheckResult?.error?.message?.includes('rss_url')) {
+                hasLegacyRssConstraint = true;
+                console.log('[SYNC_SHOWS] Detected legacy rss_url NOT NULL constraint in database');
+            }
             
             for (const showObj of shows) {
                 const show: SpotifyShow = showObj.show;
@@ -428,6 +443,54 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                     }
 
                     // -----------------------------------------------------
+                    // Check if RSS URL already exists for a different show
+                    // This prevents duplicate key constraint violations
+                    // -----------------------------------------------------
+                    let actualShowId: string | undefined;
+                    let skipRssUrlUpdate = false;
+                    
+                    // Always check for RSS URL conflicts if we have an RSS URL that's not the Spotify URL
+                    if (rssUrl && rssUrl !== spotifyUrl) {
+                        // Check if another show already has this RSS URL
+                        const existingRssShow = await safeAwait(
+                            getSupabaseAdmin()
+                                .from('podcast_shows')
+                                .select('id, spotify_url, title')
+                                .eq('rss_url', rssUrl)
+                                .maybeSingle()
+                        );
+                        
+                        if (existingRssShow?.data && existingRssShow.data.spotify_url !== spotifyUrl) {
+                            // Another show has this RSS URL
+                            if (existingShow) {
+                                // We're updating an existing show, but the RSS URL conflicts
+                                console.log(`[SyncShows] Cannot update RSS URL for ${show.name} - URL already used by "${existingRssShow.data.title}"`, {
+                                    spotify_url: spotifyUrl,
+                                    conflicting_rss_url: rssUrl,
+                                    conflicting_show: existingRssShow.data.spotify_url,
+                                    current_rss: existingShow.rss_url
+                                });
+                                // Skip the RSS URL update to avoid constraint violation
+                                skipRssUrlUpdate = true;
+                                // If the existing show already has an RSS URL, keep it
+                                if (existingShow.rss_url && existingShow.rss_url !== spotifyUrl) {
+                                    rssUrl = existingShow.rss_url;
+                                }
+                            } else {
+                                // New show, but RSS URL already exists - use existing show
+                                actualShowId = existingRssShow.data.id;
+                                console.log(`[SyncShows] Using existing show with same RSS URL for ${spotifyUrl}`, {
+                                    new_spotify_url: spotifyUrl,
+                                    existing_spotify_url: existingRssShow.data.spotify_url,
+                                    shared_rss_url: rssUrl,
+                                    show_id: actualShowId,
+                                    existing_title: existingRssShow.data.title
+                                });
+                            }
+                        }
+                    }
+
+                    // -----------------------------------------------------
                     // Robust upsert that works with *partial* Vitest mocks
                     // -----------------------------------------------------
                     // Some unit-tests mock only the `upsert` function and do
@@ -444,99 +507,72 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
                     //      *minimal* Supabase response.
                     // -----------------------------------------------------
 
-                    // Build upsert data dynamically to preserve existing titles
-                    const upsertData: any = {
-                        spotify_url: spotifyUrl,
-                        rss_url: rssUrl, // Use actual RSS URL if found, otherwise Spotify URL as fallback
-                        last_updated: now,
-                    };
-
-                    // Only set title if show doesn't exist or has a placeholder title
-                    if (!existingShow || !existingShow.title || existingShow.title.startsWith('Show ')) {
-                        upsertData.title = show.name || 'Unknown Show';
-                    } else {
-                        // Existing show has a good title - preserve it by not including title in upsert
-                        console.log(`[SyncShows] Preserving existing title for ${show.name}: "${existingShow.title}" (not overwriting with Spotify title)`);
+                    // Only perform upsert if we didn't find an existing show with the same RSS URL
+                    let showUpsertRes: { data: any; error: any } | undefined;
+                    
+                    // If we have an existing show and just need to skip RSS update, use its ID
+                    if (existingShow && skipRssUrlUpdate && !actualShowId) {
+                        actualShowId = existingShow.id;
                     }
-
-                    // Always include description and image_url from Spotify
-                    upsertData.description = show.description || null;
-                    upsertData.image_url = show.images?.[0]?.url || null;
-
-                    const upsertStage: any = getSupabaseAdmin()
-                        .from('podcast_shows')
-                        .upsert([upsertData], {
-                            onConflict: 'spotify_url',
-                            ignoreDuplicates: false,
-                        });
-
-                    let showUpsertRes: { data: any; error: any };
-
-                    if (upsertStage && typeof upsertStage.select === 'function') {
-                        // Standard (real) Supabase behaviour
-                        showUpsertRes = await safeAwait(upsertStage.select('id'));
-                    } else {
-                        // Graceful degradation for simplistic mocks
-                        showUpsertRes = await safeAwait(upsertStage);
-                    }
-                     
-                    // Legacy fallback: some local databases still have NOT NULL rss_url.
-                    if (showUpsertRes?.error && showUpsertRes.error.message?.includes('rss_url')) {
-                        if (!legacyRssWarningEmitted) {
-                            console.warn('[SYNC_SHOWS] Detected legacy rss_url NOT NULL constraint – falling back to include rss_url in upsert. This message will appear only once per sync.');
-                            legacyRssWarningEmitted = true;
-                        }
-                        // Build retry upsert data with same title preservation logic
-                        const retryUpsertData: any = {
+                    
+                    if (!actualShowId) {
+                        // Build upsert data dynamically to preserve existing titles
+                        const upsertData: any = {
                             spotify_url: spotifyUrl,
-                            rss_url: rssUrl, // Use the same RSS URL logic as the main upsert
                             last_updated: now,
                         };
+                        
+                        // Include rss_url if we have legacy constraint OR if we have an RSS URL
+                        // This prevents the NOT NULL constraint error
+                        // But skip if it would cause a duplicate
+                        if (!skipRssUrlUpdate && (hasLegacyRssConstraint || rssUrl)) {
+                            upsertData.rss_url = rssUrl;
+                        } else if (hasLegacyRssConstraint && skipRssUrlUpdate) {
+                            // If we have legacy constraint but can't update RSS URL, use existing or spotify URL
+                            upsertData.rss_url = existingShow?.rss_url || spotifyUrl;
+                        }
 
                         // Only set title if show doesn't exist or has a placeholder title
                         if (!existingShow || !existingShow.title || existingShow.title.startsWith('Show ')) {
-                            retryUpsertData.title = show.name || 'Unknown Show';
+                            upsertData.title = show.name || 'Unknown Show';
+                        } else {
+                            // Existing show has a good title - preserve it by not including title in upsert
+                            console.log(`[SyncShows] Preserving existing title for ${show.name}: "${existingShow.title}" (not overwriting with Spotify title)`);
                         }
 
                         // Always include description and image_url from Spotify
-                        retryUpsertData.description = show.description || null;
-                        retryUpsertData.image_url = show.images?.[0]?.url || null;
+                        upsertData.description = show.description || null;
+                        upsertData.image_url = show.images?.[0]?.url || null;
 
-                        const retryUpsertStage = getSupabaseAdmin()
+                        const upsertStage: any = getSupabaseAdmin()
                             .from('podcast_shows')
-                            .upsert([retryUpsertData], {
+                            .upsert([upsertData], {
                                 onConflict: 'spotify_url',
                                 ignoreDuplicates: false,
                             });
 
-                        // Apply the same select logic as the main upsert
-                        let retryRes: { data: any; error: any };
-                        if (retryUpsertStage && typeof retryUpsertStage.select === 'function') {
-                            retryRes = await safeAwait(retryUpsertStage.select('id'));
+                        if (upsertStage && typeof upsertStage.select === 'function') {
+                            // Standard (real) Supabase behaviour
+                            showUpsertRes = await safeAwait(upsertStage.select('id'));
                         } else {
-                            retryRes = await safeAwait(retryUpsertStage);
+                            // Graceful degradation for simplistic mocks
+                            showUpsertRes = await safeAwait(upsertStage);
                         }
 
-                        if (retryRes?.error) {
-                            console.error('Error upserting podcast show after legacy retry:', retryRes.error.message);
-                            throw new Error(`Error saving show to database: ${retryRes.error.message}`);
+                        if (showUpsertRes?.error) {
+                            console.error('Error upserting podcast show:', showUpsertRes.error.message);
+                            throw new Error(`Error saving show to database: ${showUpsertRes.error.message}`);
                         }
-                        showUpsertRes = {
-                            data: retryRes?.data,
-                            error: null,
-                        };
-                    }
 
-                    if (showUpsertRes?.error) {
-                        console.error('Error upserting podcast show:', showUpsertRes.error.message);
-                        throw new Error(`Error saving show to database: ${showUpsertRes.error.message}`);
+                        // In mock environments the select-less code-path above may
+                        // not include the row ID.  We fabricate a stable fallback
+                        // ID derived from the Spotify URL so that the remainder of
+                        // the sync logic can proceed in tests.
+                        actualShowId = showUpsertRes?.data?.[0]?.id;
                     }
-
-                    // In mock environments the select-less code-path above may
-                    // not include the row ID.  We fabricate a stable fallback
-                    // ID derived from the Spotify URL so that the remainder of
-                    // the sync logic can proceed in tests.
-                    let showId = showUpsertRes?.data?.[0]?.id;
+                    
+                    // Use actualShowId (either from existing RSS show or from upsert)
+                    let showId = actualShowId;
                     
                     if (!showId) {
                         // In production, we should never reach this fallback

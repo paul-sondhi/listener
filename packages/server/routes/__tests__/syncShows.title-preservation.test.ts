@@ -88,8 +88,18 @@ describe('syncShows - Title Preservation', () => {
                                     rss_url: 'https://example.com/feed.rss',
                                 },
                                 error: null,
+                            }),
+                            neq: vi.fn().mockReturnValue({
+                                maybeSingle: vi.fn().mockResolvedValue({
+                                    data: null, // No duplicate RSS URL
+                                    error: null
+                                })
                             })
                         })
+                    }),
+                    insert: vi.fn().mockResolvedValue({
+                        data: null,
+                        error: { message: 'null value in column "rss_url" violates not-null constraint' }
                     }),
                     upsert: vi.fn().mockImplementation((data: any) => {
                         upsertedShowData = data[0];
@@ -180,8 +190,18 @@ describe('syncShows - Title Preservation', () => {
                             maybeSingle: vi.fn().mockResolvedValue({
                                 data: null, // Show doesn't exist
                                 error: null,
+                            }),
+                            neq: vi.fn().mockReturnValue({
+                                maybeSingle: vi.fn().mockResolvedValue({
+                                    data: null, // No duplicate RSS URL
+                                    error: null
+                                })
                             })
                         })
+                    }),
+                    insert: vi.fn().mockResolvedValue({
+                        data: null,
+                        error: { message: 'null value in column "rss_url" violates not-null constraint' }
                     }),
                     upsert: vi.fn().mockImplementation((data: any) => {
                         upsertedShowData = data[0];
@@ -276,8 +296,18 @@ describe('syncShows - Title Preservation', () => {
                                     rss_url: 'https://open.spotify.com/show/placeholder_show_789',
                                 },
                                 error: null,
+                            }),
+                            neq: vi.fn().mockReturnValue({
+                                maybeSingle: vi.fn().mockResolvedValue({
+                                    data: null, // No duplicate RSS URL
+                                    error: null
+                                })
                             })
                         })
+                    }),
+                    insert: vi.fn().mockResolvedValue({
+                        data: null,
+                        error: { message: 'null value in column "rss_url" violates not-null constraint' }
                     }),
                     upsert: vi.fn().mockImplementation((data: any) => {
                         upsertedShowData = data[0];

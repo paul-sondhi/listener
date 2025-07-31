@@ -53,8 +53,18 @@ describe('Sync Shows ID Fallback Logic', () => {
           maybeSingle: vi.fn().mockResolvedValue({
             data: null, // No existing show by default
             error: null
+          }),
+          neq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: null, // No duplicate RSS URL
+              error: null
+            })
           })
         })
+      }),
+      insert: vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'null value in column "rss_url" violates not-null constraint' }
       }),
       upsert: vi.fn().mockReturnValue({
         select: vi.fn().mockResolvedValue({

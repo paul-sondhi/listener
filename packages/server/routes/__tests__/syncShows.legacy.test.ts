@@ -26,8 +26,18 @@ const mockFrom = vi.fn((tableName) => {
           maybeSingle: vi.fn().mockResolvedValue({
             data: null, // No existing show by default
             error: null
+          }),
+          neq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: null, // No duplicate RSS URL
+              error: null
+            })
           })
         })
+      }),
+      insert: vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'null value in column "rss_url" violates not-null constraint' }
       }),
       upsert: mockUpsert,
     };
@@ -48,6 +58,10 @@ const mockFrom = vi.fn((tableName) => {
     };
   }
   return {
+    insert: vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: 'null value in column "rss_url" violates not-null constraint' }
+    }),
     upsert: mockUpsert,
     eq: mockEq,
     in: mockIn,
@@ -116,6 +130,10 @@ describe('sync-spotify-shows legacy rss_url fallback', () => {
       .post('/sync-spotify-shows')
       .set('Cookie', `sb-access-token=${mockSupabaseToken}`);
 
+    if (response.status !== 200) {
+      console.error('Response error:', response.body);
+    }
+    
     expect(response.status).toBe(200);
     // Upsert should only be called once since rss_url is now always included
     expect(mockUpsert).toHaveBeenCalledTimes(1);

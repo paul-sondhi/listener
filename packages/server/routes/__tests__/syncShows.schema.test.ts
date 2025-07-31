@@ -99,8 +99,18 @@ describe('Sync Shows Database Schema Integration', () => {
               maybeSingle: vi.fn().mockResolvedValue({
                 data: null, // No existing show by default
                 error: null
+              }),
+              neq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: null, // No duplicate RSS URL
+                  error: null
+                })
               })
             })
+          }),
+          insert: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'null value in column "rss_url" violates not-null constraint' }
           }),
           upsert: vi.fn().mockReturnValue({
             select: vi.fn().mockResolvedValue({
@@ -130,6 +140,9 @@ describe('Sync Shows Database Schema Integration', () => {
 
       // Return error for wrong table names
       return {
+        insert: vi.fn().mockResolvedValue({
+          error: { message: `Table "${tableName}" does not exist` }
+        }),
         upsert: vi.fn().mockResolvedValue({
           error: { message: `Table "${tableName}" does not exist` }
         })
@@ -180,8 +193,18 @@ describe('Sync Shows Database Schema Integration', () => {
               maybeSingle: vi.fn().mockResolvedValue({
                 data: null, // No existing show by default
                 error: null
+              }),
+              neq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: null, // No duplicate RSS URL
+                  error: null
+                })
               })
             })
+          }),
+          insert: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'null value in column "rss_url" violates not-null constraint' }
           }),
           upsert: vi.fn().mockImplementation((data) => {
             showUpsertData = data[0] // Capture the data being inserted
@@ -250,8 +273,18 @@ describe('Sync Shows Database Schema Integration', () => {
               maybeSingle: vi.fn().mockResolvedValue({
                 data: null, // No existing show by default
                 error: null
+              }),
+              neq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: null, // No duplicate RSS URL
+                  error: null
+                })
               })
             })
+          }),
+          insert: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'null value in column "rss_url" violates not-null constraint' }
           }),
           upsert: vi.fn().mockReturnValue({
             select: vi.fn().mockResolvedValue({
@@ -354,8 +387,18 @@ describe('Sync Shows Database Schema Integration', () => {
               maybeSingle: vi.fn().mockResolvedValue({
                 data: null, // No existing show by default
                 error: null
+              }),
+              neq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: null, // No duplicate RSS URL
+                  error: null
+                })
               })
             })
+          }),
+          insert: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'null value in column "rss_url" violates not-null constraint' }
           }),
           upsert: vi.fn().mockImplementation((data) => {
             databaseOperations.push({ table: tableName, operation: 'upsert', data: data[0] })
