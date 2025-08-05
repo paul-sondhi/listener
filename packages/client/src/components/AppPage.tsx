@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabaseClient'
-import { ApiResponse } from '@listener/shared'
+import { ApiResponse, SubscriptionStatsResponse } from '@listener/shared'
 import ReauthPrompt from './ReauthPrompt'
 import OPMLUpload from './OPMLUpload'
 import { logger } from '../lib/logger'
@@ -36,6 +36,8 @@ interface SyncShowsResponse extends ApiResponse {
 const AppPage = (): React.JSX.Element => {
   const { user, signOut, clearReauthFlag, checkReauthStatus: _checkReauthStatus } = useAuth()
   const [isSyncing, setIsSyncing] = useState<boolean>(false)
+  const [subscriptionCount, setSubscriptionCount] = useState<number | null>(null)
+  const [loadingStats, setLoadingStats] = useState<boolean>(true)
   
   // Use ref to track if we've already synced for this user session
   const hasSynced = useRef<boolean>(false)
@@ -55,6 +57,60 @@ const AppPage = (): React.JSX.Element => {
       isMounted.current = false
     }
   }, [])
+
+  /**
+   * Fetch subscription statistics for the current user
+   */
+  const fetchSubscriptionStats = async (): Promise<void> => {
+    if (!user) {
+      logger.debug('No user, skipping subscription stats fetch')
+      return
+    }
+
+    try {
+      setLoadingStats(true)
+      
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        logger.error('Error getting session for stats:', sessionError)
+        return
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/user/subscription-stats`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json() as ErrorResponse
+        logger.error('Failed to fetch subscription stats:', errorData.error)
+        return
+      }
+
+      const data = await response.json() as SubscriptionStatsResponse
+      
+      if (data.success) {
+        setSubscriptionCount(data.active_count)
+        logger.info(`User has ${data.active_count} active subscriptions`)
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.error('Error fetching subscription stats:', errorMessage)
+    } finally {
+      if (isMounted.current) {
+        setLoadingStats(false)
+      }
+    }
+  }
+
+  // Fetch subscription stats on component mount (separate from Spotify sync)
+  useEffect(() => {
+    if (user) {
+      void fetchSubscriptionStats()
+    }
+  }, [user])
 
   // Sync Spotify tokens on component mount
   useEffect(() => {
