@@ -125,6 +125,14 @@ export interface UserSpotifyTokens {
   user_id?: string
 }
 
+// User subscription stats API types
+export interface SubscriptionStatsResponse extends ApiResponse {
+  success: true
+  active_count: number
+  inactive_count: number
+  total_count: number
+}
+
 // Authentication API types
 export interface AuthTokenRequest {
   email: string
