@@ -4,28 +4,16 @@ import request from 'supertest'
 import userStatsRouter from '../userStats.js'
 import type { SubscriptionStatsResponse } from '@listener/shared'
 
-// Mock the auth middleware
-vi.mock('../../middleware/auth.js', () => ({
-  requireAuth: vi.fn((req: any, res: any, next: any) => {
-    // Default: authenticated user
-    req.user = { id: 'test-user-id' }
-    next()
-  })
-}))
-
 // Mock the Supabase client
+const mockGetUser = vi.fn()
+const mockFrom = vi.fn()
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          is: vi.fn(() => Promise.resolve({
-            data: null,
-            error: null
-          }))
-        }))
-      }))
-    }))
+    auth: {
+      getUser: mockGetUser
+    },
+    from: mockFrom
   }))
 }))
 
@@ -39,9 +27,6 @@ vi.mock('../../lib/logger.js', () => ({
   }
 }))
 
-import { requireAuth } from '../../middleware/auth.js'
-import { createClient } from '@supabase/supabase-js'
-
 describe('userStats route', () => {
   let app: express.Application
 
@@ -50,6 +35,10 @@ describe('userStats route', () => {
     app.use(express.json())
     app.use('/api/user', userStatsRouter)
     vi.clearAllMocks()
+    
+    // Set up environment variables for tests
+    process.env.SUPABASE_URL = 'https://test.supabase.co'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key'
   })
 
   afterEach(() => {
@@ -58,6 +47,12 @@ describe('userStats route', () => {
 
   describe('GET /api/user/subscription-stats', () => {
     it('should return subscription stats for authenticated user', async () => {
+      // Mock successful auth
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+        error: null
+      })
+
       // Mock Supabase response with test data
       const mockData = [
         { status: 'active' },
@@ -66,23 +61,20 @@ describe('userStats route', () => {
         { status: 'inactive' }
       ]
 
-      const mockSupabase = {
-        from: vi.fn(() => ({
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              is: vi.fn(() => Promise.resolve({
-                data: mockData,
-                error: null
-              }))
+      mockFrom.mockReturnValue({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            is: vi.fn(() => Promise.resolve({
+              data: mockData,
+              error: null
             }))
           }))
         }))
-      }
-
-      vi.mocked(createClient).mockReturnValue(mockSupabase as any)
+      })
 
       const response = await request(app)
         .get('/api/user/subscription-stats')
+        .set('Authorization', 'Bearer test-token')
         .expect(200)
 
       const body = response.body as SubscriptionStatsResponse
@@ -93,24 +85,27 @@ describe('userStats route', () => {
     })
 
     it('should return zeros for user with no subscriptions', async () => {
-      // Mock Supabase response with empty data
-      const mockSupabase = {
-        from: vi.fn(() => ({
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              is: vi.fn(() => Promise.resolve({
-                data: [],
-                error: null
-              }))
+      // Mock successful auth
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+        error: null
+      })
+
+      // Mock empty data
+      mockFrom.mockReturnValue({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            is: vi.fn(() => Promise.resolve({
+              data: [],
+              error: null
             }))
           }))
         }))
-      }
-
-      vi.mocked(createClient).mockReturnValue(mockSupabase as any)
+      })
 
       const response = await request(app)
         .get('/api/user/subscription-stats')
+        .set('Authorization', 'Bearer test-token')
         .expect(200)
 
       const body = response.body as SubscriptionStatsResponse
@@ -121,61 +116,63 @@ describe('userStats route', () => {
     })
 
     it('should return 401 for unauthenticated request', async () => {
-      // Mock requireAuth to simulate unauthenticated user
-      vi.mocked(requireAuth).mockImplementation((req: any, res: any) => {
-        res.status(401).json({ error: 'Unauthorized' })
-      })
-
+      // No authorization header provided
       const response = await request(app)
         .get('/api/user/subscription-stats')
         .expect(401)
 
-      expect(response.body.error).toBe('Unauthorized')
+      expect(response.body.error).toBe('Not authenticated')
     })
 
     it('should handle database errors gracefully', async () => {
-      // Mock Supabase error
-      const mockSupabase = {
-        from: vi.fn(() => ({
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              is: vi.fn(() => Promise.resolve({
-                data: null,
-                error: { message: 'Database connection failed' }
-              }))
+      // Mock successful auth
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+        error: null
+      })
+
+      // Mock database error
+      mockFrom.mockReturnValue({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            is: vi.fn(() => Promise.resolve({
+              data: null,
+              error: { message: 'Database connection failed' }
             }))
           }))
         }))
-      }
-
-      vi.mocked(createClient).mockReturnValue(mockSupabase as any)
+      })
 
       const response = await request(app)
         .get('/api/user/subscription-stats')
+        .set('Authorization', 'Bearer test-token')
         .expect(500)
 
       expect(response.body.error).toBe('Failed to fetch subscription statistics')
     })
 
     it('should handle null data from database', async () => {
-      // Mock Supabase response with null data
-      const mockSupabase = {
-        from: vi.fn(() => ({
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              is: vi.fn(() => Promise.resolve({
-                data: null,
-                error: null
-              }))
+      // Mock successful auth
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+        error: null
+      })
+
+      // Mock null data
+      mockFrom.mockReturnValue({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            is: vi.fn(() => Promise.resolve({
+              data: null,
+              error: null
             }))
           }))
         }))
-      }
-
-      vi.mocked(createClient).mockReturnValue(mockSupabase as any)
+      })
 
       const response = await request(app)
         .get('/api/user/subscription-stats')
+        .set('Authorization', 'Bearer test-token')
         .expect(200)
 
       const body = response.body as SubscriptionStatsResponse
@@ -185,18 +182,38 @@ describe('userStats route', () => {
       expect(body.total_count).toBe(0)
     })
 
-    it('should handle user without id', async () => {
-      // Mock requireAuth to pass through but without user id
-      vi.mocked(requireAuth).mockImplementation((req: any, res: any, next: any) => {
-        req.user = {} // User object without id
-        next()
+    it('should handle auth errors', async () => {
+      // Mock auth error
+      mockGetUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'Invalid token' }
       })
 
       const response = await request(app)
         .get('/api/user/subscription-stats')
+        .set('Authorization', 'Bearer invalid-token')
         .expect(401)
 
-      expect(response.body.error).toBe('User not authenticated')
+      expect(response.body.error).toBe('User authentication failed')
+    })
+
+    it('should handle missing environment variables', async () => {
+      // Temporarily remove env vars
+      const originalUrl = process.env.SUPABASE_URL
+      const originalKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      delete process.env.SUPABASE_URL
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY
+
+      const response = await request(app)
+        .get('/api/user/subscription-stats')
+        .set('Authorization', 'Bearer test-token')
+        .expect(401)
+
+      expect(response.body.error).toBe('User authentication failed')
+
+      // Restore env vars
+      process.env.SUPABASE_URL = originalUrl
+      process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey
     })
   })
 })
