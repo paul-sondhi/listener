@@ -620,7 +620,7 @@ export async function generateNewsletterEdition(
       ],
       generationConfig: {
         temperature: overrides.temperature || 0.4, // Slightly higher for creative newsletter content
-        maxOutputTokens: overrides.maxOutputTokens ?? 16384, // Increased token limit to prevent truncation
+        maxOutputTokens: overrides.maxOutputTokens ?? 32768, // Doubled token limit to handle users with many episodes
         topP: 0.9,
         topK: 40
       }
