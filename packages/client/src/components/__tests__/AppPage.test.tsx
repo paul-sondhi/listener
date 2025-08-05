@@ -322,7 +322,7 @@ describe('AppPage Component', () => {
 
 
   describe('Subscription Stats', () => {
-    it('should fetch and display subscription stats on mount', async () => {
+    it('should fetch and display subscription stats on mount and show in UI', async () => {
       // Arrange: Set up authenticated user and mock session
       const mockUser: User = {
         id: 'test-user-id',
@@ -393,6 +393,16 @@ describe('AppPage Component', () => {
           })
         )
       })
+
+      // Verify the subscription count is displayed in the UI
+      await waitFor(() => {
+        const subscriptionText = screen.getByText(/subscribed to/i)
+        expect(subscriptionText).toBeInTheDocument()
+        const countElement = screen.getByText('12')
+        expect(countElement).toBeInTheDocument()
+        const podcastsText = screen.getByText(/podcasts/i)
+        expect(podcastsText).toBeInTheDocument()
+      })
     })
 
     it('should handle subscription stats fetch errors gracefully', async () => {
@@ -462,6 +472,80 @@ describe('AppPage Component', () => {
 
       // Component should still render despite error
       expect(screen.getByText("You're in!")).toBeInTheDocument()
+    })
+
+    it('should show loading state while fetching subscription stats', async () => {
+      // Arrange: Set up authenticated user and mock session
+      const mockUser: User = {
+        id: 'test-user-id',
+        email: 'test@example.com',
+        created_at: '2024-01-01',
+        updated_at: '2024-01-01',
+        aud: 'authenticated',
+        role: 'authenticated',
+        app_metadata: { provider: 'spotify' },
+        user_metadata: {}
+      }
+
+      const mockSession: Session = {
+        access_token: 'mock-access-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        refresh_token: 'mock-refresh-token',
+        user: mockUser,
+        provider_token: 'mock-spotify-token',
+        provider_refresh_token: 'mock-spotify-refresh',
+        expires_at: Date.now() + 3600000
+      }
+
+      mockGetSession.mockResolvedValue({
+        data: { session: mockSession },
+        error: null
+      })
+
+      mockUseAuth.mockReturnValue({
+        user: mockUser,
+        loading: false,
+        requiresReauth: false,
+        checkingReauth: false,
+        signOut: vi.fn(),
+        checkReauthStatus: vi.fn(),
+        clearReauthFlag: vi.fn(),
+      })
+
+      // Mock fetch with a delay to see loading state
+      mockFetch.mockReset()
+      mockFetch.mockImplementation(() => 
+        new Promise(resolve => 
+          setTimeout(() => 
+            resolve({
+              ok: true,
+              json: async () => ({
+                success: true,
+                active_count: 5,
+                inactive_count: 0,
+                total_count: 5
+              }),
+              text: async () => '{"success": true, "active_count": 5, "inactive_count": 0, "total_count": 5}'
+            } as Response), 100
+          )
+        )
+      )
+
+      // Act: Render the component
+      render(
+        <MemoryRouter>
+          <AppPage />
+        </MemoryRouter>
+      )
+
+      // Assert: Check for loading state initially
+      expect(screen.getByText(/loading subscriptions/i)).toBeInTheDocument()
+
+      // Wait for the stats to load
+      await waitFor(() => {
+        expect(screen.queryByText(/loading subscriptions/i)).not.toBeInTheDocument()
+      })
     })
 
     it('should not fetch subscription stats when user is not authenticated', async () => {
