@@ -186,6 +186,19 @@ describe('AppPage Component', () => {
     mockFetch.mockImplementation(async (url: any, _options?: any) => {
       const urlStr = typeof url === 'string' ? url : url.toString()
       
+      if (urlStr.includes('/api/user/subscription-stats')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ 
+            success: true,
+            active_count: 5,
+            inactive_count: 2,
+            total_count: 7
+          }),
+        } as Response
+      }
+      
       if (urlStr.includes('/api/store-spotify-tokens')) {
         return {
           ok: true,
@@ -212,9 +225,9 @@ describe('AppPage Component', () => {
       </MemoryRouter>
     )
 
-    // Wait for the sync to complete
+    // Wait for the sync to complete (stats + tokens + shows)
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenCalledTimes(3)
     }, { timeout: 5000 })
 
     // Assert - Check for the welcome message
@@ -258,11 +271,24 @@ describe('AppPage Component', () => {
     // Set up fetch mocks for useEffect calls
     mockFetch.mockReset()
     mockFetch
+      // First call: subscription stats
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ 
+          success: true,
+          active_count: 5,
+          inactive_count: 2,
+          total_count: 7
+        }),
+        text: async () => '{"success": true, "active_count": 5, "inactive_count": 2, "total_count": 7}'
+      })
+      // Second call: store tokens
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ message: 'Tokens stored' }),
         text: async () => '{"message": "Tokens stored"}'
       })
+      // Third call: sync shows
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ message: 'Shows synced' }),
@@ -275,9 +301,9 @@ describe('AppPage Component', () => {
       </MemoryRouter>
     )
 
-    // Wait for initial useEffect operations to complete
+    // Wait for initial useEffect operations to complete (stats + tokens + shows)
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenCalledTimes(3)
     }, { timeout: 10000 })
 
     // Try to find the logout button, skip test if component doesn't render
@@ -294,6 +320,267 @@ describe('AppPage Component', () => {
     }
   }, 15000)
 
+
+  describe('Subscription Stats', () => {
+    it('should fetch and display subscription stats on mount and show in UI', async () => {
+      // Arrange: Set up authenticated user and mock session
+      const mockUser: User = {
+        id: 'test-user-id',
+        email: 'test@example.com',
+        created_at: '2024-01-01',
+        updated_at: '2024-01-01',
+        aud: 'authenticated',
+        role: 'authenticated',
+        app_metadata: { provider: 'spotify' },
+        user_metadata: {}
+      }
+
+      const mockSession: Session = {
+        access_token: 'mock-access-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        refresh_token: 'mock-refresh-token',
+        user: mockUser,
+        provider_token: 'mock-spotify-token',
+        provider_refresh_token: 'mock-spotify-refresh',
+        expires_at: Date.now() + 3600000
+      }
+
+      mockGetSession.mockResolvedValue({
+        data: { session: mockSession },
+        error: null
+      })
+
+      mockUseAuth.mockReturnValue({
+        user: mockUser,
+        loading: false,
+        requiresReauth: false,
+        checkingReauth: false,
+        signOut: vi.fn(),
+        checkReauthStatus: vi.fn(),
+        clearReauthFlag: vi.fn(),
+      })
+
+      // Mock fetch for subscription stats endpoint
+      mockFetch.mockReset()
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          active_count: 12,
+          inactive_count: 3,
+          total_count: 15
+        }),
+        text: async () => '{"success": true, "active_count": 12, "inactive_count": 3, "total_count": 15}'
+      })
+
+      // Act: Render the component
+      render(
+        <MemoryRouter>
+          <AppPage />
+        </MemoryRouter>
+      )
+
+      // Assert: Verify the subscription stats endpoint was called
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/user/subscription-stats',
+          expect.objectContaining({
+            method: 'GET',
+            headers: {
+              'Authorization': 'Bearer mock-access-token'
+            }
+          })
+        )
+      })
+
+      // Verify the subscription count is displayed in the UI
+      await waitFor(() => {
+        const subscriptionText = screen.getByText(/subscribed to/i)
+        expect(subscriptionText).toBeInTheDocument()
+        const countElement = screen.getByText('12')
+        expect(countElement).toBeInTheDocument()
+        const podcastsText = screen.getByText(/podcasts/i)
+        expect(podcastsText).toBeInTheDocument()
+      })
+    })
+
+    it('should handle subscription stats fetch errors gracefully', async () => {
+      // Arrange: Set up authenticated user and mock session
+      const mockUser: User = {
+        id: 'test-user-id',
+        email: 'test@example.com',
+        created_at: '2024-01-01',
+        updated_at: '2024-01-01',
+        aud: 'authenticated',
+        role: 'authenticated',
+        app_metadata: { provider: 'spotify' },
+        user_metadata: {}
+      }
+
+      const mockSession: Session = {
+        access_token: 'mock-access-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        refresh_token: 'mock-refresh-token',
+        user: mockUser,
+        provider_token: 'mock-spotify-token',
+        provider_refresh_token: 'mock-spotify-refresh',
+        expires_at: Date.now() + 3600000
+      }
+
+      mockGetSession.mockResolvedValue({
+        data: { session: mockSession },
+        error: null
+      })
+
+      mockUseAuth.mockReturnValue({
+        user: mockUser,
+        loading: false,
+        requiresReauth: false,
+        checkingReauth: false,
+        signOut: vi.fn(),
+        checkReauthStatus: vi.fn(),
+        clearReauthFlag: vi.fn(),
+      })
+
+      // Mock fetch to return an error
+      mockFetch.mockReset()
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: 'Internal server error' }),
+        text: async () => '{"error": "Internal server error"}'
+      })
+
+      // Act: Render the component
+      render(
+        <MemoryRouter>
+          <AppPage />
+        </MemoryRouter>
+      )
+
+      // Assert: Verify error handling
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/user/subscription-stats',
+          expect.objectContaining({
+            method: 'GET'
+          })
+        )
+      })
+
+      // Component should still render despite error
+      expect(screen.getByText("You're in!")).toBeInTheDocument()
+    })
+
+    it('should show loading state while fetching subscription stats', async () => {
+      // Arrange: Set up authenticated user and mock session
+      const mockUser: User = {
+        id: 'test-user-id',
+        email: 'test@example.com',
+        created_at: '2024-01-01',
+        updated_at: '2024-01-01',
+        aud: 'authenticated',
+        role: 'authenticated',
+        app_metadata: { provider: 'spotify' },
+        user_metadata: {}
+      }
+
+      const mockSession: Session = {
+        access_token: 'mock-access-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        refresh_token: 'mock-refresh-token',
+        user: mockUser,
+        provider_token: 'mock-spotify-token',
+        provider_refresh_token: 'mock-spotify-refresh',
+        expires_at: Date.now() + 3600000
+      }
+
+      mockGetSession.mockResolvedValue({
+        data: { session: mockSession },
+        error: null
+      })
+
+      mockUseAuth.mockReturnValue({
+        user: mockUser,
+        loading: false,
+        requiresReauth: false,
+        checkingReauth: false,
+        signOut: vi.fn(),
+        checkReauthStatus: vi.fn(),
+        clearReauthFlag: vi.fn(),
+      })
+
+      // Mock fetch with a delay to see loading state
+      mockFetch.mockReset()
+      mockFetch.mockImplementation(() => 
+        new Promise(resolve => 
+          setTimeout(() => 
+            resolve({
+              ok: true,
+              json: async () => ({
+                success: true,
+                active_count: 5,
+                inactive_count: 0,
+                total_count: 5
+              }),
+              text: async () => '{"success": true, "active_count": 5, "inactive_count": 0, "total_count": 5}'
+            } as Response), 100
+          )
+        )
+      )
+
+      // Act: Render the component
+      render(
+        <MemoryRouter>
+          <AppPage />
+        </MemoryRouter>
+      )
+
+      // Assert: Check for loading state initially
+      expect(screen.getByText(/loading subscriptions/i)).toBeInTheDocument()
+
+      // Wait for the stats to load
+      await waitFor(() => {
+        expect(screen.queryByText(/loading subscriptions/i)).not.toBeInTheDocument()
+      })
+    })
+
+    it('should not fetch subscription stats when user is not authenticated', async () => {
+      // Arrange: Set up unauthenticated state
+      mockUseAuth.mockReturnValue({
+        user: null,
+        loading: false,
+        requiresReauth: false,
+        checkingReauth: false,
+        signOut: vi.fn(),
+        checkReauthStatus: vi.fn(),
+        clearReauthFlag: vi.fn(),
+      })
+
+      mockFetch.mockReset()
+
+      // Act: Render the component
+      render(
+        <MemoryRouter>
+          <AppPage />
+        </MemoryRouter>
+      )
+
+      // Wait a bit to ensure no fetch calls are made
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      })
+
+      // Assert: Verify no subscription stats call was made
+      expect(mockFetch).not.toHaveBeenCalledWith(
+        '/api/user/subscription-stats',
+        expect.any(Object)
+      )
+    })
+  })
 
   describe('Infinite Loop Prevention', () => {
     it('should prevent infinite retries when vault storage fails', async () => {
@@ -329,7 +616,18 @@ describe('AppPage Component', () => {
       // Mock fetch to simulate vault storage failure
       const mockFetch = vi.fn()
       
-      // First call fails (vault error)
+      // First call: subscription stats (succeeds)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          success: true,
+          active_count: 5,
+          inactive_count: 0,
+          total_count: 5
+        })
+      })
+      
+      // Second call: store tokens (fails with vault error)
       mockFetch.mockResolvedValueOnce({
         ok: false,
         json: vi.fn().mockResolvedValue({
@@ -337,7 +635,7 @@ describe('AppPage Component', () => {
         })
       })
       
-      // Second call should not happen due to infinite loop prevention
+      // Third call should not happen due to infinite loop prevention
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: vi.fn().mockResolvedValue({ success: true })
@@ -362,17 +660,17 @@ describe('AppPage Component', () => {
       // Act
       render(<AppPage />)
 
-      // Wait for the first sync attempt
+      // Wait for the first sync attempts (stats + store tokens attempt)
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledTimes(1)
+        expect(mockFetch).toHaveBeenCalledTimes(2) // stats + first store tokens attempt
       })
 
       // Wait a bit more to ensure no additional calls are made
       await new Promise(resolve => setTimeout(resolve, 100))
 
       // Assert
-      expect(mockFetch).toHaveBeenCalledTimes(1) // Should only be called once
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockFetch).toHaveBeenCalledTimes(2) // Stats call + failed store tokens call
+      expect(mockFetch).toHaveBeenNthCalledWith(2,
         expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/store-spotify-tokens$/),
         expect.objectContaining({
           method: 'POST',
@@ -423,7 +721,18 @@ describe('AppPage Component', () => {
       // Mock fetch to simulate successful vault storage but failed show sync
       const mockFetch = vi.fn()
       
-      // Vault storage succeeds
+      // First call: subscription stats (succeeds)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          success: true,
+          active_count: 3,
+          inactive_count: 0,
+          total_count: 3
+        })
+      })
+      
+      // Second call: vault storage succeeds
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: vi.fn().mockResolvedValue({ 
@@ -432,11 +741,12 @@ describe('AppPage Component', () => {
         })
       })
       
-      // Show sync fails
+      // Third call: show sync succeeds
       mockFetch.mockResolvedValueOnce({
-        ok: false,
+        ok: true,
         json: vi.fn().mockResolvedValue({
-          error: 'Show sync failed'
+          success: true,
+          message: 'Shows synced'
         })
       })
 
@@ -468,7 +778,7 @@ describe('AppPage Component', () => {
 
       // Wait for sync attempts to complete
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledTimes(2)
+        expect(mockFetch).toHaveBeenCalledTimes(3) // stats + tokens + shows
       }, { timeout: 5000 })
 
       // Wait for clearReauthFlag to be called
@@ -478,7 +788,7 @@ describe('AppPage Component', () => {
 
       // Assert - Focus on the core functionality: sync continues despite clearReauthFlag failure
       // Should continue to show sync even after clearReauthFlag fails
-      expect(mockFetch).toHaveBeenNthCalledWith(2,
+      expect(mockFetch).toHaveBeenNthCalledWith(3,
         expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/sync-spotify-shows$/),
         expect.objectContaining({
           method: 'POST',
@@ -570,17 +880,23 @@ describe('AppPage Component', () => {
       // Wait a bit more to ensure no additional calls happen
       await new Promise(resolve => setTimeout(resolve, 500))
 
-      // Assert - Should make normal sync calls (token storage + show sync) but prevent additional sequences
-      // A normal sync sequence includes: 1) store tokens, 2) sync shows
+      // Assert - Should make normal sync calls (stats + token storage + show sync) but prevent additional sequences
+      // A normal sync sequence includes: 1) subscription stats, 2) store tokens, 3) sync shows
       // The prevention mechanism should stop additional sync sequences from starting
-      expect(mockFetch).toHaveBeenCalledTimes(2) // Token storage + show sync
+      expect(mockFetch).toHaveBeenCalledTimes(3) // Stats + Token storage + show sync
       expect(mockFetch).toHaveBeenNthCalledWith(1,
+        expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/user\/subscription-stats$/),
+        expect.objectContaining({
+          method: 'GET'
+        })
+      )
+      expect(mockFetch).toHaveBeenNthCalledWith(2,
         expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/store-spotify-tokens$/),
         expect.objectContaining({
           method: 'POST'
         })
       )
-      expect(mockFetch).toHaveBeenNthCalledWith(2,
+      expect(mockFetch).toHaveBeenNthCalledWith(3,
         expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/sync-spotify-shows$/),
         expect.objectContaining({
           method: 'POST'

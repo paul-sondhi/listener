@@ -66,3 +66,5 @@ CLAUDE.md
 prompts/old/
 
 scripts/local/
+
+.mcp.json

@@ -623,6 +623,35 @@ h1 {
   text-decoration: underline;
 }
 
+/* Subscription Stats Styles */
+.subscription-stats {
+  margin: 1rem 0;
+  min-height: 1.5rem;
+}
+
+.stats-loading {
+  color: #666;
+  font-size: 1rem;
+  font-style: italic;
+}
+
+.stats-count {
+  color: black;
+  font-size: 1.1rem;
+  margin: 0.5rem 0;
+}
+
+.stats-count strong {
+  color: #0066CC;
+  font-weight: 600;
+}
+
+.stats-error {
+  color: #999;
+  font-size: 1.1rem;
+  margin: 0.5rem 0;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .opml-upload {

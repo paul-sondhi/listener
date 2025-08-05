@@ -7,6 +7,7 @@ import syncShowsRouter from './syncShows.js';
 import healthRouter from './health.js';
 import adminRouter from './admin.js';
 import opmlUploadRouter from './opmlUpload.js';
+import userStatsRouter from './userStats.js';
 
 // Create router with proper typing
 const router: Router = express.Router();
@@ -18,5 +19,6 @@ router.use('/sync-spotify-shows', syncShowsRouter);    // Spotify show synchroni
 router.use('/healthz', healthRouter);                 // Health check endpoints
 router.use('/admin', adminRouter);                    // Admin and monitoring endpoints
 router.use('/opml-upload', opmlUploadRouter);         // OPML file upload endpoint
+router.use('/user', userStatsRouter);                 // User statistics endpoints
 
 export default router; 
