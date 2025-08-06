@@ -340,23 +340,23 @@ const AppPage = (): React.JSX.Element => {
                 </p>
               ) : subscriptionCount !== null ? (
                 <p className="stats-count">
-                  📚 Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}
+                  🎧 Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}
                 </p>
               ) : (
                 <p className="stats-error">—</p>
               )}
             </div>
             <p>Listener will be delivered to your inbox every day at 12p ET / 9a PT</p>
-            <div className="app-buttons">
-              <OPMLUpload />
-              <button 
-                onClick={() => void handleLogout()} 
-                className="logout-btn"
-                type="button"
-              >
-                Log out
-              </button>
-            </div>
+          </div>
+          <div className="app-buttons">
+            <OPMLUpload />
+            <button 
+              onClick={() => void handleLogout()} 
+              className="logout-btn"
+              type="button"
+            >
+              Log out
+            </button>
           </div>
         </>
       )}
