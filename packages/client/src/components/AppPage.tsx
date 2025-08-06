@@ -40,6 +40,9 @@ const AppPage = (): React.JSX.Element => {
   const [loadingStats, setLoadingStats] = useState<boolean>(true)
   // Start with null to indicate we haven't determined if sync is needed
   const [needsSpotifySync, setNeedsSpotifySync] = useState<boolean | null>(null)
+  // Store user auth provider and email
+  const [authProvider, setAuthProvider] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
   
   // Use ref to track if we've already synced for this user session
   const hasSynced = useRef<boolean>(false)
@@ -108,6 +111,31 @@ const AppPage = (): React.JSX.Element => {
     }
   }
 
+  // Fetch user auth info on component mount
+  useEffect(() => {
+    const fetchUserAuthInfo = async (): Promise<void> => {
+      if (!user) return
+      
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (!error && session) {
+          const provider = session.user?.app_metadata?.provider
+          const email = session.user?.email
+          
+          setAuthProvider(provider || 'unknown')
+          setUserEmail(email || null)
+        }
+      } catch (error) {
+        logger.error('Error fetching user auth info:', error)
+      }
+    }
+    
+    // Only fetch if we don't have the info yet
+    if (user && !authProvider) {
+      void fetchUserAuthInfo()
+    }
+  }, [user, authProvider])
+
   // Fetch subscription stats on component mount (but wait for Spotify sync if needed)
   useEffect(() => {
     // Only fetch if:
@@ -153,6 +181,11 @@ const AppPage = (): React.JSX.Element => {
 
         // Store the auth provider for checking if it's Spotify
         const provider = session.user?.app_metadata?.provider
+        const email = session.user?.email
+        
+        // Set auth provider and email for display
+        setAuthProvider(provider || 'unknown')
+        setUserEmail(email || null)
         
         // Check if this is a Spotify OAuth session
         if (provider !== 'spotify') {
@@ -348,15 +381,38 @@ const AppPage = (): React.JSX.Element => {
             </div>
             <p>Listener will be delivered to your inbox every day at 12p ET / 9a PT</p>
           </div>
-          <div className="app-buttons">
-            <OPMLUpload />
-            <button 
-              onClick={() => void handleLogout()} 
-              className="logout-btn"
-              type="button"
-            >
-              Log out
-            </button>
+          <div className="bottom-section">
+            {/* Authentication info box */}
+            <div className="auth-info-box">
+              {userEmail && (
+                <div className="auth-email">
+                  <span className="auth-label">Email:</span>
+                  <span className="auth-value">{userEmail}</span>
+                </div>
+              )}
+              <div className="auth-provider">
+                <span className="auth-label">Connection:</span>
+                <span className="auth-value">
+                  {authProvider ? (
+                    authProvider.charAt(0).toUpperCase() + authProvider.slice(1)
+                  ) : (
+                    'Loading...'
+                  )}
+                </span>
+              </div>
+            </div>
+            <div className="app-buttons">
+              <OPMLUpload />
+              <div className="logout-btn-container">
+                <button 
+                  onClick={() => void handleLogout()} 
+                  className="logout-btn"
+                  type="button"
+                >
+                  Log out
+                </button>
+              </div>
+            </div>
           </div>
         </>
       )}

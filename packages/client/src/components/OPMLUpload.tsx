@@ -142,7 +142,7 @@ export default function OPMLUpload(): React.JSX.Element {
             className="opml-upload-button"
             type="button"
           >
-            {isUploading ? 'Processing...' : 'Import OPML File'}
+            {isUploading ? 'Processing...' : 'Import OPML file'}
           </button>
         </div>
       )}

@@ -55,7 +55,7 @@ describe('OPMLUpload Component', () => {
   it('renders the upload interface correctly', () => {
     render(<OPMLUpload />)
 
-    expect(screen.getByText('Import OPML File')).toBeInTheDocument()
+    expect(screen.getByText('Import OPML file')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /import opml file/i })).toBeInTheDocument()
   })
 
@@ -340,7 +340,7 @@ describe('OPMLUpload Component', () => {
     fireEvent.click(retryBtn)
 
     // Should show upload interface again
-    expect(screen.getByText('Import OPML File')).toBeInTheDocument()
+    expect(screen.getByText('Import OPML file')).toBeInTheDocument()
     expect(screen.queryByText('Network error')).not.toBeInTheDocument()
   })
 
