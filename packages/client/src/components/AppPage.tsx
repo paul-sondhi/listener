@@ -38,6 +38,8 @@ const AppPage = (): React.JSX.Element => {
   const [isSyncing, setIsSyncing] = useState<boolean>(false)
   const [subscriptionCount, setSubscriptionCount] = useState<number | null>(null)
   const [loadingStats, setLoadingStats] = useState<boolean>(true)
+  // Start with null to indicate we haven't determined if sync is needed
+  const [needsSpotifySync, setNeedsSpotifySync] = useState<boolean | null>(null)
   
   // Use ref to track if we've already synced for this user session
   const hasSynced = useRef<boolean>(false)
@@ -106,13 +108,17 @@ const AppPage = (): React.JSX.Element => {
     }
   }
 
-  // Fetch subscription stats on component mount (separate from Spotify sync)
+  // Fetch subscription stats on component mount (but wait for Spotify sync if needed)
   useEffect(() => {
-    // Only fetch if we don't have a count yet
-    if (user && subscriptionCount === null) {
+    // Only fetch if:
+    // 1. We have a user
+    // 2. We don't have a count yet
+    // 3. We've determined if sync is needed (needsSpotifySync is not null)
+    // 4. Either sync is not needed OR sync is complete
+    if (user && subscriptionCount === null && needsSpotifySync === false) {
       void fetchSubscriptionStats()
     }
-  }, [user, subscriptionCount])
+  }, [user, subscriptionCount, needsSpotifySync])
 
   // Sync Spotify tokens on component mount
   useEffect(() => {
@@ -132,12 +138,14 @@ const AppPage = (): React.JSX.Element => {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         if (sessionError) {
           logger.error('Error getting session:', sessionError)
+          setNeedsSpotifySync(false)
           // Mark as attempted to prevent infinite retries
           hasSynced.current = true
           return
         }
         if (!session) {
           logger.warn('No session found - user needs to log in')
+          setNeedsSpotifySync(false)
           // Mark as attempted to prevent infinite retries
           hasSynced.current = true
           return
@@ -149,6 +157,7 @@ const AppPage = (): React.JSX.Element => {
         // Check if this is a Spotify OAuth session
         if (provider !== 'spotify') {
           logger.info(`User authenticated with ${provider || 'unknown'} provider, skipping Spotify sync`)
+          setNeedsSpotifySync(false)
           // Mark as attempted to prevent infinite retries
           hasSynced.current = true
           return
@@ -177,10 +186,14 @@ const AppPage = (): React.JSX.Element => {
           // Skip token sync if provider tokens are missing (common after session refresh)
           // Users don't return to the app after initial auth, so this is expected behavior
           logger.info('Skipping token sync - provider tokens not available in refreshed session')
+          setNeedsSpotifySync(false) // No sync needed for returning users
           // Mark as attempted to prevent infinite retries
           hasSynced.current = true
           return
         }
+
+        // We have provider tokens - this is likely a new Spotify OAuth callback
+        setNeedsSpotifySync(true)
 
         logger.info('Storing Spotify tokens...')
         const storeResponse: globalThis.Response = await fetch(`${API_BASE_URL}/api/store-spotify-tokens`, {
@@ -202,6 +215,9 @@ const AppPage = (): React.JSX.Element => {
           logger.error('Token storage failed:', errorMessage)
           // CRITICAL: Mark as attempted even on failure to prevent infinite loops
           hasSynced.current = true
+          setNeedsSpotifySync(false) // Don't keep waiting on error
+          // Try to fetch stats anyway
+          await fetchSubscriptionStats()
           return
         }
 
@@ -227,6 +243,9 @@ const AppPage = (): React.JSX.Element => {
           logger.error('Show sync failed:', errorMessage)
           // Mark as attempted since token storage succeeded
           hasSynced.current = true
+          setNeedsSpotifySync(false) // Don't keep waiting on error
+          // Try to fetch stats anyway - user might have existing subscriptions
+          await fetchSubscriptionStats()
           return
         }
 
@@ -242,12 +261,21 @@ const AppPage = (): React.JSX.Element => {
         
         // Mark as successfully synced for this session
         hasSynced.current = true
+        setNeedsSpotifySync(false) // Sync is complete
+        
+        // Now fetch the subscription stats after sync is complete
+        logger.info('Spotify sync completed, now fetching subscription stats...')
+        await fetchSubscriptionStats()
+        
         logger.info('Sync completed successfully, setting isSyncing to false')
       } catch (error: unknown) {
         const errorMessage: string = error instanceof Error ? error.message : 'Unknown error occurred'
         logger.error('Error syncing Spotify tokens or subsequent operations:', errorMessage)
         // CRITICAL: Always mark as attempted to prevent infinite loops
         hasSynced.current = true
+        setNeedsSpotifySync(false) // Even on error, don't keep waiting
+        // Try to fetch stats anyway in case some shows were synced
+        await fetchSubscriptionStats()
       } finally {
         // Always set syncing to false when done
         setIsSyncing(false)
@@ -307,7 +335,9 @@ const AppPage = (): React.JSX.Element => {
             <h1>You're in!</h1>
             <div className="subscription-stats">
               {loadingStats ? (
-                <p className="stats-loading">Loading subscriptions...</p>
+                <p className="stats-loading">
+                  Loading subscriptions<span className="loading-ellipsis"></span>
+                </p>
               ) : subscriptionCount !== null ? (
                 <p className="stats-count">
                   📚 Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}
