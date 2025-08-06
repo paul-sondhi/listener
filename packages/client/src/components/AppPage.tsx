@@ -62,7 +62,6 @@ const AppPage = (): React.JSX.Element => {
    * Fetch subscription statistics for the current user
    */
   const fetchSubscriptionStats = async (): Promise<void> => {
-    console.log('[SUBSCRIPTION STATS] Starting fetch, user:', user?.id)
     if (!user) {
       logger.debug('No user, skipping subscription stats fetch')
       return
@@ -70,17 +69,14 @@ const AppPage = (): React.JSX.Element => {
 
     try {
       setLoadingStats(true)
-      console.log('[SUBSCRIPTION STATS] Set loading to true')
       
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      console.log('[SUBSCRIPTION STATS] Got session:', !!session, 'error:', sessionError)
       if (sessionError || !session) {
         logger.error('Error getting session for stats:', sessionError)
         setLoadingStats(false) // Make sure to stop loading on early return
         return
       }
 
-      console.log('[SUBSCRIPTION STATS] Fetching from:', `${API_BASE_URL}/api/user/subscription-stats`)
       const response = await fetch(`${API_BASE_URL}/api/user/subscription-stats`, {
         method: 'GET',
         headers: {
@@ -88,7 +84,6 @@ const AppPage = (): React.JSX.Element => {
         }
       })
 
-      console.log('[SUBSCRIPTION STATS] Response status:', response.status)
       if (!response.ok) {
         const errorData = await response.json() as ErrorResponse
         logger.error('Failed to fetch subscription stats:', errorData.error)
@@ -97,7 +92,6 @@ const AppPage = (): React.JSX.Element => {
       }
 
       const data = await response.json() as SubscriptionStatsResponse
-      console.log('[SUBSCRIPTION STATS] Response data:', data)
       
       if (data.success) {
         setSubscriptionCount(data.active_count)
@@ -105,22 +99,20 @@ const AppPage = (): React.JSX.Element => {
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      console.error('[SUBSCRIPTION STATS] Caught error:', error)
       logger.error('Error fetching subscription stats:', errorMessage)
     } finally {
-      console.log('[SUBSCRIPTION STATS] Finally block, isMounted:', isMounted.current)
       // Always set loading to false to prevent stuck loading state
       setLoadingStats(false)
-      console.log('[SUBSCRIPTION STATS] Set loading to false')
     }
   }
 
   // Fetch subscription stats on component mount (separate from Spotify sync)
   useEffect(() => {
-    if (user) {
+    // Only fetch if we don't have a count yet
+    if (user && subscriptionCount === null) {
       void fetchSubscriptionStats()
     }
-  }, [user])
+  }, [user, subscriptionCount])
 
   // Sync Spotify tokens on component mount
   useEffect(() => {

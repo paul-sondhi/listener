@@ -87,6 +87,10 @@ export interface SyncShowsResponse extends ApiResponse {
     total_processed: number;
     skipped_count?: number;
     errors?: string[];
+    cached_data?: boolean;
+    last_sync?: string;
+    active_subscriptions?: number;
+    shows?: any[];
 }
 export interface SyncShowsError extends ApiErrorResponse {
     error: string;
@@ -95,6 +99,12 @@ export interface SyncShowsError extends ApiErrorResponse {
 }
 export interface UserSpotifyTokens {
     user_id?: string;
+}
+export interface SubscriptionStatsResponse extends ApiResponse {
+    success: true;
+    active_count: number;
+    inactive_count: number;
+    total_count: number;
 }
 export interface AuthTokenRequest {
     email: string;

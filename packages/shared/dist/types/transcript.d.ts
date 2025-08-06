@@ -3,7 +3,22 @@
  * Mirrors the database schema for the transcripts table
  */
 import { BaseEntity } from './common.js';
-export type TranscriptStatus = 'full' | 'partial' | 'processing' | 'no_transcript_found' | 'no_match' | 'error';
+/**
+ * Valid transcript status values matching new database constraints
+ * - full: Complete transcript stored
+ * - partial: Incomplete transcript stored (still usable)
+ * - processing: Transcript generation in progress (poll later)
+ * - no_transcript_found: Episode exists but no transcript available yet
+ * - no_match: Episode (or series) not found in Taddy database
+ * - error: Processing failed due to system/API error (see error_details column)
+ * - not_found: Internal status from Taddy API (mapped to no_transcript_found before DB storage)
+ */
+export type TranscriptStatus = 'full' | 'partial' | 'processing' | 'no_transcript_found' | 'no_match' | 'error' | 'not_found';
+/**
+ * Valid transcript source values
+ * Indicates which service provided the transcript
+ */
+export type TranscriptSource = 'taddy' | 'podcaster' | 'deepgram';
 export interface Transcript extends BaseEntity {
     id: string;
     episode_id: string;
@@ -11,6 +26,7 @@ export interface Transcript extends BaseEntity {
     initial_status: TranscriptStatus;
     current_status: TranscriptStatus;
     word_count: number | null;
+    source: TranscriptSource | null;
     error_details?: string | null;
     created_at: string;
     updated_at: string;
