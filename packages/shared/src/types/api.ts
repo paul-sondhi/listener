@@ -131,6 +131,13 @@ export interface SubscriptionStatsResponse extends ApiResponse {
   active_count: number
   inactive_count: number
   total_count: number
+  shows?: Array<{
+    id: string
+    name: string
+    status: 'active' | 'inactive'
+  }>
+  page?: number
+  total_pages?: number
 }
 
 // Authentication API types

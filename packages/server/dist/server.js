@@ -12590,7 +12590,7 @@ router7.get("/subscription-stats", async (req, res) => {
       token = req.headers.authorization.split(" ")[1];
     }
     if (!token) {
-      globalLogger.error("No access token found in cookie or Authorization header");
+      globalLogger.error("auth", "No access token found in cookie or Authorization header");
       res.status(401).json({
         success: false,
         error: "Not authenticated"
@@ -12599,7 +12599,7 @@ router7.get("/subscription-stats", async (req, res) => {
     }
     const { data: { user }, error: authError } = await getSupabaseAdmin7().auth.getUser(token);
     if (authError || !user) {
-      globalLogger.error("User authentication failed:", authError?.message);
+      globalLogger.error("auth", "User authentication failed", { error: authError?.message });
       res.status(401).json({
         success: false,
         error: "User authentication failed"
@@ -12607,27 +12607,61 @@ router7.get("/subscription-stats", async (req, res) => {
       return;
     }
     const userId = user.id;
-    globalLogger.info(`Fetching subscription stats for user: ${userId}`);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+    globalLogger.info("database", "Fetching subscription stats", { metadata: { userId, page, limit } });
     const supabase4 = getSupabaseAdmin7();
-    const { data, error } = await supabase4.from("user_podcast_subscriptions").select("status").eq("user_id", userId).is("deleted_at", null);
-    if (error) {
-      globalLogger.error("Error fetching subscription stats:", error);
+    const { data: countData, error: countError } = await supabase4.from("user_podcast_subscriptions").select("status").eq("user_id", userId).is("deleted_at", null);
+    if (countError) {
+      globalLogger.error("database", "Error fetching subscription counts", { error: countError.message });
       res.status(500).json({ error: "Failed to fetch subscription statistics" });
       return;
     }
-    const activeCount = data?.filter((sub) => sub.status === "active").length || 0;
-    const inactiveCount = data?.filter((sub) => sub.status === "inactive").length || 0;
+    const activeCount = countData?.filter((sub) => sub.status === "active").length || 0;
+    const inactiveCount = countData?.filter((sub) => sub.status === "inactive").length || 0;
     const totalCount = activeCount + inactiveCount;
+    const { data: showsData, error: showsError } = await supabase4.from("user_podcast_subscriptions").select(`
+        id,
+        status,
+        show_id,
+        podcast_shows!inner(
+          id,
+          name
+        )
+      `).eq("user_id", userId).is("deleted_at", null).order("name", { foreignTable: "podcast_shows", ascending: true }).range(offset, offset + limit - 1);
+    if (showsError) {
+      globalLogger.error("database", "Error fetching subscription details", { error: showsError.message });
+      res.status(500).json({ error: "Failed to fetch subscription details" });
+      return;
+    }
+    const shows = showsData?.map((sub) => ({
+      id: sub.show_id,
+      name: sub.podcast_shows?.name || "Unknown Podcast",
+      status: sub.status
+    })) || [];
+    const totalPages = Math.ceil(totalCount / limit);
     const response = {
       active_count: activeCount,
       inactive_count: inactiveCount,
       total_count: totalCount,
+      shows,
+      page,
+      total_pages: totalPages,
       success: true
     };
-    globalLogger.info(`User ${userId} has ${activeCount} active and ${inactiveCount} inactive subscriptions`);
+    globalLogger.info("database", "User subscription stats fetched", {
+      metadata: {
+        userId,
+        activeCount,
+        inactiveCount,
+        page,
+        totalPages
+      }
+    });
     res.json(response);
   } catch (error) {
-    globalLogger.error("Unexpected error in subscription-stats endpoint:", error);
+    globalLogger.error("system", "Unexpected error in subscription-stats endpoint", { metadata: { error } });
     res.status(500).json({ error: "An unexpected error occurred" });
   }
 });
