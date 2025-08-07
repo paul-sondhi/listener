@@ -49,6 +49,7 @@ const AppPage = (): React.JSX.Element => {
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [totalPages, setTotalPages] = useState<number>(1)
   const [showsError, setShowsError] = useState<string | null>(null)
+  const [loadingPage, setLoadingPage] = useState<boolean>(false)
   
   // Use ref to track if we've already synced for this user session
   const hasSynced = useRef<boolean>(false)
@@ -79,7 +80,12 @@ const AppPage = (): React.JSX.Element => {
     }
 
     try {
-      setLoadingStats(true)
+      // Only show full loading state on initial load
+      if (subscriptionCount === null) {
+        setLoadingStats(true)
+      } else {
+        setLoadingPage(true)
+      }
       setShowsError(null)
       
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
@@ -120,6 +126,7 @@ const AppPage = (): React.JSX.Element => {
     } finally {
       // Always set loading to false to prevent stuck loading state
       setLoadingStats(false)
+      setLoadingPage(false)
     }
   }
 
@@ -378,6 +385,7 @@ const AppPage = (): React.JSX.Element => {
         <>
           <div className="user-info">
             <h1>You're in!</h1>
+            <p>Listener will be delivered to your inbox every day at 12p ET / 9a PT</p>
             <div className="subscription-stats">
               {loadingStats ? (
                 <p className="stats-loading">
@@ -394,7 +402,7 @@ const AppPage = (): React.JSX.Element => {
                     Retry
                   </button>
                 </div>
-              ) : shows.length > 0 ? (
+              ) : subscriptionCount !== null ? (
                 <>
                   <div className="podcast-list">
                     <div className="list-header">
@@ -402,15 +410,28 @@ const AppPage = (): React.JSX.Element => {
                         🎧 Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}
                       </p>
                     </div>
-                    <div className="shows-container">
-                      {shows.map((show) => (
-                        <div key={show.id} className="show-item">
-                          <span className="show-name">{show.name}</span>
-                          {show.status === 'inactive' && (
-                            <span className="show-status inactive">Inactive</span>
-                          )}
+                    <div className={`shows-container ${loadingPage ? 'loading-page' : ''}`}>
+                      {loadingPage ? (
+                        <div className="page-loading">
+                          <div className="loading-spinner"></div>
+                          <p>Loading page {currentPage}...</p>
                         </div>
-                      ))}
+                      ) : shows.length > 0 ? (
+                        <div className="shows-list-wrapper">
+                          {shows.map((show) => (
+                            <div key={show.id} className="show-item">
+                              <span className="show-name">{show.name}</span>
+                              {show.status === 'inactive' && (
+                                <span className="show-status inactive">Inactive</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="no-shows-page">
+                          <p>No podcasts to display</p>
+                        </div>
+                      )}
                     </div>
                     {totalPages > 1 && (
                       <div className="pagination-controls">
@@ -420,7 +441,7 @@ const AppPage = (): React.JSX.Element => {
                             setCurrentPage(newPage)
                             void fetchSubscriptionStats(newPage)
                           }}
-                          disabled={currentPage === 1}
+                          disabled={currentPage === 1 || loadingPage}
                           className="pagination-btn"
                           type="button"
                         >
@@ -435,7 +456,7 @@ const AppPage = (): React.JSX.Element => {
                             setCurrentPage(newPage)
                             void fetchSubscriptionStats(newPage)
                           }}
-                          disabled={currentPage === totalPages}
+                          disabled={currentPage === totalPages || loadingPage}
                           className="pagination-btn"
                           type="button"
                         >
@@ -445,15 +466,10 @@ const AppPage = (): React.JSX.Element => {
                     )}
                   </div>
                 </>
-              ) : subscriptionCount === 0 ? (
-                <p className="no-podcasts">
-                  No podcast subscriptions yet. Connect your Spotify account to get started!
-                </p>
               ) : (
                 <p className="stats-error">—</p>
               )}
             </div>
-            <p>Listener will be delivered to your inbox every day at 12p ET / 9a PT</p>
           </div>
           <div className="bottom-section">
             {/* Authentication info box */}
