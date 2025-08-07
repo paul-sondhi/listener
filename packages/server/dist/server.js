@@ -12621,25 +12621,40 @@ router7.get("/subscription-stats", async (req, res) => {
     const activeCount = countData?.filter((sub) => sub.status === "active").length || 0;
     const inactiveCount = countData?.filter((sub) => sub.status === "inactive").length || 0;
     const totalCount = activeCount + inactiveCount;
-    const { data: showsData, error: showsError } = await supabase4.from("user_podcast_subscriptions").select(`
-        id,
-        status,
-        show_id,
-        podcast_shows!inner(
-          id,
-          name
-        )
-      `).eq("user_id", userId).is("deleted_at", null).order("name", { foreignTable: "podcast_shows", ascending: true }).range(offset, offset + limit - 1);
-    if (showsError) {
-      globalLogger.error("database", "Error fetching subscription details", { error: showsError.message });
-      res.status(500).json({ error: "Failed to fetch subscription details" });
+    const { data: subscriptions, error: subsError } = await supabase4.from("user_podcast_subscriptions").select("*").eq("user_id", userId).is("deleted_at", null);
+    if (subsError) {
+      globalLogger.error("database", "Error fetching subscriptions", { error: subsError.message });
+      res.status(500).json({ error: "Failed to fetch subscriptions" });
       return;
     }
-    const shows = showsData?.map((sub) => ({
+    if (!subscriptions || subscriptions.length === 0) {
+      const response2 = {
+        active_count: 0,
+        inactive_count: 0,
+        total_count: 0,
+        shows: [],
+        page: 1,
+        total_pages: 0,
+        success: true
+      };
+      res.json(response2);
+      return;
+    }
+    const showIds = subscriptions.map((sub) => sub.show_id);
+    const { data: podcastShows, error: showsError } = await supabase4.from("podcast_shows").select("id, title").in("id", showIds);
+    if (showsError) {
+      globalLogger.error("database", "Error fetching podcast shows", { error: showsError.message });
+      res.status(500).json({ error: "Failed to fetch podcast details" });
+      return;
+    }
+    const showMap = new Map(podcastShows?.map((show) => [show.id, show.title]) || []);
+    const allShows = subscriptions.map((sub) => ({
       id: sub.show_id,
-      name: sub.podcast_shows?.name || "Unknown Podcast",
+      name: showMap.get(sub.show_id) || "Unknown Podcast",
       status: sub.status
-    })) || [];
+    }));
+    allShows.sort((a, b) => a.name.localeCompare(b.name));
+    const shows = allShows.slice(offset, offset + limit);
     const totalPages = Math.ceil(totalCount / limit);
     const response = {
       active_count: activeCount,

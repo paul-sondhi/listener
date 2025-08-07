@@ -386,7 +386,13 @@ describe('AppPage Component', () => {
           success: true,
           active_count: 12,
           inactive_count: 3,
-          total_count: 15
+          total_count: 15,
+          shows: [
+            { id: 'show-1', name: 'Podcast A', status: 'active' },
+            { id: 'show-2', name: 'Podcast B', status: 'active' }
+          ],
+          page: 1,
+          total_pages: 1
         }),
         text: async () => '{"success": true, "active_count": 12, "inactive_count": 3, "total_count": 15}'
       })
@@ -401,7 +407,7 @@ describe('AppPage Component', () => {
       // Assert: Verify the subscription stats endpoint was called
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
-          '/api/user/subscription-stats',
+          '/api/user/subscription-stats?page=1&limit=50',
           expect.objectContaining({
             method: 'GET',
             headers: {
@@ -463,6 +469,13 @@ describe('AppPage Component', () => {
 
       // Mock fetch to return an error
       mockFetch.mockReset()
+      // First: store tokens succeeds
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ message: 'Tokens stored' }),
+        text: async () => '{"message": "Tokens stored"}'
+      })
+      // Second: subscription stats fails
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -480,7 +493,7 @@ describe('AppPage Component', () => {
       // Assert: Verify error handling
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
-          '/api/user/subscription-stats',
+          '/api/user/subscription-stats?page=1&limit=50',
           expect.objectContaining({
             method: 'GET'
           })
@@ -763,7 +776,10 @@ describe('AppPage Component', () => {
           success: true,
           active_count: 3,
           inactive_count: 0,
-          total_count: 3
+          total_count: 3,
+          shows: [],
+          page: 1,
+          total_pages: 0
         })
       })
 
@@ -921,7 +937,7 @@ describe('AppPage Component', () => {
         })
       )
       expect(mockFetch).toHaveBeenNthCalledWith(3,
-        expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/user\/subscription-stats$/),
+        expect.stringMatching(/(?:https:\/\/listener-api\.onrender\.com)?\/api\/user\/subscription-stats\?page=1&limit=50$/),
         expect.objectContaining({
           method: 'GET'
         })

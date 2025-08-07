@@ -44,6 +44,12 @@ const AppPage = (): React.JSX.Element => {
   const [authProvider, setAuthProvider] = useState<string | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   
+  // New state for podcast list display
+  const [shows, setShows] = useState<Array<{id: string, name: string, status: 'active' | 'inactive'}>>([])
+  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [totalPages, setTotalPages] = useState<number>(1)
+  const [showsError, setShowsError] = useState<string | null>(null)
+  
   // Use ref to track if we've already synced for this user session
   const hasSynced = useRef<boolean>(false)
 
@@ -66,7 +72,7 @@ const AppPage = (): React.JSX.Element => {
   /**
    * Fetch subscription statistics for the current user
    */
-  const fetchSubscriptionStats = async (): Promise<void> => {
+  const fetchSubscriptionStats = async (page: number = 1): Promise<void> => {
     if (!user) {
       logger.debug('No user, skipping subscription stats fetch')
       return
@@ -74,6 +80,7 @@ const AppPage = (): React.JSX.Element => {
 
     try {
       setLoadingStats(true)
+      setShowsError(null)
       
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       if (sessionError || !session) {
@@ -82,7 +89,7 @@ const AppPage = (): React.JSX.Element => {
         return
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/user/subscription-stats`, {
+      const response = await fetch(`${API_BASE_URL}/api/user/subscription-stats?page=${page}&limit=50`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
@@ -92,6 +99,7 @@ const AppPage = (): React.JSX.Element => {
       if (!response.ok) {
         const errorData = await response.json() as ErrorResponse
         logger.error('Failed to fetch subscription stats:', errorData.error)
+        setShowsError('Failed to load podcast list. Please try again.')
         setLoadingStats(false) // Make sure to stop loading on error
         return
       }
@@ -100,11 +108,15 @@ const AppPage = (): React.JSX.Element => {
       
       if (data.success) {
         setSubscriptionCount(data.active_count)
-        logger.info(`User has ${data.active_count} active subscriptions`)
+        setShows(data.shows || [])
+        setCurrentPage(data.page || 1)
+        setTotalPages(data.total_pages || 1)
+        logger.info(`User has ${data.active_count} active subscriptions, showing page ${data.page} of ${data.total_pages}`)
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       logger.error('Error fetching subscription stats:', errorMessage)
+      setShowsError('An error occurred while loading podcasts.')
     } finally {
       // Always set loading to false to prevent stuck loading state
       setLoadingStats(false)
@@ -144,9 +156,9 @@ const AppPage = (): React.JSX.Element => {
     // 3. We've determined if sync is needed (needsSpotifySync is not null)
     // 4. Either sync is not needed OR sync is complete
     if (user && subscriptionCount === null && needsSpotifySync === false) {
-      void fetchSubscriptionStats()
+      void fetchSubscriptionStats(currentPage)
     }
-  }, [user, subscriptionCount, needsSpotifySync])
+  }, [user, subscriptionCount, needsSpotifySync, currentPage])
 
   // Sync Spotify tokens on component mount
   useEffect(() => {
@@ -250,7 +262,7 @@ const AppPage = (): React.JSX.Element => {
           hasSynced.current = true
           setNeedsSpotifySync(false) // Don't keep waiting on error
           // Try to fetch stats anyway
-          await fetchSubscriptionStats()
+          await fetchSubscriptionStats(1)
           return
         }
 
@@ -278,7 +290,7 @@ const AppPage = (): React.JSX.Element => {
           hasSynced.current = true
           setNeedsSpotifySync(false) // Don't keep waiting on error
           // Try to fetch stats anyway - user might have existing subscriptions
-          await fetchSubscriptionStats()
+          await fetchSubscriptionStats(1)
           return
         }
 
@@ -298,7 +310,7 @@ const AppPage = (): React.JSX.Element => {
         
         // Now fetch the subscription stats after sync is complete
         logger.info('Spotify sync completed, now fetching subscription stats...')
-        await fetchSubscriptionStats()
+        await fetchSubscriptionStats(1)
         
         logger.info('Sync completed successfully, setting isSyncing to false')
       } catch (error: unknown) {
@@ -308,7 +320,7 @@ const AppPage = (): React.JSX.Element => {
         hasSynced.current = true
         setNeedsSpotifySync(false) // Even on error, don't keep waiting
         // Try to fetch stats anyway in case some shows were synced
-        await fetchSubscriptionStats()
+        await fetchSubscriptionStats(1)
       } finally {
         // Always set syncing to false when done
         setIsSyncing(false)
@@ -371,9 +383,71 @@ const AppPage = (): React.JSX.Element => {
                 <p className="stats-loading">
                   Loading subscriptions<span className="loading-ellipsis"></span>
                 </p>
-              ) : subscriptionCount !== null ? (
-                <p className="stats-count">
-                  🎧 Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}
+              ) : showsError ? (
+                <div className="shows-error">
+                  <p className="error-message">{showsError}</p>
+                  <button 
+                    onClick={() => void fetchSubscriptionStats(currentPage)}
+                    className="retry-btn"
+                    type="button"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : shows.length > 0 ? (
+                <>
+                  <div className="podcast-list">
+                    <div className="list-header">
+                      <p className="stats-count">
+                        🎧 Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}
+                      </p>
+                    </div>
+                    <div className="shows-container">
+                      {shows.map((show) => (
+                        <div key={show.id} className="show-item">
+                          <span className="show-name">{show.name}</span>
+                          {show.status === 'inactive' && (
+                            <span className="show-status inactive">Inactive</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {totalPages > 1 && (
+                      <div className="pagination-controls">
+                        <button
+                          onClick={() => {
+                            const newPage = currentPage - 1
+                            setCurrentPage(newPage)
+                            void fetchSubscriptionStats(newPage)
+                          }}
+                          disabled={currentPage === 1}
+                          className="pagination-btn"
+                          type="button"
+                        >
+                          Previous
+                        </button>
+                        <span className="page-indicator">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          onClick={() => {
+                            const newPage = currentPage + 1
+                            setCurrentPage(newPage)
+                            void fetchSubscriptionStats(newPage)
+                          }}
+                          disabled={currentPage === totalPages}
+                          className="pagination-btn"
+                          type="button"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : subscriptionCount === 0 ? (
+                <p className="no-podcasts">
+                  No podcast subscriptions yet. Connect your Spotify account to get started!
                 </p>
               ) : (
                 <p className="stats-error">—</p>
