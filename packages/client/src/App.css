@@ -971,12 +971,109 @@ h1 {
     gap: 0.5rem;
   }
   
+  /* Responsive podcast list improvements */
   .shows-container {
     height: 400px;
     max-height: 400px;
+    padding: 0.75rem;
+    box-sizing: border-box;
+  }
+  
+  .shows-container .show-item {
+    padding: 0.6rem;
+    font-size: 0.95rem;
+    flex-wrap: nowrap;
+  }
+  
+  .show-name {
+    font-size: 0.95rem;
+    /* Ensure text truncation works properly on mobile */
+    max-width: calc(100% - 80px);
+  }
+  
+  .show-status.inactive {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.4rem;
   }
   
   .pagination-controls {
     flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  
+  .pagination-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+  
+  .page-indicator {
+    font-size: 0.85rem;
+    min-width: 90px;
+  }
+  
+  /* Reduce padding on main container for mobile */
+  .app-page {
+    padding: 1.5rem 1rem;
+  }
+  
+  /* Adjust header sizes for mobile */
+  .app-page .user-info h1 {
+    font-size: 2.5rem;
+  }
+  
+  .app-page .user-info p {
+    font-size: 1rem;
+  }
+  
+  .stats-count {
+    font-size: 1rem;
+  }
+}
+
+/* Additional optimizations for smaller mobile screens (iPhone SE, iPhone 12/13 mini) */
+@media (max-width: 420px) {
+  .app-page {
+    padding: 1rem 0.75rem;
+  }
+  
+  .app-page .user-info h1 {
+    font-size: 2rem;
+  }
+  
+  .shows-container {
+    height: 350px;
+    max-height: 350px;
+    padding: 0.5rem;
+  }
+  
+  .shows-container .show-item {
+    padding: 0.5rem;
+    margin-bottom: 0.4rem;
+  }
+  
+  .show-name {
+    font-size: 0.9rem;
+  }
+  
+  .pagination-controls {
+    padding: 0.75rem 0;
+  }
+  
+  .pagination-btn {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+  }
+  
+  .auth-info-box {
+    padding: 0.75rem;
+  }
+  
+  .auth-label {
+    min-width: 70px;
+    font-size: 0.85rem;
+  }
+  
+  .auth-value {
+    font-size: 0.85rem;
   }
 }
