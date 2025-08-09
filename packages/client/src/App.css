@@ -194,7 +194,7 @@ p, div, span, label {
   margin-bottom: 0;
 }
 
-/* App page specific styles */
+/* App page specific styles - Flat Black & White Design */
 .app-page {
   display: flex;
   flex-direction: column;
@@ -225,6 +225,7 @@ p, div, span, label {
   color: black;
   margin-bottom: 1rem;
   text-align: left;
+  font-weight: 700;
 }
 
 .app-page .user-info p {
@@ -235,7 +236,7 @@ p, div, span, label {
 }
 
 .app-page .syncing {
-  color: #1e90ff;
+  color: #666;
 }
 
 /* Bottom section container */
@@ -267,21 +268,22 @@ p, div, span, label {
 .logout-btn {
   width: 100%;
   padding: 1rem;
-  background-color: #666666 !important;
+  background-color: black !important;
   color: white !important;
-  font-weight: 500;
-  border: none;
-  border-radius: 4px;
+  font-weight: 600;
+  border: 2px solid black;
+  border-radius: 0;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: none;
 }
 
 .logout-btn:hover:not(:disabled) {
-  opacity: 0.9;
+  background-color: #333 !important;
+  border-color: #333;
 }
 
 .logout-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
@@ -413,20 +415,21 @@ h1 {
   width: 100%;
   padding: 1rem;
   color: white !important;
-  font-weight: 500;
-  border: none;
-  border-radius: 4px;
+  font-weight: 600;
+  border: 2px solid black;
+  border-radius: 0;
   cursor: pointer;
-  transition: opacity 0.2s;
-  background-color: #4285F4 !important; /* Google blue to match login buttons */
+  transition: none;
+  background-color: black !important;
 }
 
 .opml-upload-button:hover:not(:disabled) {
-  opacity: 0.9;
+  background-color: #333 !important;
+  border-color: #333;
 }
 
 .opml-upload-button:disabled {
-  opacity: 0.6;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
@@ -643,9 +646,9 @@ h1 {
 }
 
 .stats-loading {
-  color: #666;
+  color: black;
   font-size: 1rem;
-  font-style: italic;
+  font-style: normal;
   text-align: left;
 }
 
@@ -684,12 +687,12 @@ h1 {
 }
 
 .stats-count strong {
-  color: #0066CC;
-  font-weight: 600;
+  color: black;
+  font-weight: 700;
 }
 
 .stats-error {
-  color: #999;
+  color: black;
   font-size: 1.1rem;
   margin: 0.5rem 0;
   text-align: left;
@@ -697,9 +700,9 @@ h1 {
 
 /* Authentication Info Box */
 .auth-info-box {
-  background-color: #f5f5f5;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background-color: white;
+  border: 2px solid black;
+  border-radius: 0;
   padding: 1rem;
   margin: 0;
   width: 100%;
@@ -716,14 +719,15 @@ h1 {
 }
 
 .auth-label {
-  color: #666;
+  color: black;
   min-width: 90px;
   flex-shrink: 0;
+  font-weight: 600;
 }
 
 .auth-value {
-  color: #333;
-  font-weight: 500;
+  color: black;
+  font-weight: 400;
   word-break: break-word;
   flex: 1;
 }
@@ -740,9 +744,9 @@ h1 {
 }
 
 .shows-container {
-  background-color: #f9f9f9;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background-color: white;
+  border: 2px solid black;
+  border-radius: 0;
   padding: 1rem;
   height: 600px;
   max-height: 600px;
@@ -750,7 +754,7 @@ h1 {
   margin-bottom: 1rem;
   width: 100%;
   position: relative;
-  transition: opacity 0.2s ease-in-out;
+  transition: none;
 }
 
 .shows-container.loading-page {
@@ -779,14 +783,18 @@ h1 {
   padding: 0.75rem;
   margin-bottom: 0.5rem;
   background-color: white;
-  border: 1px solid #e8e8e8;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  border-bottom: 1px solid black;
+  border-radius: 0;
+  transition: none;
   min-width: 0;
 }
 
-.shows-container .show-item:hover {
-  background-color: #f5f5f5;
+.shows-container .show-item.inactive {
+  opacity: 0.4;
+}
+
+.shows-container .show-item.inactive .show-name {
+  color: #666;
 }
 
 .shows-container .show-item:last-child {
@@ -794,24 +802,13 @@ h1 {
 }
 
 .show-name {
-  color: #333;
+  color: black;
   font-size: 1rem;
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-}
-
-.show-status.inactive {
-  color: #999;
-  font-size: 0.85rem;
-  font-style: italic;
-  padding: 0.25rem 0.5rem;
-  background-color: #f5f5f5;
-  border-radius: 4px;
-  flex-shrink: 0;
-  margin-left: 0.5rem;
 }
 
 /* Pagination Controls */
@@ -825,27 +822,30 @@ h1 {
 
 .pagination-btn {
   padding: 0.5rem 1rem;
-  background-color: #4285F4;
+  background-color: black;
   color: white;
-  border: none;
-  border-radius: 4px;
+  border: 2px solid black;
+  border-radius: 0;
   cursor: pointer;
-  font-weight: 500;
-  transition: opacity 0.2s;
+  font-weight: 600;
+  transition: none;
 }
 
 .pagination-btn:hover:not(:disabled) {
-  opacity: 0.9;
+  background-color: #333;
+  border-color: #333;
 }
 
 .pagination-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.3;
   cursor: not-allowed;
-  background-color: #999;
+  background-color: white;
+  border-color: #ccc;
+  color: #ccc;
 }
 
 .page-indicator {
-  color: #666;
+  color: black;
   font-size: 0.95rem;
   min-width: 100px;
   text-align: center;
@@ -853,32 +853,34 @@ h1 {
 
 /* Error State for Shows */
 .shows-error {
-  background-color: #ffebee;
-  border: 1px solid #f44336;
-  border-radius: 8px;
+  background-color: white;
+  border: 2px solid black;
+  border-radius: 0;
   padding: 1rem;
   margin: 1rem 0;
   text-align: center;
 }
 
 .shows-error .error-message {
-  color: #d32f2f;
+  color: black;
   margin-bottom: 1rem;
+  font-weight: 600;
 }
 
 .shows-error .retry-btn {
-  background-color: #f44336;
+  background-color: black;
   color: white;
-  border: none;
+  border: 2px solid black;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: 0;
   cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
+  font-weight: 600;
+  transition: none;
 }
 
 .shows-error .retry-btn:hover {
-  background-color: #d32f2f;
+  background-color: #333;
+  border-color: #333;
 }
 
 /* Empty State */
@@ -904,7 +906,7 @@ h1 {
 }
 
 .page-loading p {
-  color: #666;
+  color: black;
   margin-top: 1rem;
   font-size: 0.95rem;
 }
@@ -912,8 +914,8 @@ h1 {
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #e0e0e0;
-  border-top: 3px solid #4285F4;
+  border: 3px solid #ccc;
+  border-top: 3px solid black;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -928,8 +930,8 @@ h1 {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #666;
-  font-style: italic;
+  color: black;
+  font-style: normal;
 }
 
 @media (max-width: 768px) {

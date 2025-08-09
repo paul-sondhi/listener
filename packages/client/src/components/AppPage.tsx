@@ -407,7 +407,7 @@ const AppPage = (): React.JSX.Element => {
                   <div className="podcast-list">
                     <div className="list-header">
                       <p className="stats-count">
-                        🎧 Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}
+                        Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}
                       </p>
                     </div>
                     <div className={`shows-container ${loadingPage ? 'loading-page' : ''}`}>
@@ -419,11 +419,8 @@ const AppPage = (): React.JSX.Element => {
                       ) : shows.length > 0 ? (
                         <div className="shows-list-wrapper">
                           {shows.map((show) => (
-                            <div key={show.id} className="show-item">
+                            <div key={show.id} className={`show-item ${show.status === 'inactive' ? 'inactive' : ''}`}>
                               <span className="show-name">{show.name}</span>
-                              {show.status === 'inactive' && (
-                                <span className="show-status inactive">Inactive</span>
-                              )}
                             </div>
                           ))}
                         </div>
