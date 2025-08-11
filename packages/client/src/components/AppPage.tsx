@@ -382,10 +382,51 @@ const AppPage = (): React.JSX.Element => {
           <p>Go back to the login page to authenticate.</p>
         </div>
       ) : (
-        <>
-          <div className="user-info">
-            <h1>You're in!</h1>
-            <p>Listener will be delivered to your inbox every day at 12p ET / 9a PT</p>
+        <div className="app-content">
+          <div className="left-section">
+            <div className="header-section">
+              <h1>You're in!</h1>
+              <p>Listener will be delivered to your inbox every day at 12p ET / 9a PT</p>
+            </div>
+            
+            {/* Actions section on the left */}
+            <div className="actions-section">
+              {/* Authentication info box */}
+              <div className="auth-info-box">
+                {userEmail && (
+                  <div className="auth-email">
+                    <span className="auth-label">Email:</span>
+                    <span className="auth-value">{userEmail}</span>
+                  </div>
+                )}
+                <div className="auth-provider">
+                  <span className="auth-label">Connection:</span>
+                  <span className="auth-value">
+                    {authProvider ? (
+                      authProvider.charAt(0).toUpperCase() + authProvider.slice(1)
+                    ) : (
+                      'Loading...'
+                    )}
+                  </span>
+                </div>
+              </div>
+              <div className="app-buttons">
+                <OPMLUpload />
+                <div className="logout-btn-container">
+                  <button 
+                    onClick={() => void handleLogout()} 
+                    className="logout-btn"
+                    type="button"
+                  >
+                    Log out
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Podcast panel on the right */}
+          <div className="right-section">
             <div className="subscription-stats">
               {loadingStats ? (
                 <p className="stats-loading">
@@ -468,40 +509,7 @@ const AppPage = (): React.JSX.Element => {
               )}
             </div>
           </div>
-          <div className="bottom-section">
-            {/* Authentication info box */}
-            <div className="auth-info-box">
-              {userEmail && (
-                <div className="auth-email">
-                  <span className="auth-label">Email:</span>
-                  <span className="auth-value">{userEmail}</span>
-                </div>
-              )}
-              <div className="auth-provider">
-                <span className="auth-label">Connection:</span>
-                <span className="auth-value">
-                  {authProvider ? (
-                    authProvider.charAt(0).toUpperCase() + authProvider.slice(1)
-                  ) : (
-                    'Loading...'
-                  )}
-                </span>
-              </div>
-            </div>
-            <div className="app-buttons">
-              <OPMLUpload />
-              <div className="logout-btn-container">
-                <button 
-                  onClick={() => void handleLogout()} 
-                  className="logout-btn"
-                  type="button"
-                >
-                  Log out
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+        </div>
       )}
     </div>
   )
