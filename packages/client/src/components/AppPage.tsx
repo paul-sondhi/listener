@@ -410,16 +410,27 @@ const AppPage = (): React.JSX.Element => {
                   </span>
                 </div>
               </div>
-              <div className="app-buttons">
-                <OPMLUpload />
-                <div className="logout-btn-container">
-                  <button 
+              <div className="app-actions">
+                <div className="action-item">
+                  <svg className="action-icon" width="20" height="20" viewBox="0 0 16 18" fill="none">
+                    <path d="M8 2L8 13M8 2L5 5M8 2L11 5" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M2 13L14 13" stroke="black" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                  <OPMLUpload />
+                </div>
+                <div className="action-item">
+                  <svg className="action-icon" width="20" height="20" viewBox="0 0 16 18" fill="none">
+                    <path d="M3 9L14 9M14 9L11 6M14 9L11 12" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M3 3L3 15" stroke="black" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                  <span 
                     onClick={() => void handleLogout()} 
-                    className="logout-btn"
-                    type="button"
+                    className="action-link"
+                    role="button"
+                    tabIndex={0}
                   >
                     Log out
-                  </button>
+                  </span>
                 </div>
               </div>
             </div>

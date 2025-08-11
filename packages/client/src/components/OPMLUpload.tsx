@@ -136,14 +136,14 @@ export default function OPMLUpload(): React.JSX.Element {
             disabled={isUploading}
           />
           
-          <button
-            onClick={handleSelectFile}
-            disabled={isUploading}
-            className="opml-upload-button"
-            type="button"
+          <span
+            onClick={isUploading ? undefined : handleSelectFile}
+            className={`action-link ${isUploading ? 'disabled' : ''}`}
+            role="button"
+            tabIndex={isUploading ? -1 : 0}
           >
             {isUploading ? 'Processing...' : 'Import OPML file'}
-          </button>
+          </span>
         </div>
       )}
 
