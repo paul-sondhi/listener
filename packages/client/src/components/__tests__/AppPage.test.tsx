@@ -172,7 +172,7 @@ describe('AppPage Component', () => {
     )
     
     // Assert
-    const heading: HTMLElement = await screen.findByRole('heading', { name: /you're in!/i })
+    const heading: HTMLElement = await screen.findByRole('heading', { name: /🎧 Listener/i })
     expect(heading).toBeInTheDocument()
   })
 
@@ -231,11 +231,11 @@ describe('AppPage Component', () => {
     }, { timeout: 5000 })
 
     // Assert - Check for the welcome message
-    const heading = await screen.findByRole('heading', { name: /you're in!/i })
+    const heading = await screen.findByRole('heading', { name: /🎧 Listener/i })
     expect(heading).toBeInTheDocument()
     
     // Check for the email notification message
-    const emailMessage = screen.getByText(/listener will be delivered to your inbox every day at 12p et \/ 9a pt/i)
+    const emailMessage = screen.getByText(/delivered every day at 12p et \/ 9a pt/i)
     expect(emailMessage).toBeInTheDocument()
     
     // Check for the logout button
@@ -501,7 +501,7 @@ describe('AppPage Component', () => {
       })
 
       // Component should still render despite error
-      expect(screen.getByText("You're in!")).toBeInTheDocument()
+      expect(screen.getByText("🎧 Listener")).toBeInTheDocument()
     })
 
     it('should show loading state while fetching subscription stats', async () => {
