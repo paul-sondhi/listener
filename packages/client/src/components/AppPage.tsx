@@ -386,7 +386,7 @@ const AppPage = (): React.JSX.Element => {
           <div className="left-section">
             <div className="header-section">
               <h1>🎧 Listener</h1>
-              <p>Listener will be delivered to your inbox every day at 12p ET / 9a PT</p>
+              <p>Delivered every day at 12p ET / 9a PT</p>
             </div>
             
             {/* Actions section on the left */}

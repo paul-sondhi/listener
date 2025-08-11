@@ -225,10 +225,11 @@ p, div, span, label {
 }
 
 .header-section h1 {
-  font-size: 3rem;
+  font-size: 2rem;
   color: black;
   margin-bottom: 1rem;
   font-weight: 700;
+  text-align: left;
 }
 
 .header-section p {
