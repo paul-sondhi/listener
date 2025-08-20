@@ -251,7 +251,7 @@ p, div, span, label {
   width: 600px;
   min-width: 600px;
   max-width: 600px;
-  padding-top: 3.1rem; /* Fine-tuned to align with Delivered text */
+  padding-top: 3.20rem; /* Fine-tuned to align with Delivered text */
 }
 
 .app-page .syncing {
