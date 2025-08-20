@@ -439,18 +439,16 @@ const AppPage = (): React.JSX.Element => {
           {/* Podcast panel on the right */}
           <div className="right-section">
             <div className="subscription-stats">
+              <p className="stats-count">
+                {loadingStats ? (
+                  <>Subscribed to <strong>73</strong> podcasts</>
+                ) : subscriptionCount !== null ? (
+                  <>Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}</>
+                ) : (
+                  <>Subscribed to <strong>—</strong> podcasts</>
+                )}
+              </p>
               <div className="podcast-list">
-                <div className="list-header">
-                  <p className="stats-count">
-                    {loadingStats ? (
-                      <>Subscribed to <strong>73</strong> podcasts</>
-                    ) : subscriptionCount !== null ? (
-                      <>Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}</>
-                    ) : (
-                      <>Subscribed to <strong>—</strong> podcasts</>
-                    )}
-                  </p>
-                </div>
                 <div className={`shows-container ${loadingPage ? 'loading-page' : ''}`}>
                   {loadingStats ? (
                     <div className="initial-loading">
