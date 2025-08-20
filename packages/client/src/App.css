@@ -214,6 +214,7 @@ p, div, span, label {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
+  align-items: flex-start; /* Prevent vertical stretch */
 }
 
 /* Left section - Actions */
@@ -246,8 +247,10 @@ p, div, span, label {
 
 /* Right section - Podcast Panel */
 .right-section {
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 600px; /* Fixed width, no grow, no shrink */
+  width: 600px;
+  min-width: 600px;
+  max-width: 600px;
 }
 
 .app-page .syncing {
@@ -786,7 +789,7 @@ h1 {
 
 /* Podcast List Styles */
 .podcast-list {
-  width: 100%;
+  width: 600px; /* Fixed width matching parent */
   margin: 1rem 0;
 }
 
@@ -801,11 +804,13 @@ h1 {
   padding: 1rem;
   height: 500px;
   max-height: 500px;
-  overflow-y: auto;
+  overflow-y: scroll; /* Changed from auto to always show scrollbar */
+  overflow-x: hidden; /* Prevent horizontal scroll */
   margin-bottom: 1rem;
-  width: 100%;
+  width: 100%; /* 100% of parent's fixed width */
   position: relative;
   transition: none;
+  box-sizing: border-box; /* Include padding and border in width */
 }
 
 .shows-container.loading-page {
@@ -860,6 +865,8 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  max-width: 100%; /* Ensure it doesn't exceed container */
+  display: block; /* Ensure ellipsis works properly */
 }
 
 /* Pagination Controls */
@@ -893,6 +900,11 @@ h1 {
   background-color: white;
   border-color: #ccc;
   color: #ccc;
+}
+
+/* Placeholder pagination buttons during loading */
+.pagination-btn.pagination-placeholder {
+  visibility: hidden; /* Hide but maintain space */
 }
 
 .page-indicator {
@@ -947,6 +959,21 @@ h1 {
 }
 
 /* Page Loading State */
+.initial-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+}
+
+.initial-loading .stats-loading {
+  color: black;
+  font-size: 1rem;
+  margin: 0;
+}
+
 .page-loading {
   display: flex;
   flex-direction: column;
@@ -993,6 +1020,18 @@ h1 {
   
   .left-section {
     flex: none;
+    width: 100%;
+  }
+  
+  /* Override fixed width for mobile */
+  .right-section {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  
+  .podcast-list {
     width: 100%;
   }
   

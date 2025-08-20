@@ -439,85 +439,113 @@ const AppPage = (): React.JSX.Element => {
           {/* Podcast panel on the right */}
           <div className="right-section">
             <div className="subscription-stats">
-              {loadingStats ? (
-                <p className="stats-loading">
-                  Loading subscriptions<span className="loading-ellipsis"></span>
-                </p>
-              ) : showsError ? (
-                <div className="shows-error">
-                  <p className="error-message">{showsError}</p>
-                  <button 
-                    onClick={() => void fetchSubscriptionStats(currentPage)}
-                    className="retry-btn"
-                    type="button"
-                  >
-                    Retry
-                  </button>
+              <div className="podcast-list">
+                <div className="list-header">
+                  <p className="stats-count">
+                    {loadingStats ? (
+                      <>Subscribed to <strong>73</strong> podcasts</>
+                    ) : subscriptionCount !== null ? (
+                      <>Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}</>
+                    ) : (
+                      <>Subscribed to <strong>—</strong> podcasts</>
+                    )}
+                  </p>
                 </div>
-              ) : subscriptionCount !== null ? (
-                <>
-                  <div className="podcast-list">
-                    <div className="list-header">
-                      <p className="stats-count">
-                        Subscribed to <strong>{subscriptionCount}</strong> {subscriptionCount === 1 ? 'podcast' : 'podcasts'}
+                <div className={`shows-container ${loadingPage ? 'loading-page' : ''}`}>
+                  {loadingStats ? (
+                    <div className="initial-loading">
+                      <p className="stats-loading">
+                        Loading subscriptions<span className="loading-ellipsis"></span>
                       </p>
                     </div>
-                    <div className={`shows-container ${loadingPage ? 'loading-page' : ''}`}>
-                      {loadingPage ? (
-                        <div className="page-loading">
-                          <div className="loading-spinner"></div>
-                          <p>Loading page {currentPage}...</p>
-                        </div>
-                      ) : shows.length > 0 ? (
-                        <div className="shows-list-wrapper">
-                          {shows.map((show) => (
-                            <div key={show.id} className={`show-item ${show.status === 'inactive' ? 'inactive' : ''}`}>
-                              <span className="show-name">{show.name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="no-shows-page">
-                          <p>No podcasts to display</p>
-                        </div>
-                      )}
+                  ) : showsError ? (
+                    <div className="shows-error">
+                      <p className="error-message">{showsError}</p>
+                      <button 
+                        onClick={() => void fetchSubscriptionStats(currentPage)}
+                        className="retry-btn"
+                        type="button"
+                      >
+                        Retry
+                      </button>
                     </div>
-                    {totalPages > 1 && (
-                      <div className="pagination-controls">
-                        <button
-                          onClick={() => {
-                            const newPage = currentPage - 1
-                            setCurrentPage(newPage)
-                            void fetchSubscriptionStats(newPage)
-                          }}
-                          disabled={currentPage === 1 || loadingPage}
-                          className="pagination-btn"
-                          type="button"
-                        >
-                          Previous
-                        </button>
-                        <span className="page-indicator">
-                          Page {currentPage} of {totalPages}
-                        </span>
-                        <button
-                          onClick={() => {
-                            const newPage = currentPage + 1
-                            setCurrentPage(newPage)
-                            void fetchSubscriptionStats(newPage)
-                          }}
-                          disabled={currentPage === totalPages || loadingPage}
-                          className="pagination-btn"
-                          type="button"
-                        >
-                          Next
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <p className="stats-error">—</p>
-              )}
+                  ) : loadingPage ? (
+                    <div className="page-loading">
+                      <div className="loading-spinner"></div>
+                      <p>Loading page {currentPage}...</p>
+                    </div>
+                  ) : shows.length > 0 ? (
+                    <div className="shows-list-wrapper">
+                      {shows.map((show) => (
+                        <div key={show.id} className={`show-item ${show.status === 'inactive' ? 'inactive' : ''}`}>
+                          <span className="show-name">{show.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : subscriptionCount === null ? (
+                    <div className="no-shows-page">
+                      <p>—</p>
+                    </div>
+                  ) : (
+                    <div className="no-shows-page">
+                      <p>No podcasts to display</p>
+                    </div>
+                  )}
+                </div>
+                <div className="pagination-controls">
+                  {totalPages > 1 ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          const newPage = currentPage - 1
+                          setCurrentPage(newPage)
+                          void fetchSubscriptionStats(newPage)
+                        }}
+                        disabled={currentPage === 1 || loadingPage || loadingStats}
+                        className="pagination-btn"
+                        type="button"
+                      >
+                        Previous
+                      </button>
+                      <span className="page-indicator">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() => {
+                          const newPage = currentPage + 1
+                          setCurrentPage(newPage)
+                          void fetchSubscriptionStats(newPage)
+                        }}
+                        disabled={currentPage === totalPages || loadingPage || loadingStats}
+                        className="pagination-btn"
+                        type="button"
+                      >
+                        Next
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        disabled
+                        className="pagination-btn pagination-placeholder"
+                        type="button"
+                      >
+                        Previous
+                      </button>
+                      <span className="page-indicator">
+                        {loadingStats ? 'Page — of —' : 'Page 1 of 1'}
+                      </span>
+                      <button
+                        disabled
+                        className="pagination-btn pagination-placeholder"
+                        type="button"
+                      >
+                        Next
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
